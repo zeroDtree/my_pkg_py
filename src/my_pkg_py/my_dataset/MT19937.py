@@ -60,7 +60,7 @@ class MT12Bit(MT19937):
 
 @cache_to_disk()
 def load_mt19937(
-    max_seq_len=666,
+    max_seq_len=666,  # the number of random numbers in a sequence
     num_samples=100000,
     eval_split_ratio=0.1,
     seed=31,
@@ -146,6 +146,18 @@ def load_mt19937_12bits(seed=31, **kwargs):
         delimiter=",",
         fixed_len=True,
         num_bits=12,
+    )
+    return train_set, train_set, train_set
+
+
+def load_mt19937_32bits(seed=31, **kwargs):
+    train_set, validation_set, test_set = load_mt19937(
+        max_seq_len=4096,
+        num_samples=100000,
+        eval_split_ratio=0.1,
+        seed=seed,
+        delimiter=",",
+        num_bits=32,
     )
     return train_set, train_set, train_set
 

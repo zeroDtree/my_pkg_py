@@ -6,7 +6,12 @@ from .nature_language import (
     load_sst2,
     load_wizardlm,
 )
-from .MT19937 import load_mt19937, load_mt19937_8bits, load_mt19937_12bits
+from .MT19937 import (
+    load_mt19937,
+    load_mt19937_8bits,
+    load_mt19937_12bits,
+    load_mt19937_32bits,
+)
 from .regular_language import get_regular_language_dataset
 from .minist_cifar import (
     get_minist_dataset,
@@ -30,6 +35,7 @@ DATASETMAPPING = {
     "mt19937": load_mt19937,
     "mt19937-8": load_mt19937_8bits,
     "mt19937-12": load_mt19937_12bits,
+    "mt19937-32": load_mt19937_32bits,
     "regular_language": get_regular_language_dataset,
     # feature dataset ===========================================
     "diagonal": get_diagonal_dataset,
