@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "my_pkg"
+version = "0.1.dev0"
+authors = [
+    {name = "zengls", email = "3186428803@qq.com"},
+]
+description = "my utils"
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "datasets",
+    "exrex",
+    "numpy",
+    "omegaconf",
+    "pandas",
+    "peft",
+    "psutil",
+    "setuptools",
+    "torchdiffeq",
+    "torchvision",
+    "torchviz",
+    "tqdm",
+    "transformers",
+    "wandb",
+]
+
+[project.urls]
+Homepage = "https://github.com/zengls3186428803/my_pkg_py"
+
+[tool.setuptools]
+package-dir = {"" = "src/my_pkg_py"}
+packages = ["my_utils", "my_model", "my_optimizer", "my_scheduler"]

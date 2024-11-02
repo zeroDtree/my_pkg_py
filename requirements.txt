@@ -1,0 +1,15 @@
+torch
+datasets
+exrex
+numpy
+omegaconf
+pandas
+peft
+psutil
+setuptools
+torchdiffeq
+torchvision
+torchviz
+tqdm
+transformers
+wandb
