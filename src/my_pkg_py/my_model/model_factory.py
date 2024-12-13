@@ -1,5 +1,8 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM
+from my_utils import add_maybe_special_tokens
+from .causal_llama import get_causal_llama_model
+from .decoder_tf import get_zls_causal_model
 
 
 def get_text_to_text_model(
@@ -50,9 +53,32 @@ def get_text_to_text_model(
         tokenizer = AutoTokenizer.from_pretrained(tokenizer)
     else:
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-    if tokenizer.eos_token is None:
-        tokenizer.add_special_tokens({"eos_token": "<|endoftext|>"})
-        model.resize_token_embeddings(len(tokenizer))
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    model, tokenizer = add_maybe_special_tokens(model, tokenizer)
+    return model, tokenizer
+
+
+def get_model_and_tokenizer(model_name, pretrained=False):
+    if pretrained:
+        model_name = model_name
+        model, tokenizer = get_text_to_text_model(model_name)
+    else:
+        match model_name:
+            case "causal_llama":
+                model, tokenizer = get_causal_llama_model(
+                    pretrained=False, num_hidden_layers=1
+                )
+            case "zls_causal_model":
+                tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
+                model = get_zls_causal_model(
+                    vocab_size=tokenizer.vocab_size,
+                    embed_dim=512,
+                    num_head=8,
+                    dropout=0,
+                    num_block=16,
+                    max_pos_len=5000,
+                    batch_first=True,
+                )
+                model, tokenizer = add_maybe_special_tokens(model, tokenizer)
+            case _:
+                raise ValueError(f"Unsupported model type: {model_name}")
     return model, tokenizer

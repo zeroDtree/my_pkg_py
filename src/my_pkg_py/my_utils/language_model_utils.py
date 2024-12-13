@@ -133,5 +133,18 @@ def compute_metrics(eval_prediction: EvalPrediction):
 
 
 def preprocess_logits_for_metrics(logits, labels):
+    # import traceback
+    # traceback.print_stack()
+    if isinstance(logits, tuple):
+        logits = logits[0]
     prediction_ids = torch.argmax(logits, dim=-1)
     return prediction_ids, labels
+
+
+def add_maybe_special_tokens(model, tokenizer):
+    if tokenizer.eos_token is None:
+        tokenizer.add_special_tokens({"eos_token": "<|endoftext|>"})
+        model.resize_token_embeddings(len(tokenizer))
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    return model, tokenizer

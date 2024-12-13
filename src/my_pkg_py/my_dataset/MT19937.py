@@ -58,6 +58,76 @@ class MT12Bit(MT19937):
         return _int12(super().extract_number())
 
 
+def _int16(x):
+    return int(0xFFFF & x)
+
+
+class MT16Bit(MT19937):
+    def extract_number(self):
+        return _int16(super().extract_number())
+
+
+def _int2(x):
+    return int(0x1 & x)
+
+
+class MT2Bit(MT19937):
+    def extract_number(self):
+        return _int2(super().extract_number())
+
+
+@cache_to_disk()
+def load_mt19937_binary_stream(
+    max_seq_len=666,
+    num_samples=10000,
+    seed=31,
+    eval_split_ratio=0.1,
+    fixed_len=True,
+    min_seq_len=7,
+):
+    random.seed(seed)
+    train_size = num_samples - eval_split_ratio * num_samples
+    sample_list = []
+    for i in tqdm(range(num_samples)):
+        len = max_seq_len if fixed_len else random.randint(min_seq_len, max_seq_len)
+        seed = random.randint(0, int(1e9))
+        mt = MT2Bit(seed)
+        seq = ""
+        for j in range(len):
+            random_number = mt.extract_number()
+            seq += str(random_number)
+        sample_list.append({"seed": str(_int2(seed)), "seq": seq})
+
+    def preprocess(data):
+        return {
+            "x": data["seed"],
+            "y": data["seq"],
+        }
+
+    train_samples = []
+    eval_samples = []
+    count = 0
+    bar = tqdm(total=num_samples)
+    total = 0
+    ok = 0
+    for sample in sample_list:
+        total += 1
+        ok += 1
+        bar.set_description(f"ok: {ok}/{total}")
+        bar.update(1)
+        processed_sample = preprocess(sample)
+        if count < train_size:
+            train_samples.append(processed_sample)
+        elif train_size <= count < num_samples:
+            eval_samples.append(processed_sample)
+        elif count >= num_samples:
+            break
+        count += 1
+    train_set = datasets.Dataset.from_list(train_samples)
+    eval_set = datasets.Dataset.from_list(eval_samples)
+    return train_set, eval_set, eval_set
+
+
 @cache_to_disk()
 def load_mt19937(
     max_seq_len=666,  # the number of random numbers in a sequence
@@ -81,6 +151,8 @@ def load_mt19937(
             seed = _int32(seed)
         elif num_bits == 12:
             seed = _int12(seed)
+        elif num_bits == 16:
+            seed = _int16(seed)
         mt = None
         if num_bits == 32:
             mt = MT19937(seed)
@@ -88,6 +160,8 @@ def load_mt19937(
             mt = MT8Bit(seed)
         elif num_bits == 12:
             mt = MT12Bit(seed)
+        elif num_bits == 16:
+            mt = MT16Bit(seed)
         seq = ""
         for j in range(len):
             random_number = mt.extract_number()
@@ -137,6 +211,19 @@ def load_mt19937_8bits(seed=31, **kwargs):
     return train_set, train_set, train_set
 
 
+def load_mt19937_8bits_with_eval(seed=31, **kwargs):
+    train_set, validation_set, test_set = load_mt19937(
+        max_seq_len=256,
+        num_samples=256,
+        eval_split_ratio=0.1,
+        seed=seed,
+        delimiter=",",
+        fixed_len=True,
+        num_bits=8,
+    )
+    return train_set, validation_set, test_set
+
+
 def load_mt19937_12bits(seed=31, **kwargs):
     train_set, validation_set, test_set = load_mt19937(
         max_seq_len=4096,
@@ -150,11 +237,50 @@ def load_mt19937_12bits(seed=31, **kwargs):
     return train_set, train_set, train_set
 
 
-def load_mt19937_32bits(seed=31, **kwargs):
+def load_mt19937_12bits_with_eval(seed=31, **kwargs):
     train_set, validation_set, test_set = load_mt19937(
         max_seq_len=4096,
+        num_samples=4096,
+        eval_split_ratio=0.05,
+        seed=seed,
+        delimiter=",",
+        fixed_len=True,
+        num_bits=12,
+    )
+    return train_set, validation_set, test_set
+
+
+def load_mt19937_16bits(seed=31, **kwargs):
+    train_set, validation_set, test_set = load_mt19937(
+        max_seq_len=4096,
+        num_samples=4096,
+        eval_split_ratio=0.0,
+        seed=seed,
+        delimiter=",",
+        fixed_len=True,
+        num_bits=16,
+    )
+    return train_set, train_set, train_set
+
+
+def load_mt19937_16bits_with_eval(seed=31, **kwargs):
+    train_set, validation_set, test_set = load_mt19937(
+        max_seq_len=4096,
+        num_samples=4096,
+        eval_split_ratio=0.05,
+        seed=seed,
+        delimiter=",",
+        fixed_len=True,
+        num_bits=16,
+    )
+    return train_set, validation_set, test_set
+
+
+def load_mt19937_32bits(seed=31, **kwargs):
+    train_set, validation_set, test_set = load_mt19937(
+        max_seq_len=1024,
         num_samples=100000,
-        eval_split_ratio=0.1,
+        eval_split_ratio=0,
         seed=seed,
         delimiter=",",
         num_bits=32,
@@ -162,13 +288,17 @@ def load_mt19937_32bits(seed=31, **kwargs):
     return train_set, train_set, train_set
 
 
-if __name__ == "__main__":
-    train_set, eval_set, test_set = load_mt19937(
-        max_seq_len=256,
-        num_samples=256,
-        eval_split_ratio=0,
-        seed=31,
+def load_mt19937_32bits_with_eval(seed=31, **kwargs):
+    train_set, validation_set, test_set = load_mt19937(
+        max_seq_len=1024,
+        num_samples=100000,
+        eval_split_ratio=0.01,
+        seed=seed,
         delimiter=",",
-        num_bits=8,
+        num_bits=32,
     )
-    print(train_set[13])
+    return train_set, validation_set, test_set
+
+
+if __name__ == "__main__":
+    pass

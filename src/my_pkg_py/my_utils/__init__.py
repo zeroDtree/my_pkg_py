@@ -7,6 +7,7 @@ from .language_model_utils import (
     get_data_collator,
     compute_metrics,
     preprocess_logits_for_metrics,
+    add_maybe_special_tokens,
 )
 from .lora import get_lora_model, find_linear_modules
 from .resource_monitor import (

@@ -20,11 +20,12 @@ from .decoder_tf import (
     CausalLanguageModelConfigForAuto,
     CausalLanguageModelForAuto,
     register_model as register_causal_model,
+    get_zls_causal_model,
 )
 from .gpt2 import GPT2, GPT2Tokenizer
-from .llama import get_causal_llama_model
+from .causal_llama import get_causal_llama_model
 
-from .model_factory import get_text_to_text_model
+from .model_factory import get_text_to_text_model, get_model_and_tokenizer
 from .cifar import (
     alexnet as cifar_alexnet,
     densenet as cifar_densenet,
@@ -56,7 +57,10 @@ def get_model_mnist_cifar(cfg):
 
     net = None
     cfg.model.outputs_dim = nc[cfg.dataset.name.lower()]
-    if cfg.dataset.name.lower() == "mnist" or cfg.dataset.name.lower() == "fashionmnist":
+    if (
+        cfg.dataset.name.lower() == "mnist"
+        or cfg.dataset.name.lower() == "fashionmnist"
+    ):
         print("dataset:", cfg.dataset.name.lower())
         if cfg.model.name == "wrn":
             net = get_network_mnist(

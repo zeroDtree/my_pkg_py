@@ -4,6 +4,7 @@ from .causal_transformer import (
     CausalLanguageModelConfigForAuto,
     CausalLanguageModelForAuto,
     register_model,
+    get_zls_causal_model,
 )
 from .tokenizer import Tokenizer, get_collate_fn
 from .generate import greedy_decode

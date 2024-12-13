@@ -1,5 +1,5 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
-from my_utils import HF_MIRROR
+from my_utils import HF_MIRROR, add_maybe_special_tokens
 from transformers import LlamaConfig
 from typing import Tuple
 
@@ -64,11 +64,7 @@ def get_causal_llama_model(
         tokenizer = AutoTokenizer.from_pretrained(tokenizer)
     else:
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-    if tokenizer.eos_token is None:
-        tokenizer.add_special_tokens({"eos_token": "<|endoftext|>"})
-        model.resize_token_embeddings(len(tokenizer))
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    model, tokenizer = add_maybe_special_tokens(model, tokenizer)
     return model, tokenizer
 
 

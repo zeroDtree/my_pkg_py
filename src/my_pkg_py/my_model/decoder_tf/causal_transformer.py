@@ -1,7 +1,15 @@
 import torch
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Tuple
 import math
-from torch import Tensor, Tuple
+from torch import Tensor
+from transformers import (
+    PretrainedConfig,
+    PreTrainedModel,
+    GenerationMixin,
+    AutoModelForCausalLM,
+)
+from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
+
 
 ACTIVATION_MAP = {
     "relu": torch.nn.ReLU,
@@ -29,20 +37,21 @@ class FeedForwardBlock(torch.nn.Module):
 
 
 class MultiHeadAttention(torch.nn.Module):
-    
-    def __init__(self,
-            embed_dim,
-            num_heads,
-            dropout=0,
-            bias=False,
-            add_bias_kv=False,
-            add_zero_attn=False,
-            kdim=None,
-            vdim=None,
-            batch_first=True,
-            device=None,
-            dtype=None,
-        ):
+
+    def __init__(
+        self,
+        embed_dim,
+        num_heads,
+        dropout=0,
+        bias=False,
+        add_bias_kv=False,
+        add_zero_attn=False,
+        kdim=None,
+        vdim=None,
+        batch_first=True,
+        device=None,
+        dtype=None,
+    ):
 
         super().__init__()
         self.d_model = embed_dim
@@ -118,23 +127,28 @@ class MultiHeadAttention(torch.nn.Module):
         need_weights: bool = True,
         attn_mask: Optional[Tensor] = None,
         average_attn_weights: bool = True,
+        use_cache: bool = False,
+        past_key_values=None,
     ) -> Tuple[Tensor, Optional[Tensor]]:
-        mask, mask_type = self.merge_masks(
-            attn_mask=attn_mask,
-            key_padding_mask=key_padding_mask,
-            batch_size=query.shape[0],
-            seq_len=query.shape[-2],
-        )
-        mask = mask.to(device=query.device, dtype=query.dtype)
+        if not use_cache or (use_cache and past_key_values is None):
+            mask, mask_type = self.merge_masks(
+                attn_mask=attn_mask,
+                key_padding_mask=key_padding_mask,
+                batch_size=query.shape[0],
+                seq_len=query.shape[-2],
+            )
+            mask = mask.to(device=query.device, dtype=query.dtype)
         # (bs, head_num, seq_L, kdim) @ (bs, head_num, kdim, seq_L) -> (bs, head_num, seq_L, seq_L)
         scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.d_head)
-        scores = scores.masked_fill(attn_mask != 0.0, float("-inf"))
+        if not use_cache or (use_cache and past_key_values is None):
+            scores = scores.masked_fill(mask != 0.0, float("-inf"))
         scores = torch.softmax(scores, dim=-1)
         scores = self.dropout(scores)
         # (bs, head_num, seq_L, seq_L) @ (bs, head_num, seq_L, vdim) -> (bs, head_num, seq_L, vdim)
         output = torch.matmul(scores, value)
         if need_weights:
             if average_attn_weights:
+                # (bs, head_num, seq_L, seq_L) -> (bs, seq_L, seq_L)
                 scores = torch.mean(scores, dim=1)
             return output, scores
         else:
@@ -149,10 +163,13 @@ class MultiHeadAttention(torch.nn.Module):
         attn_mask=None,
         average_attn_weights=True,
         need_weights=True,
+        use_cache=False,
+        past_key_values=None,
         is_causal=False,
     ):
         # q,k,v size(bs, seq_L, d_model)
         bs = q.size(0)
+
         k = self.k_linear(k).view(bs, -1, self.num_heads, self.d_head)
         q = self.q_linear(q).view(bs, -1, self.num_heads, self.d_head)
         v = self.v_linear(v).view(bs, -1, self.num_heads, self.d_head)
@@ -160,7 +177,16 @@ class MultiHeadAttention(torch.nn.Module):
         k = k.transpose(1, 2)
         q = q.transpose(1, 2)
         v = v.transpose(1, 2)
-        att = self.attention(
+
+        if use_cache:
+            if past_key_values is not None:
+                past_k, past_v = past_key_values
+                k = torch.cat([past_k, k], dim=2)
+                v = torch.cat([past_v, v], dim=2)
+            else:
+                pass
+
+        x = self.attention(
             query=q,
             key=k,
             value=v,
@@ -168,15 +194,19 @@ class MultiHeadAttention(torch.nn.Module):
             attn_mask=attn_mask,
             need_weights=need_weights,
             average_attn_weights=average_attn_weights,
+            use_cache=use_cache,
+            past_key_values=past_key_values,
         )
         if need_weights:
-            x, att_weight = att
+            x, att_weight = x
         x = x.transpose(1, 2).contiguous().view(bs, -1, self.d_model)
         x = self.out_linear(x)
-        if need_weights:
-            return x, att_weight
-        else:
-            return x
+        result = {
+            "x": x,
+            "attentions": att_weight if need_weights else None,
+            "past_key_values": (k, v) if use_cache else None,
+        }
+        return result
 
 
 class AttentionBlock(torch.nn.Module):
@@ -202,27 +232,33 @@ class AttentionBlock(torch.nn.Module):
         x,
         att_mask=None,
         key_padding_mask=None,
+        need_weights=True,
         average_attn_weights=True,
         is_causal=True,
-        past_key_values=None,
         use_cache=False,
+        past_key_values=None,
     ):
         # x.shape = (batch_size, seq_len, embed_dim)
-        if past_key_values is not None:
-            if use_cache:
-                pass
-        x, att_weight = self.att(
+        # if use_cache, x.shape = (batch_size, 1, embed_dim)
+        att_out = self.att(
             q=x,
             k=x,
             v=x,
-            key_padding_mask=key_padding_mask,
-            need_weights=True,
             attn_mask=att_mask,
+            key_padding_mask=key_padding_mask,
+            need_weights=need_weights,
             average_attn_weights=average_attn_weights,
+            use_cache=use_cache,
+            past_key_values=past_key_values,
             is_causal=is_causal,
         )
+        x = att_out["x"]
         x = self.dropout(x)
-        return {"x": x, "att_weight": att_weight}
+        return {
+            "x": x,
+            "attentions": att_out["attentions"] if need_weights else None,
+            "past_key_values": att_out["past_key_values"] if use_cache else None,
+        }
 
 
 class TransformerBlock(torch.nn.Module):
@@ -241,23 +277,33 @@ class TransformerBlock(torch.nn.Module):
         x,
         att_mask=None,
         key_padding_mask=None,
+        need_weights=True,
         average_attn_weights=True,
+        use_cache=False,
+        past_key_values=None,
         is_causal=True,
     ):
         x_residual = x
-        x = self.att(
+        att_out = self.att(
             x,
             att_mask=att_mask,
             key_padding_mask=key_padding_mask,
+            need_weights=need_weights,
             average_attn_weights=average_attn_weights,
+            use_cache=use_cache,
+            past_key_values=past_key_values,
             is_causal=is_causal,
         )
-        x, att_weight = x["x"], x["att_weight"]
+        x = att_out["x"]
         x = x_residual + x
         x_residual = x
         x = self.ff(x)
         x = x_residual + x
-        return {"x": x, "att_weight": att_weight}
+        return {
+            "x": x,
+            "attentions": att_out["attentions"] if need_weights else None,
+            "past_key_values": att_out["past_key_values"] if use_cache else None,
+        }
 
 
 class CausalLanguageModel(torch.nn.Module):
@@ -302,23 +348,49 @@ class CausalLanguageModel(torch.nn.Module):
         x: torch.Tensor,
         att_mask: torch.Tensor = None,
         key_padding_mask: torch.Tensor = None,
+        need_weights: bool = True,
+        average_attn_weights: bool = True,
+        use_cache: bool = False,
+        past_key_values: torch.Tensor = None,
         is_causal: bool = True,
+        need_hidden_states: bool = False,
     ):
         if is_causal and att_mask is None:
             att_mask = self.generate_square_subsequent_mask(x.size(1), device=x.device)
         att_weight_list = []
+        past_key_values_list = []
         x = self.wte(x)
         x = self.dropout(x)
+        kv_cacahe_iter = (
+            iter(past_key_values)
+            if (use_cache and past_key_values is not None)
+            else None
+        )
+        hidden_states_list = []
         for block in self.blocks:
-            x = block(
+            block_out = block(
                 x,
                 att_mask=att_mask,
                 key_padding_mask=key_padding_mask,
+                need_weights=need_weights,
+                average_attn_weights=average_attn_weights,
                 is_causal=is_causal,
+                use_cache=use_cache,
+                past_key_values=next(kv_cacahe_iter) if kv_cacahe_iter else None,
             )
-            att_weight_list.append(x["att_weight"])
-            x = x["x"]
-        return {"x": x, "att_weight": att_weight_list}
+            x = block_out["x"]
+            if need_weights:
+                att_weight_list.append(block_out["attentions"])
+            if use_cache:
+                past_key_values_list.append(block_out["past_key_values"])
+            if need_hidden_states:
+                hidden_states_list.append(x)
+        return {
+            "x": x,
+            "attentions": att_weight_list if need_weights else None,
+            "past_key_values": past_key_values_list if use_cache else None,
+            "hidden_states": hidden_states_list if need_hidden_states else None,
+        }
 
 
 class CausalLanguageModelConfig:
@@ -343,12 +415,8 @@ class CausalLanguageModelConfig:
         self.kwargs = kwargs
 
 
-from transformers import PretrainedConfig, PreTrainedModel
-from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
-
-
 class CausalLanguageModelConfigForAuto(PretrainedConfig):
-    model_type = "decoder-only-transformer"
+    model_type = "D-TF-no-PE"
 
     def __init__(
         self,
@@ -371,7 +439,7 @@ class CausalLanguageModelConfigForAuto(PretrainedConfig):
         self.batch_first = batch_first
 
 
-class CausalLanguageModelForAuto(PreTrainedModel):
+class CausalLanguageModelForAuto(PreTrainedModel, GenerationMixin):
     config_class = CausalLanguageModelConfigForAuto
     base_model_prefix = "zls_causal_tf"
 
@@ -392,25 +460,35 @@ class CausalLanguageModelForAuto(PreTrainedModel):
         self,
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
+        output_attentions: Optional[bool] = True,
+        average_attn_weights: bool = True,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values=None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.LongTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
+        use_cache: Optional[bool] = False,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
     ):
         # Adjust the forward method to match the expected input/output format
-        outputs = self.model(
+        if use_cache and past_key_values is not None:
+            input_ids = input_ids[:, -1:]
+        # print(f"input_ids.shape: {input_ids.shape}")
+        model_out = self.model(
             input_ids,
             att_mask=None,
             key_padding_mask=(
                 ~attention_mask.bool() if attention_mask is not None else None
             ),
+            need_weights=output_attentions,
+            average_attn_weights=average_attn_weights,
+            use_cache=use_cache,
+            past_key_values=past_key_values,
+            need_hidden_states=output_hidden_states,
         )
-        logits = self.lm_head(outputs["x"])
+        x = model_out["x"]
+        logits = self.lm_head(x)
         loss = None
         if labels is not None:
             # shift logits and labels for computing the loss
@@ -424,25 +502,21 @@ class CausalLanguageModelForAuto(PreTrainedModel):
         return CausalLMOutputWithCrossAttentions(
             loss=loss,
             logits=logits,
-            past_key_values=None,
-            hidden_states=None,
-            # attentions=outputs["att_weight"],
+            past_key_values=model_out["past_key_values"] if use_cache else None,
+            hidden_states=model_out["hidden_states"] if output_hidden_states else None,
+            attentions=model_out["attentions"] if output_attentions else None,
             cross_attentions=None,
         )
 
     def prepare_inputs_for_generation(
-        self, input_ids, past=None, attention_mask=None, **kwargs
+        self, input_ids, past_key_values=None, attention_mask=None, **kwargs
     ):
         # This method prepares inputs for the generate method
-        input_shape = input_ids.shape
-        # only last token for inputs_ids if past is defined in kwargs
-        if past:
-            input_ids = input_ids[:, -1].unsqueeze(-1)
-
         return {
             "input_ids": input_ids,
             "attention_mask": attention_mask,
-            "past_key_values": past,
+            "past_key_values": past_key_values,
+            "use_cache": True,
         }
 
     def get_input_embeddings(self):
@@ -462,26 +536,140 @@ def register_model():
     )
 
 
-if __name__ == "__main__":
+def get_zls_causal_model(
+    vocab_size=5000,
+    embed_dim=1024,
+    num_head=8,
+    dropout=0,
+    num_block=16,
+    max_pos_len=5000,
+    batch_first=True,
+    **kwargs,
+):
+    register_model()
+    pretrained = kwargs.get("pretrained", False)
+    model_name = kwargs.get("model_name", None)
+    if pretrained and model_name is not None:
+        model = AutoModelForCausalLM.from_pretrained(model_name)
+        return model
+    config = CausalLanguageModelConfigForAuto(
+        vocab_size=vocab_size,
+        embed_dim=embed_dim,
+        num_head=num_head,
+        dropout=dropout,
+        num_block=num_block,
+        max_pos_len=max_pos_len,
+        batch_first=batch_first,
+    )
+    model = AutoModelForCausalLM.from_config(config=config)
+    return model
 
-    # test_config = CausalLanguageModelConfigForAuto(
-    #     vocab_size=1000,
-    #     embed_dim=256,
-    #     num_head=4,
-    #     dropout=0.1,
-    #     num_block=2,
-    #     max_pos_len=1000,
-    #     batch_first=True,
-    # )
+
+def generate(
+    prompt_tokens: torch.Tensor,
+    max_new_tokens: int,
+    model,
+    use_cache: bool = False,
+) -> torch.Tensor:
+    """Generate text tokens autoregressively.
+
+    Args:
+        prompt_tokens: Input token ids of shape (batch_size, seq_len)
+        max_new_tokens: Number of new tokens to generate
+        use_cache: Whether to use KV cache during generation
+
+    Returns:
+        Generated token ids including prompt, shape (batch_size, seq_len + max_new_tokens)
+    """
+    # Store the original prompt length
+    prompt_length = prompt_tokens.shape[1]
+
+    # Initialize generated sequence with prompt
+    generated = prompt_tokens.clone()
+
+    # Initialize past key values for caching
+    past_key_values = None
+
+    # Generate tokens one by one
+    for _ in range(max_new_tokens):
+        # Forward pass
+        with torch.no_grad():
+            outputs = model(
+                input_ids=generated,
+                attention_mask=torch.ones_like(generated).bool(),
+                past_key_values=past_key_values if use_cache else None,
+                use_cache=use_cache,
+            )
+
+        # Get the next token probabilities
+        next_token_logits = outputs.logits[:, -1, :]
+
+        # Simple greedy decoding - take the most likely token
+        next_tokens = torch.argmax(next_token_logits, dim=-1, keepdim=True)
+
+        # Concatenate with generated sequence
+        generated = torch.cat([generated, next_tokens], dim=-1)
+
+        # Update past key values if using cache
+        if use_cache:
+            past_key_values = outputs.past_key_values
+
+    return generated
+
+
+def test_gen(test_model, test_config):
+    test_model.eval()
+    input_ids = torch.randint(0, test_config.vocab_size, size=(1, 5))
+    print(input_ids)
+    gen_len = 50
+    generated_ids = test_model.generate(
+        input_ids,
+        max_length=gen_len + 5,
+        num_return_sequences=1,
+        do_sample=False,
+        temperature=0,
+        # top_k=50,
+        # top_p=0.95,
+        use_cache=True,
+        past_key_values=None,
+    )
+    print(generated_ids)
+    print("HF-Generated sequence shape:", generated_ids.shape)
+
+    generated_ids = generate(
+        input_ids, max_new_tokens=gen_len, model=test_model, use_cache=True
+    )
+    print(generated_ids)
+    print("use-cache-Generated sequence shape:", generated_ids.shape)
+
+    generated_ids = generate(
+        input_ids, max_new_tokens=gen_len, model=test_model, use_cache=False
+    )
+    print(generated_ids)
+    print("no-cache-Generated sequence shape:", generated_ids.shape)
+
+
+if __name__ == "__main__":
+    from my_utils import seed_everything
+
+    seed_everything(0)
+
+    register_model()
+    register_model()
     register_model()
     from transformers import AutoConfig, AutoModelForCausalLM
 
-    test_config = AutoConfig.from_pretrained("zengls/decoder-tf")
-
-    # print("Test Configuration:")
-    # print(test_config)
-    # test_model = AutoModelForCausalLM.from_config(test_config)
-    test_model = AutoModelForCausalLM.from_pretrained("zengls/decoder-tf")
+    test_config = CausalLanguageModelConfigForAuto(
+        vocab_size=1000,
+        embed_dim=256,
+        num_head=2,
+        dropout=0.1,
+        num_block=2,
+        batch_first=True,
+    )
+    print("Test Configuration:")
+    print(test_config)
+    test_model = AutoModelForCausalLM.from_config(test_config)
 
     print("\nModel structure:")
     print(test_model)
@@ -490,46 +678,29 @@ if __name__ == "__main__":
     import torch
 
     batch_size = 2
-    seq_length = 10
+    seq_length = 20
     input_ids = torch.randint(0, test_config.vocab_size, size=(batch_size, seq_length))
     attention_mask = torch.ones_like(input_ids).bool()
 
-    outputs = test_model(input_ids, attention_mask=attention_mask, labels=input_ids)
+    outputs = test_model(
+        input_ids,
+        attention_mask=attention_mask,
+        labels=input_ids,
+        output_attentions=True,
+    )
 
-    print(f"outputs: {outputs}")
     print("\nOutput shape:")
     print(outputs["logits"].shape)
+    print(len(outputs.attentions))
+    print(type(outputs))
 
-    # Expected shape: (batch_size, seq_length, vocab_size)
-    assert outputs["logits"].shape == (
-        batch_size,
-        seq_length,
-        test_config.vocab_size,
-    ), "Output shape mismatch"
+    def push_to_hub(model, config):
+        model.save_pretrained(
+            "test_model", repo_id="zengls/decoder-tf", push_to_hub=True
+        )
+        config.save_pretrained(
+            "test_config", repo_id="zengls/decoder-tf", push_to_hub=True
+        )
 
-    print("\nTest passed successfully!")
-
-    for name, param in test_model.named_parameters():
-        print(name)
-
-    # test_model.save_pretrained(
-    #     "test_model", repo_id="zengls/decoder-tf", push_to_hub=True
-    # )
-    # test_config.save_pretrained(
-    #     "test_config", repo_id="zengls/decoder-tf", push_to_hub=True
-    # )
-
-    # model = AutoModelForCausalLM.from_pretrained("zengls/decoder-tf")
-    # print(model)
-    input_ids = torch.randint(0, test_config.vocab_size, size=(1, 10))
-    generated_ids = test_model.generate(
-        input_ids,
-        max_length=50,
-        num_return_sequences=1,
-        do_sample=True,
-        temperature=0.7,
-        top_k=50,
-        top_p=0.95,
-    )
-    print(generated_ids)
-    print("Generated sequence shape:", generated_ids.shape)
+    test_gen(test_model, test_config)
+    print(test_model.config)
