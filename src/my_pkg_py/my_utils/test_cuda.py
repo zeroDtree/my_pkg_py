@@ -23,3 +23,7 @@ def check_cuda():
     current_backend = torch.backends.cuda.preferred_linalg_library()
     print(f"Current preferred linalg library: {current_backend}")
     print("============================================================")
+
+
+if __name__ == "__main__":
+    check_cuda()
