@@ -3,19 +3,20 @@ from torchviz import make_dot
 import os
 
 
-def get_compute_graph(model: torch.nn.Module,
-                      input_shape=None,
-                      input: dict = None,
-                      dir: str = "compute_graph",
-                      filename: str = "simple_net_graph",
-                      format: str = "pdf"
-                      ):
+def get_compute_graph(
+    model: torch.nn.Module,
+    input_shape=None,
+    input: dict = None,
+    dir: str = "compute_graph",
+    filename: str = "simple_net_graph",
+    format: str = "pdf",
+):
     """
     generate the computing graph of model (format default is pdf)
     """
-    print("os.getcwd()", os.getcwd())
-    # torch.autograd.set_detect_anomaly(True)
-    assert input is not None or input_shape is not None, "error: input is None and input_shape is None"
+    assert (
+        input is not None or input_shape is not None
+    ), "error: input is None and input_shape is None"
     if input is None:
         example_input = torch.randn(input_shape)
     else:

@@ -1,2 +1,2 @@
 from .sam import SAM, SAMConfig
-from .kfa import KFA, KFAOptimizer as CSAMOptimizer, UserConfig as CSAMConfig
+from .kfa import KFA, KFAOptimizer

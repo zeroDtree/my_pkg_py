@@ -9,6 +9,7 @@ import wandb
 
 # decorator（arg）（func）
 
+
 def cache_to_disk(root_datadir="cached_dataset"):
     def decorator(func):
         @functools.wraps(func)
@@ -21,12 +22,10 @@ def cache_to_disk(root_datadir="cached_dataset"):
             args_str = "_".join(map(str, args))
             kwargs_str = "_".join(f"{k}={v}" for k, v in kwargs.items())
             params_str = f"{args_str}_{kwargs_str}"
-
-            # 对参数字符串进行哈希处理
             params_hash = hashlib.md5(params_str.encode()).hexdigest()
-
-            # 将哈希值添加到函数名中
-            cache_filename = os.path.join(root_datadir, f"{func_name}_{params_hash}.pkl")
+            cache_filename = os.path.join(
+                root_datadir, f"{func_name}_{params_hash}.pkl"
+            )
             print("cache_filename =", cache_filename)
 
             if os.path.exists(cache_filename):
@@ -63,12 +62,15 @@ def timer(data_format="ms"):
             result = func(*args, **kwargs)
             end_time = datetime.now()
             cost = (end_time - begin_time).seconds
-            print(func.__name__ + " run" + f" {cost // 60} min {cost % 60}s", )
+            print(
+                func.__name__ + " run" + f" {cost // 60} min {cost % 60}s",
+            )
             return result
 
         return wrapper
 
     return decorator
+
 
 def wandb_logger():
     def decorator(func):

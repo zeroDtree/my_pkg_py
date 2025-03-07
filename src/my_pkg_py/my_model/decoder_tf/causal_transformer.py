@@ -536,7 +536,7 @@ def register_model():
     )
 
 
-def get_zls_causal_model(
+def get_causal_model(
     vocab_size=5000,
     embed_dim=1024,
     num_head=8,

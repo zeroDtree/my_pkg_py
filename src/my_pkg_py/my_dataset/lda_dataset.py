@@ -225,7 +225,10 @@ if __name__ == "__main__":
     fig, axes = plt.subplots(2, 2, figsize=(12, 8))
     axes = axes.ravel()
 
+    results = {"topic": list(range(n_total_topics))}
+
     for i, dist in enumerate(distributions):
+        results[dist] = []
         dataset_train, _, _ = get_lda_dataset(
             seed=seed,
             n_samples=n_samples,
@@ -242,14 +245,19 @@ if __name__ == "__main__":
             for word in sample:
                 topic = word.item() // n_words_per_topic
                 topic_counts[topic] += 1
-
+        results[dist] = topic_counts
         axes[i].bar(range(n_total_topics), topic_counts)
         axes[i].set_title(f"{dist} distribution")
         axes[i].set_xlabel("Topic")
         axes[i].set_ylabel("Count")
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
+    plt.savefig("topic_distributions.png")
+
+    # Save results to CSV
+    df = pd.DataFrame(results)
+    df.to_csv("topic_distributions.csv", index=False)
 
 
 # if __name__ == "__main__":

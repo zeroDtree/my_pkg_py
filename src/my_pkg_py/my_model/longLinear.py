@@ -7,10 +7,7 @@ class LongLinearModel(torch.nn.Module):
         self.nb = n_layers
         self.dim = dim
         self.fc = torch.nn.ModuleList(
-            [
-                torch.nn.Linear(dim, dim, bias=False)
-                for i in range(self.nb)
-            ]
+            [torch.nn.Linear(dim, dim, bias=False) for i in range(self.nb)]
         )
 
     def forward(self, x: torch.Tensor):

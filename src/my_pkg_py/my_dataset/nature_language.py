@@ -1,6 +1,6 @@
 import datasets
 from tqdm import tqdm
-from my_utils.decorator import cache_to_disk
+from my_pkg_py.my_utils.decorators import cache_to_disk
 
 
 @cache_to_disk()
