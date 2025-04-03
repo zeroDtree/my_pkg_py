@@ -27,3 +27,4 @@ from .show import show_info
 from .hash import save_hash_to_file
 from .scheduler import Scheduler, ObjectAttrScheduler, ObjectAttrsScheduler
 from .observer import Observer
+from .log import get_logger, get_and_create_new_log_dir

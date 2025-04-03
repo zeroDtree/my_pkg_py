@@ -23,9 +23,7 @@ def cache_to_disk(root_datadir="cached_dataset"):
             kwargs_str = "_".join(f"{k}={v}" for k, v in kwargs.items())
             params_str = f"{args_str}_{kwargs_str}"
             params_hash = hashlib.md5(params_str.encode()).hexdigest()
-            cache_filename = os.path.join(
-                root_datadir, f"{func_name}_{params_hash}.pkl"
-            )
+            cache_filename = os.path.join(root_datadir, f"{func_name}_{params_hash}.pkl")
             print("cache_filename =", cache_filename)
 
             if os.path.exists(cache_filename):
@@ -83,6 +81,25 @@ def wandb_logger():
         return wrapper
 
     return decorator
+
+
+def register_class_to_dict(cls=None, *, key_name=None, global_dict=None):
+    """A decorator for registering classes to a global dictionary."""
+
+    def _register(cls):
+        if key_name is None:
+            local_key_name = cls.__name__
+        else:
+            local_key_name = key_name
+        if key_name in global_dict:
+            raise ValueError(f"Already registered model with name: {key_name}")
+        global_dict[local_key_name] = cls
+        return cls
+
+    if cls is None:
+        return _register
+    else:
+        return _register(cls)
 
 
 if __name__ == "__main__":
