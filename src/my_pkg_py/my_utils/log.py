@@ -22,19 +22,19 @@ def get_logger(name="unnamed", log_dir=None):
     return logger
 
 
-def get_and_create_new_log_dir(root="./logs", prefix="", tag=""):
-    fn = time.strftime("%Y_%m_%d__%H_%M_%S", time.localtime())
+def get_and_create_new_log_dir(root="./logs", prefix="", suffix=""):
+    filename = time.strftime("%Y_%m_%d__%H_%M_%S", time.localtime())
     if prefix != "":
-        fn = prefix + "_" + fn
-    if tag != "":
-        fn = fn + "_" + tag
-    log_dir = os.path.join(root, fn)
+        filename = prefix + "_" + filename
+    if suffix != "":
+        filename = filename + "_" + suffix
+    log_dir = os.path.join(root, filename)
     os.makedirs(log_dir)
     return log_dir
 
 
 if __name__ == "__main__":
-    log_dir = get_and_create_new_log_dir(root="./logs", prefix="test", tag="")
-    logger = get_logger(log_dir=log_dir)
+    log_dir = get_and_create_new_log_dir(root="./logs", prefix="test", suffix="")
+    logger = get_logger(name="yyy",log_dir=log_dir)
     logger.info("archlinux")
     logger.debug("ubuntu")
