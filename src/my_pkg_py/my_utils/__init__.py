@@ -23,8 +23,10 @@ from .offload import (
     ModelOffloadHookContext,
     GradientOffloadHookContext,
 )
-from .show import show_info
+from .show import show_info, table_print_dict
 from .hash import save_hash_to_file
 from .scheduler import Scheduler, ObjectAttrScheduler, ObjectAttrsScheduler
 from .observer import Observer
 from .log import get_logger, get_and_create_new_log_dir
+from .iterator import inf_iterator
+from .shape import get_macroscopic_shape

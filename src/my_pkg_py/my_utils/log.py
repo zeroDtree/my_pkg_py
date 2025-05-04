@@ -5,6 +5,7 @@ import os
 
 def get_logger(name="unnamed", log_dir=None):
     logger = logging.getLogger(name)
+    logger.propagate = False
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter("[%(asctime)s::%(name)s::%(levelname)s] %(message)s")
 

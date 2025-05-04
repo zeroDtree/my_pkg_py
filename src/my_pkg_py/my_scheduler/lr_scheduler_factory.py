@@ -52,11 +52,11 @@ def get_lambda_lr_scheduler(
 
 
 def get_lr_scheduler(
-    optimizer, num_warmup_steps, num_training_steps, lr_scheduler_type="linear"
+    optimizer, n_warmup_steps, n_training_steps, lr_scheduler_type="linear"
 ):
     if lr_scheduler_type in ["cosine", "linear", "constant"]:
         return get_lambda_lr_scheduler(
-            optimizer, num_warmup_steps, num_training_steps, lr_scheduler_type
+            optimizer, n_warmup_steps, n_training_steps, lr_scheduler_type
         )
     elif lr_scheduler_type in ["cosine_annealing"]:
-        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, num_training_steps)
+        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, n_training_steps)

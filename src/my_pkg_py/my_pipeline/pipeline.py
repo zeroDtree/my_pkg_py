@@ -45,6 +45,8 @@ class TrainingConfig:
         eval_strategy: Literal["epochs", "steps"] = None,
         eval_steps: int = 500,
         eval_epochs: int = 1,
+        *args,
+        **kwargs,
     ):
         self.n_epochs = n_epochs
         self.batch_size = batch_size
@@ -68,6 +70,8 @@ class LogConfig:
         log_steps: int = 5,
         log_epochs: int = 1,
         log_strategy: Literal["epochs", "steps"] = "epochs",
+        *args,
+        **kwargs,
     ):
         self.log_dir = log_dir
         self.log_steps = log_steps
@@ -97,6 +101,8 @@ class BasePipeline(AbstractPipeline):
         training_config: TrainingConfig,
         log_config: LogConfig,
         collate_fn: Optional[Callable] = None,
+        *args,
+        **kwargs,
     ):
         super().__init__()
         self.model = model
@@ -106,8 +112,13 @@ class BasePipeline(AbstractPipeline):
         self.log_config = log_config
 
         self.training_state = TrainingState()
-        self.new_log_dir = get_and_create_new_log_dir(self.log_config.log_dir)
-        self.logger = get_logger(name=str(self.__class__.__name__), log_dir=self.new_log_dir)
+
+        logger = kwargs.get("logger", None)
+        if logger is None:
+            self.new_log_dir = get_and_create_new_log_dir(self.log_config.log_dir)
+            self.logger = get_logger(name=str(self.__class__.__name__), log_dir=self.new_log_dir)
+        else:
+            self.logger = logger
 
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
