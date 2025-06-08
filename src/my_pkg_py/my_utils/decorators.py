@@ -10,7 +10,7 @@ import wandb
 # decorator（arg）（func）
 
 
-def cache_to_disk(root_datadir="cached_dataset"):
+def cache_to_disk(root_datadir="cached_dataset", exclude_first_arg=False):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -19,7 +19,7 @@ def cache_to_disk(root_datadir="cached_dataset"):
 
             func_name = func.__name__.replace("/", "")
             cache_filename = root_datadir + "/" + f"{func_name}.pkl"
-            args_str = "_".join(map(str, args))
+            args_str = "_".join(map(str, args[1:] if exclude_first_arg else args))
             kwargs_str = "_".join(f"{k}={v}" for k, v in kwargs.items())
             params_str = f"{args_str}_{kwargs_str}"
             params_hash = hashlib.md5(params_str.encode()).hexdigest()

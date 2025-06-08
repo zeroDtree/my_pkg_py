@@ -1,32 +1,13 @@
 import torch
 from typing import Dict, Any, Optional, Union, Tuple, Callable, Literal
 import datasets
-from my_utils import get_and_create_new_log_dir, get_logger
 import os
 import shutil
 import re
-from overrides import override
 from abc import abstractmethod, ABCMeta
+import logging
 
-
-class AbstractPipeline(metaclass=ABCMeta):
-    @abstractmethod
-    def __init__(self): ...
-
-    @abstractmethod
-    def train_an_epoch(self): ...
-
-    @abstractmethod
-    def train_a_step(self, batch: Dict[str, Any]): ...
-
-    @abstractmethod
-    def train(self): ...
-
-    @abstractmethod
-    def save(self): ...
-
-    @abstractmethod
-    def load(self): ...
+from my_utils import Observer
 
 
 class TrainingConfig:
@@ -45,6 +26,10 @@ class TrainingConfig:
         eval_strategy: Literal["epochs", "steps"] = None,
         eval_steps: int = 500,
         eval_epochs: int = 1,
+        grad_clip_strategy: Literal["norm", "value", None] = "norm",
+        max_grad_norm: float = 1.0,
+        max_grad_value: float = 1.0,
+        gradient_accumulation_steps: int = 1,
         *args,
         **kwargs,
     ):
@@ -61,6 +46,10 @@ class TrainingConfig:
         self.eval_strategy = eval_strategy
         self.eval_steps = eval_steps
         self.eval_epochs = eval_epochs
+        self.grad_clip_strategy = grad_clip_strategy
+        self.max_grad_norm = max_grad_norm
+        self.max_grad_value = max_grad_value
+        self.gradient_accumulation_steps = gradient_accumulation_steps
 
 
 class LogConfig:
@@ -91,8 +80,7 @@ class TrainingState:
         self.current_global_step = current_global_step
 
 
-class BasePipeline(AbstractPipeline):
-    @override
+class BasePipeline(metaclass=ABCMeta):
     def __init__(
         self,
         model: torch.nn.Module,
@@ -100,6 +88,7 @@ class BasePipeline(AbstractPipeline):
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR],
         training_config: TrainingConfig,
         log_config: LogConfig,
+        logger: logging.Logger,
         collate_fn: Optional[Callable] = None,
         *args,
         **kwargs,
@@ -110,15 +99,8 @@ class BasePipeline(AbstractPipeline):
         self.optimizer, self.scheduler = optimizers
         self.training_config = training_config
         self.log_config = log_config
-
         self.training_state = TrainingState()
-
-        logger = kwargs.get("logger", None)
-        if logger is None:
-            self.new_log_dir = get_and_create_new_log_dir(self.log_config.log_dir)
-            self.logger = get_logger(name=str(self.__class__.__name__), log_dir=self.new_log_dir)
-        else:
-            self.logger = logger
+        self.logger = logger
 
         self.dataloader = torch.utils.data.DataLoader(
             self.dataset,
@@ -127,6 +109,7 @@ class BasePipeline(AbstractPipeline):
             collate_fn=collate_fn,
             num_workers=self.training_config.num_workers,
         )
+        self.observer = Observer(model=self.model)
 
         if self.training_config.save_dir is not None and self.training_config.save_dir != "":
             n_epochs = self.training_config.n_epochs
@@ -182,10 +165,16 @@ class BasePipeline(AbstractPipeline):
                 batch[key] = value.to(device)
         model.to(device)
 
-        optimizer.zero_grad()
         loss = self.compute_loss(model, batch)
+        loss = loss / self.training_config.gradient_accumulation_steps
         loss.backward()
-        optimizer.step()
+
+        if (self.training_state.current_global_step % self.training_config.gradient_accumulation_steps) == (
+            self.training_config.gradient_accumulation_steps - 1
+        ):
+            self.gradient_clip()
+            optimizer.step()
+            optimizer.zero_grad()
 
         if scheduler is not None:
             scheduler.step()
@@ -194,10 +183,18 @@ class BasePipeline(AbstractPipeline):
             logger.info(
                 f"[Training] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {loss.item()}"
             )
-
         return {
             "loss": loss.item(),
         }
+
+    def gradient_clip(self):
+        model = self.model
+        if self.training_config.grad_clip_strategy == "norm":
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(), max_norm=self.training_config.max_grad_norm, norm_type=2, error_if_nonfinite=False
+            )
+        if self.training_config.grad_clip_strategy == "value":
+            torch.nn.utils.clip_grad_value_(model.parameters(), max_value=self.training_config.max_grad_value)
 
     def eval(self):
         """ """
@@ -213,7 +210,8 @@ class BasePipeline(AbstractPipeline):
             oldest_checkpoint = checkpoints.pop(0)
             oldest_path = os.path.join(save_dir, oldest_checkpoint)
             shutil.rmtree(oldest_path)
-            self.logger.info(f"Deleted old checkpoint: {oldest_path}")
+            if self.logger is not None:
+                self.logger.info(f"Deleted old checkpoint: {oldest_path}")
 
     def _get_checkpoint_name(self, epoch, step, global_step):
         return f"checkpoint_epoch{epoch}_step{step}_global{global_step}"
@@ -233,6 +231,8 @@ class BasePipeline(AbstractPipeline):
             return False
 
     def _can_log(self, flag: Literal["epochs", "steps"]):
+        if self.logger is None:
+            return False
         if self.log_config.log_strategy is None or self.log_config.log_dir is None or self.log_config.log_dir == "":
             return False
         if flag == "epochs":
@@ -274,10 +274,12 @@ class BasePipeline(AbstractPipeline):
                 torch.save(getattr(self, base_name), file_path)
             os.rename(temp_checkpoint_dir, final_checkpoint_dir)
             self._cleanup_old_checkpoints(save_dir=save_dir)
-            self.logger.info(f"Model saved to {final_checkpoint_dir}")
+            if self.logger is not None:
+                self.logger.info(f"Model saved to {final_checkpoint_dir}")
 
         except Exception as e:
-            self.logger.error(f"Failed to save checkpoint: {e}")
+            if self.logger is not None:
+                self.logger.error(f"Failed to save checkpoint: {e}")
             shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
             raise
 
@@ -303,8 +305,10 @@ class BasePipeline(AbstractPipeline):
         for base_name in ["model", "optimizer", "scheduler", "training_state", "training_config", "log_config"]:
             file_path = os.path.join(checkpoint_dir, f"{base_name}.pth")
             if not os.path.exists(file_path):
-                self.logger.info(f"File {file_path} does not exist")
+                if self.logger is not None:
+                    self.logger.info(f"File {file_path} does not exist")
                 continue
             setattr(self, base_name, torch.load(file_path, weights_only=False))
 
-        self.logger.info(f"Model loaded from {checkpoint_dir}")
+        if self.logger is not None:
+            self.logger.info(f"Model loaded from {checkpoint_dir}")
