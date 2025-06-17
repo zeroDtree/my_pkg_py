@@ -10,6 +10,9 @@ import os
 import re
 import shutil
 from typing import Dict, Any
+from my_utils import Observer, wandb_logger
+import logging
+import wandb
 
 
 class DistributedPipeline(BasePipeline):
@@ -21,6 +24,7 @@ class DistributedPipeline(BasePipeline):
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR],
         training_config: TrainingConfig,
         log_config: LogConfig,
+        logger: logging.Logger,
         collate_fn: Optional[Callable] = None,
         seed: int = 42,
         *args,
@@ -35,48 +39,66 @@ class DistributedPipeline(BasePipeline):
             training_config=training_config,
             log_config=log_config,
             collate_fn=collate_fn,
+            logger=logger,
             *args,
             **kwargs,
         )
         # Initialize accelerator
-        self.accelerator = Accelerator()
+        self.accelerator = Accelerator(gradient_accumulation_steps=training_config.gradient_accumulation_steps)
 
         # Prepare everything for distributed training
-        self.model, self.optimizer, self.scheduler, self.dataloader = self.accelerator.prepare(
-            self.model, self.optimizer, self.scheduler, self.dataloader
+        self.model, self.optimizer, self.dataloader = self.accelerator.prepare(
+            self.model, self.optimizer, self.dataloader
         )
 
         if self.accelerator.is_main_process:
+            assert self.logger is not None, f"Error from {self.__class__.__name__}: logger is required"
             self.logger.info(f"Using distributed training with accelerate")
             self.logger.info(f"Number of processes: {self.accelerator.num_processes}")
             self.logger.info(f"Current device: {self.accelerator.device}")
 
     @override
     def train_a_step(self, batch: Dict[str, Any]):
-        model = self.model
+        model: torch.nn.Module = self.model
         optimizer = self.optimizer
         scheduler = self.scheduler
         logger = self.logger
         model.train()
 
-        optimizer.zero_grad()
-        loss = self.compute_loss(model, batch)
-        # Use accelerator for backward pass
-        self.accelerator.backward(loss)
-        optimizer.step()
+        result = {}
+
+        if (self.training_state.current_global_step % self.training_config.gradient_accumulation_steps) < (
+            self.training_config.gradient_accumulation_steps - 1
+        ):
+            with self.accelerator.no_sync(model=model):
+                loss = self.compute_loss(model, batch)
+                self.accelerator.backward(loss)
+        else:
+            loss = self.compute_loss(model, batch)
+            self.accelerator.backward(loss)
+            result["grad_norm_pre_clip"] = self.observer.get_gradient_norm()
+            self.gradient_clip()
+            result["grad_norm_post_clip"] = self.observer.get_gradient_norm()
+
+            optimizer.step()
+            optimizer.zero_grad()
 
         if scheduler is not None:
             scheduler.step()
 
+        result["loss"] = loss.item()
+        result["weight_norm"] = self.observer.get_weight_norm()
+        result["lr"] = scheduler.get_last_lr()[0]
+
         # Only log on main process
-        if self._can_log(flag="steps") and self.accelerator.is_main_process:
+        if self._can_log(flag="steps") and self.accelerator.is_local_main_process:
             logger.info(
                 f"[Training] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {loss.item()}"
             )
+        if self.accelerator.is_local_main_process:
+            wandb.log(result)
 
-        return {
-            "loss": loss.item(),
-        }
+        return result
 
     @override
     def save(self):
@@ -109,10 +131,12 @@ class DistributedPipeline(BasePipeline):
 
             os.rename(temp_checkpoint_dir, final_checkpoint_dir)
             self._cleanup_old_checkpoints(save_dir=save_dir)
-            self.logger.info(f"Model saved to {final_checkpoint_dir}")
+            if self.accelerator.is_local_main_process:
+                self.logger.info(f"Model saved to {final_checkpoint_dir}")
 
         except Exception as e:
-            self.logger.error(f"Failed to save checkpoint: {e}")
+            if self.accelerator.is_local_main_process:
+                self.logger.error(f"Failed to save checkpoint: {e}")
             shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
             raise
 
