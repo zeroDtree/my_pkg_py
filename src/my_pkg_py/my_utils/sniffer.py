@@ -26,6 +26,23 @@ class Sniffer:
                 ans.append(path)
         return ans
 
+    def sniff_file_by_path_pattern(self, directory_path, pattern, max_deep=-1):
+        """
+        Get all files in the directory_path that match the pattern
+        :param directory_path:
+        :param pattern: judge whether the pattern is in the filepath
+        :param max_deep:
+        :return: full path of the files
+        """
+        ans = list()
+        all_file_path_list = self.get_all_by_recursion(
+            directory_path, deep=0, max_deep=max_deep
+        )
+        for path in all_file_path_list:
+            if re.findall(pattern=pattern, string=path):
+                ans.append(path)
+        return ans
+
     def get_all_by_recursion(self, directory_path, deep, max_deep):
         all_file_path_list = []
 
