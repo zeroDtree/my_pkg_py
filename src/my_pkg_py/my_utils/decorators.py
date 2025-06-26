@@ -5,7 +5,7 @@ import pickle
 from functools import wraps
 from datetime import datetime
 import wandb
-
+from typing import List, Dict, Callable
 
 # decorator（arg）（func）
 
@@ -100,6 +100,23 @@ def register_class_to_dict(cls=None, *, key_name=None, global_dict=None):
         return _register
     else:
         return _register(cls)
+
+
+def class_decorator(
+    decorate_dict: Dict[str, List[Callable]] = {},
+):
+    def _class_decorator(cls):
+        for attr_name, decorators in decorate_dict.items():
+            for decorator in decorators:
+                if attr_name in cls.__dict__:
+                    method = getattr(cls, attr_name)
+                    if callable(method):
+                        print(attr_name, type(decorator))
+                        setattr(cls, attr_name, decorator(method))
+
+        return cls
+
+    return _class_decorator
 
 
 if __name__ == "__main__":
