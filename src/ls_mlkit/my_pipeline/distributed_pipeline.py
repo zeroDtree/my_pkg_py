@@ -1,5 +1,5 @@
 from typing import Callable, Optional, Tuple, Union
-from my_pipeline.pipeline import BasePipeline, LogConfig, TrainingConfig
+from ls_mlkit.my_pipeline.pipeline import BasePipeline, LogConfig, TrainingConfig
 import torch
 from tqdm import tqdm
 import datasets
@@ -10,7 +10,7 @@ import os
 import re
 import shutil
 from typing import Dict, Any
-from my_utils import Observer, wandb_logger
+from ls_mlkit.my_utils import Observer, wandb_logger
 import logging
 import wandb
 

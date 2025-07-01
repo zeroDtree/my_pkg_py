@@ -650,7 +650,7 @@ def test_gen(test_model, test_config):
 
 
 if __name__ == "__main__":
-    from my_utils import seed_everything
+    from ls_mlkit.my_utils import seed_everything
 
     seed_everything(0)
 

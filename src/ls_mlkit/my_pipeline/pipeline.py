@@ -7,7 +7,7 @@ import re
 from abc import abstractmethod, ABCMeta
 import logging
 
-from my_utils import Observer
+from ls_mlkit.my_utils import Observer
 
 
 class TrainingConfig:

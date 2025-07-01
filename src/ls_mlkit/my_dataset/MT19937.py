@@ -1,7 +1,7 @@
 import datasets
 from tqdm import tqdm
 import random
-from my_utils.decorators import cache_to_disk
+from ls_mlkit.my_utils.decorators import cache_to_disk
 
 
 def _int32(x):

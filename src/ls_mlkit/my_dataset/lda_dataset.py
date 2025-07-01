@@ -1,7 +1,7 @@
 from torch.utils.data import Dataset, random_split
 import random
 import torch
-from my_utils import seed_everything
+from ls_mlkit.my_utils import seed_everything
 from typing import Literal
 import numpy as np
 import pandas as pd
@@ -123,13 +123,9 @@ class LDADataset(Dataset):
             sample = []
             if not fix_local_topics_num:
                 n_local_topics = random.randint(1, n_total_topics)
-            local_topic_array = np.random.choice(
-                a=range(n_total_topics), p=p_topic_list, size=n_local_topics
-            )
+            local_topic_array = np.random.choice(a=range(n_total_topics), p=p_topic_list, size=n_local_topics)
             p_local_topic_array = p_topic_list[local_topic_array]
-            print(
-                f"p_local_topic_array: {p_local_topic_array}, p={p_local_topic_array / p_local_topic_array.sum()}"
-            )
+            print(f"p_local_topic_array: {p_local_topic_array}, p={p_local_topic_array / p_local_topic_array.sum()}")
             p_local_topic_array /= p_local_topic_array.sum()
 
             if not fix_seq_len:

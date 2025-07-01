@@ -1,14 +1,18 @@
 [build-system]
-requires = ["setuptools>=64.0"]
+requires = ["setuptools >= 77.0.3"]
 build-backend = "setuptools.build_meta"
 
+
 [project]
-name = "my_pkg"
-version = "0.1.dev0"
-authors = [
-    {name = "zengls", email = "3186428803@qq.com"},
+name = "zengls_pkg"
+version = "0.0.1"
+authors = [{ name = "zengls", email = "3186428803@qq.com" }]
+description = ""
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
 ]
-description = "my utils"
 requires-python = ">=3.10"
 dependencies = [
     "datasets",
@@ -28,8 +32,8 @@ dependencies = [
     "safetensors",
 ]
 
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
 [project.urls]
 Homepage = "https://github.com/zengls3186428803/my_pkg_py"
-
-[tool.setuptools]
-package-dir = {"" = "src/my_pkg_py"}

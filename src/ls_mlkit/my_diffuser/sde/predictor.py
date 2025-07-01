@@ -4,12 +4,12 @@ import torch
 from torch import Tensor
 from overrides import override
 from typing import Tuple
-from my_utils.decorators import register_class_to_dict
+from ls_mlkit.my_utils.decorators import register_class_to_dict
 import functools
 
 _PREDICTORS = {}
 
-register_predictor: function = functools.partial(register_class_to_dict, global_dict=_PREDICTORS)
+register_predictor = functools.partial(register_class_to_dict, global_dict=_PREDICTORS)
 
 
 class Predictor(abc.ABC):
@@ -23,7 +23,7 @@ class Predictor(abc.ABC):
         self.score_fn = score_fn
 
     @abc.abstractmethod
-    def update_fn(self, x: Tensor, t: Tensor) -> Tuple[Tensor, Tensor]:
+    def update_fn(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
         """One update of the predictor.
 
         Args:
@@ -37,25 +37,25 @@ class Predictor(abc.ABC):
         pass
 
 
-@register_predictor(name="none")
+@register_predictor(key_name="none")
 class NonePredictor(Predictor):
     """An empty predictor that does nothing."""
 
     def __init__(self, sde, score_fn, use_probability_flow=False): ...
 
-    def update_fn(self, x, t):
+    def update_fn(self, x, t, mask=None):
         return x, x
 
 
-@register_predictor(name="reverse_diffusion_predictor")
+@register_predictor(key_name="reverse_diffusion_predictor")
 class ReverseDiffusionPredictor(Predictor):
-    def __init__(self, sde: SDE, score_fn, use_probability_flow=False):
+    def __init__(self, sde: SDE, score_fn, use_probability_flow=False, n_dim: int = 3):
         super().__init__(sde=sde, score_fn=score_fn, use_probability_flow=use_probability_flow)
+        self.n_dim = n_dim
 
     @override
-    def update_fn(self, x: Tensor, t: Tensor) -> Tuple[Tensor, Tensor]:
-        f, g = self.rsde.get_discretized_drift_and_diffusion(x, t)
-        """
+    def update_fn(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
+        r"""
         $$
         \begin{align*}
         	x_{t+\Delta t} &= x_t + f(x_t, t)(\Delta t) + g(x_t, t) \epsilon, \epsilon \sim \mathcal{N}(0,\sqrt{\Delta t}))\\
@@ -64,7 +64,8 @@ class ReverseDiffusionPredictor(Predictor):
         \end{align*}
         $$
         """
+        f, g = self.rsde.get_discretized_drift_and_diffusion(x, t, mask=mask)
         z = torch.randn_like(x)
         x_mean = x - f
-        x = x_mean + g[:, None, None, None] * z
+        x = x_mean + g * z
         return x, x_mean
