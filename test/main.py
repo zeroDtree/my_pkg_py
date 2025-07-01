@@ -1,18 +1,13 @@
-import sys
+from ls_mlkit.my_diffuser.config import DiffusionConfig
 
-class MyClass1:
-    pass
+from accelerate import Accelerator  # type: ignore
+import torch
 
-class MyClass2:
-    __slots__ = ('a', 'b')
+accelerator = Accelerator()
 
-obj1 = MyClass1()
-obj2 = MyClass2()
+config = DiffusionConfig()
 
-print(sys.getsizeof(obj1))  # 输出对象占用的内存大小
-print(sys.getsizeof(obj2))  # 输出对象占用的内存大小
 
-print(obj1.__dict__)
-print(obj2.__dict__)
-
-from torch import Tensor
+x = torch.Tensor([1, 2, 3])
+x = x[:-0]
+print(x)
