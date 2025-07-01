@@ -152,7 +152,7 @@ class Diffuser(Module):
         if diffusion_type == "DDPM":
             r"""
             $$
-            \mathbf{x}_{t-1} = \frac{1}{\sqrt{\alpha_t}} \left( \mathbf{x}_t - \frac{1-\alpha_t}{\sqrt{1-\bar{\alpha}_t}} \mathbf{\epsilon}_\theta(\mathbf{x}_t, t) \right) + (1-\alpha_t)\mathbf{\epsilon}
+            \mathbf{x}_{t-1} = \frac{1}{\sqrt{\alpha_t}} \left( \mathbf{x}_t - \frac{1-\alpha_t}{\sqrt{1-\bar{\alpha}_t}} \mathbf{\epsilon}_\theta(\mathbf{x}_t, t) \right) + \sqrt{\beta_t}\mathbf{\epsilon}
             $$
             """
             t = t.long()
@@ -169,7 +169,10 @@ class Diffuser(Module):
                 return expectation
             else:
                 prior_noise = torch.randn_like(expectation).to(x_t.device)
-                standard_deviation = self.get_something_proper_shape(x_t, diffusion_config.betas.to(t.device)[t])
+                standard_deviation = self.get_something_proper_shape(
+                    x_t,
+                    torch.sqrt(diffusion_config.betas.to(t.device)[t]),
+                )
                 x_tm1 = expectation + standard_deviation * prior_noise
                 x_tm1 = masker.apply_mask(x_tm1, padding_mask)
 
@@ -196,7 +199,7 @@ class Diffuser(Module):
         model = self.model
         device = model.get_model_device()
         x_t = torch.randn(shape, device=device)
-        for i in tqdm(range(diffusion_config.n_discretization_steps)):
+        for i in tqdm(reversed(range(diffusion_config.n_discretization_steps))):
             t = i
             t = torch.ones(macro_shape, device=device) * t
             no_padding_mask = masker.get_full_bright_mask(x_t)
@@ -221,7 +224,7 @@ class Diffuser(Module):
         x_t = torch.randn(shape, device=device)
         x_0 = masker.apply_mask(x_0, padding_mask)
         x_t = masker.apply_inpainting_mask(x_0, x_t, inpainting_mask)
-        for i in tqdm(range(diffusion_config.n_discretization_steps)):
+        for i in tqdm(reversed(range(diffusion_config.n_discretization_steps))):
             t = i
             t = torch.ones(macro_shape, device=device) * t
             x_t = self.sample_xtm1_conditional_on_xt(x_t, t, padding_mask)

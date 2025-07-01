@@ -3,7 +3,7 @@ from ls_mlkit.my_utils import HF_MIRROR  # type: ignore
 from typing import Any
 import torch  # type: ignore
 from torch import Tensor
-from ls_mlkit.my_utils import ImageMasker # type: ignore
+from ls_mlkit.my_utils import ImageMasker  # type: ignore
 
 # !pip install diffusers
 from diffusers import DDPMPipeline, DDIMPipeline, PNDMPipeline  # type: ignore
@@ -30,8 +30,22 @@ class Unet(ModelInterface4Diffuser):
 
 
 # load model and scheduler
-ddpm = PNDMPipeline.from_pretrained(model_id).to("cuda")  # type: ignore #
+pipeline = DDPMPipeline.from_pretrained(model_id, allow_pickle=True).to("cuda")  # type: ignore #
 
-model = Unet(ddpm.unet)  # type: ignore
+print(pipeline.__dict__)
 
-diffuser = Diffuser(model=model,diffusion_config= , masker=ImageMasker())
+model = Unet(pipeline.unet)  # type: ignore
+
+diffusion_config = DiffusionConfig(ndim_micro_shape=3)
+
+diffuser = Diffuser(model=model, diffusion_config=diffusion_config, masker=ImageMasker())
+
+result: Tensor = diffuser.sample_x0_unconditionally(shape=(1, 3, 256, 256))
+
+print(result)
+
+image = pipeline()[0]
+
+print(image)
+
+
