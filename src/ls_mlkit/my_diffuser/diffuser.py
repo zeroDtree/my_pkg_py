@@ -140,51 +140,51 @@ class Diffuser(Module):
         assert expectation is not None and standard_deviation is not None
         return expectation, standard_deviation
 
-    def sample_xtm1_conditional_on_xt(self, x_t: Tensor, t: Tensor, padding_mask: Tensor) -> Tensor:
-        """Sample $$x_{t-1}$$ conditional on $$x_t$$
-        $$p(x_{t-1}|x_t)$$
-        """
-        diffusion_config = self.diffusion_config
-        diffusion_type = diffusion_config.diffusion_type
-        model: ModelInterface4Diffuser = self.model
-        masker = self.masker
-        x_tm1 = None
-        if diffusion_type == "DDPM":
-            r"""
-            $$
-            \mathbf{x}_{t-1} = \frac{1}{\sqrt{\alpha_t}} \left( \mathbf{x}_t - \frac{1-\alpha_t}{\sqrt{1-\bar{\alpha}_t}} \mathbf{\epsilon}_\theta(\mathbf{x}_t, t) \right) + \sqrt{\beta_t}\mathbf{\epsilon}
-            $$
-            """
-            t = t.long()
-            coefficient = (1.0 - diffusion_config.alphas.to(t.device)[t]) / torch.sqrt(
-                1 - diffusion_config.alphas_cumprod.to(t.device)[t]
-            )
-            coefficient = self.get_something_proper_shape(x_t, coefficient)
-            noise_predicted = model(x_t, t, padding_mask)
-            expectation = self.get_something_proper_shape(
-                x_t, 1.0 / torch.sqrt(diffusion_config.alphas.to(t.device))[t]
-            ) * (x_t - coefficient * noise_predicted)
-            expectation = masker.apply_mask(expectation, padding_mask)
-            if (t == 0).all() and diffusion_config.denoise_at_final:
-                return expectation
-            else:
-                prior_noise = torch.randn_like(expectation).to(x_t.device)
-                standard_deviation = self.get_something_proper_shape(
-                    x_t,
-                    torch.sqrt(diffusion_config.betas.to(t.device)[t]),
-                )
-                x_tm1 = expectation + standard_deviation * prior_noise
-                x_tm1 = masker.apply_mask(x_tm1, padding_mask)
+    # def sample_xtm1_conditional_on_xt(self, x_t: Tensor, t: Tensor, padding_mask: Tensor) -> Tensor:
+    #     """Sample $$x_{t-1}$$ conditional on $$x_t$$
+    #     $$p(x_{t-1}|x_t)$$
+    #     """
+    #     diffusion_config = self.diffusion_config
+    #     diffusion_type = diffusion_config.diffusion_type
+    #     model: ModelInterface4Diffuser = self.model
+    #     masker = self.masker
+    #     x_tm1 = None
+    #     if diffusion_type == "DDPM":
+    #         r"""
+    #         $$
+    #         \mathbf{x}_{t-1} = \frac{1}{\sqrt{\alpha_t}} \left( \mathbf{x}_t - \frac{1-\alpha_t}{\sqrt{1-\bar{\alpha}_t}} \mathbf{\epsilon}_\theta(\mathbf{x}_t, t) \right) + \sqrt{\beta_t}\mathbf{\epsilon}
+    #         $$
+    #         """
+    #         t = t.long()
+    #         coefficient = (1.0 - diffusion_config.alphas.to(t.device)[t]) / torch.sqrt(
+    #             1 - diffusion_config.alphas_cumprod.to(t.device)[t]
+    #         )
+    #         coefficient = self.get_something_proper_shape(x_t, coefficient)
+    #         noise_predicted = model(x_t, t, padding_mask)
+    #         expectation = self.get_something_proper_shape(
+    #             x_t, 1.0 / torch.sqrt(diffusion_config.alphas.to(t.device))[t]
+    #         ) * (x_t - coefficient * noise_predicted)
+    #         expectation = masker.apply_mask(expectation, padding_mask)
+    #         if (t == 0).all() and diffusion_config.denoise_at_final:
+    #             return expectation
+    #         else:
+    #             prior_noise = torch.randn_like(expectation).to(x_t.device)
+    #             standard_deviation = self.get_something_proper_shape(
+    #                 x_t,
+    #                 torch.sqrt(diffusion_config.betas.to(t.device)[t]),
+    #             )
+    #             x_tm1 = expectation + standard_deviation * prior_noise
+    #             x_tm1 = masker.apply_mask(x_tm1, padding_mask)
 
-        elif diffusion_type == "VPSDE":
-            pass
-        elif diffusion_type == "VESDE":
-            pass
-        elif diffusion_type == "SubVPSDE":
-            pass
+    #     elif diffusion_type == "VPSDE":
+    #         pass
+    #     elif diffusion_type == "VESDE":
+    #         pass
+    #     elif diffusion_type == "SubVPSDE":
+    #         pass
 
-        assert x_tm1 is not None
-        return x_tm1
+    #     assert x_tm1 is not None
+    #     return x_tm1
 
     @torch.no_grad()  # type: ignore
     def sample_x0_unconditionally(self, shape: Tuple[int, ...]):
@@ -232,3 +232,46 @@ class Diffuser(Module):
             x_t = masker.apply_mask(x_t, padding_mask)
 
         return x_t
+
+    def sample_xtm1_conditional_on_xt(self, x_t: Tensor, t: Tensor, padding_mask: Tensor) -> Tensor:
+        r"""
+        $$
+        \hat{\mathbf{x}}_0:=\frac{1}{\sqrt{\bar{\alpha}_t}}(\mathbf{x}_t - \sqrt{1-\bar{\alpha}_t}\mathbf{\epsilon}_{\theta}(\mathbf{x}_t,t))
+        $$
+
+        $$
+        \mathcal{N}\left( \boldsymbol{x}_{t-1}; \underbrace{\frac{\sqrt{\alpha_t}(1-\bar{\alpha}_{t-1})\boldsymbol{x}_t + \sqrt{\bar{\alpha}_{t-1}}(1-\alpha_t)\hat{\boldsymbol{x}}_0}{1-\bar{\alpha}_t}}_{\mu_q(\boldsymbol{x}_t, \hat{\boldsymbol{x}}_0)}, \underbrace{\frac{(1-\alpha_t)(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t}\mathbf{I}}_{\Sigma_q(t)} \right)
+        $$
+
+
+        """
+
+        config = self.diffusion_config
+        for k, v in config.__dict__.items():
+            if isinstance(v, Tensor):
+                setattr(config, k, v.to(t.device))
+        t = t.long()
+        epsilon_predicted = self.model(x_t, t, padding_mask)
+
+        prev_t = t - 1
+        # 1. compute alphas, betas
+        alpha_prod_t = config.alphas_cumprod[t]
+        alpha_prod_t_prev = config.alphas_cumprod[prev_t] if prev_t >= 0 else torch.ones(1).to(t.device)
+        beta_prod_t = 1 - alpha_prod_t
+        beta_prod_t_prev = 1 - alpha_prod_t_prev
+        current_alpha_t = alpha_prod_t / alpha_prod_t_prev
+        current_beta_t = 1 - current_alpha_t
+
+        pred_original_sample = (x_t - beta_prod_t ** (0.5) * epsilon_predicted) / alpha_prod_t ** (0.5)
+
+        pred_original_sample_coeff = (alpha_prod_t_prev ** (0.5) * current_beta_t) / beta_prod_t
+        current_sample_coeff = current_alpha_t ** (0.5) * beta_prod_t_prev / beta_prod_t
+
+        pred_prev_sample = pred_original_sample_coeff * pred_original_sample + current_sample_coeff * x_t
+
+        # 6. Add noise
+        variance = torch.randn_like(x_t) * torch.sqrt(config.betas)[t]
+        if t > 0:
+            pred_prev_sample = pred_prev_sample + variance
+
+        return pred_prev_sample
