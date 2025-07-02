@@ -28,7 +28,7 @@ class Diffuser(Module, abc.ABC):
         masker: MaskerInterface = BioCAOnlyMasker(),
         conditioner_list: list[Conditioner] = [],
     ):
-        super().__init__()
+        super().__init__()  # type: ignore
         self.model: ModelInterface4Diffuser = model
         self.config: DiffusionConfig = config
         self.loss_fn = loss_fn
@@ -52,11 +52,7 @@ class Diffuser(Module, abc.ABC):
         """
         Sample a timestep
         """
-        continuous = self.config.continuous
-        if continuous:
-            raise NotImplementedError("Continuous time diffusion is not implemented")
-        else:
-            return torch.randint(0, self.config.n_discretization_steps, macro_shape)
+        return torch.randint(0, self.config.n_discretization_steps, macro_shape)
 
     def get_accumulated_conditional_score(self, x_t: Tensor, t: Tensor, padding_mask: Tensor) -> Tensor:
         accumulated_conditional_score = torch.zeros_like(x_t)

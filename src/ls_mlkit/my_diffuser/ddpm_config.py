@@ -17,19 +17,18 @@ class DDPMConfig(DiffusionConfig):
         custom_config: dict[str, Any] = {},
     ):
         super().__init__(
-            n_discretization_steps=
-            )
-
-        self.n_discretization_steps: int = n_discretization_steps
-        self.custom_config: dict[str, Any] = custom_config
-        self.ndim_micro_shape: int = ndim_micro_shape
-        self.denoise_at_final: bool = denoise_at_final
+            n_discretization_steps=n_discretization_steps,
+            ndim_micro_shape=ndim_micro_shape,
+            denoise_at_final=denoise_at_final,
+            custom_config=custom_config,
+        )
+        self.betas: Tensor
 
         betas: Tensor | None = custom_config.get("betas", None)
         if betas is None:
-            self.betas: Tensor = torch.linspace(0.0001, 0.02, steps=self.n_discretization_steps)
+            self.betas = torch.linspace(0.0001, 0.02, steps=self.n_discretization_steps)
         else:
-            self.betas: Tensor = betas
+            self.betas = betas
 
         self.alphas = 1.0 - self.betas
         self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)

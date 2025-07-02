@@ -1,13 +1,21 @@
-from ls_mlkit.my_diffuser.config import DiffusionConfig
-
-from accelerate import Accelerator  # type: ignore
 import torch
-
-accelerator = Accelerator()
-
-config = DiffusionConfig()
+import abc
 
 
-x = torch.Tensor([1, 2, 3])
-x = x[:-0]
-print(x)
+class A(torch.nn.Module, abc.ABC):
+    def __init__(self):
+        super().__init__()  # type: ignore
+
+    @abc.abstractmethod
+    def f(self, x: torch.Tensor) -> torch.Tensor:
+        pass
+
+
+class B(A):
+    def f(self, x: torch.Tensor) -> torch.Tensor:
+        return x
+
+
+b = B()
+
+b.f(torch.Tensor([1, 2, 3]))

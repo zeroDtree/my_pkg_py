@@ -1,4 +1,5 @@
-from ls_mlkit.my_diffuser import Diffuser, ModelInterface4Diffuser, DiffusionConfig  # type: ignore
+from ls_mlkit.my_diffuser import Diffuser, ModelInterface4Diffuser, DiffusionConfig, DDPMDiffuser  # type: ignore
+from ls_mlkit.my_diffuser.ddpm_config import DDPMConfig
 from ls_mlkit.my_utils import HF_MIRROR  # type: ignore
 from typing import Any
 import torch  # type: ignore
@@ -39,9 +40,9 @@ model = UNet2DModel.from_pretrained("google/ddpm-cat-256", use_safetensors=True)
 
 _model = Unet(model)  # type: ignore
 
-diffusion_config = DiffusionConfig(ndim_micro_shape=3)
+diffusion_config = DDPMConfig(ndim_micro_shape=3)
 
-diffuser = Diffuser(model=_model, diffusion_config=diffusion_config, masker=ImageMasker())
+diffuser = DDPMDiffuser(model=_model, config=diffusion_config, masker=ImageMasker())
 
 import torch
 from tqdm.auto import tqdm
@@ -68,7 +69,6 @@ def tensor_to_image(tensor_input):
     image = (image.permute(1, 2, 0) * 255).round().to(torch.uint8).cpu().numpy()
     image = Image.fromarray(image)
     return image
-
 
 
 result: Tensor = diffuser.sample_x0_unconditionally(shape=(1, 3, 256, 256))
