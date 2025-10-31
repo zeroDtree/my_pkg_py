@@ -11,10 +11,11 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
+from ls_mlkit.my_utils.decorators import inherit_docstrings
+
 from ..my_utils.iterator import inf_iterator
 from .distributed_pipeline import DistributedPipeline, DistributedTrainingConfig, LogConfig
 from .pipeline import LogConfig
-from ls_mlkit.my_utils.decorators import inherit_docstrings
 
 
 @inherit_docstrings

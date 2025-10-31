@@ -15,15 +15,13 @@ class SDE(abc.ABC):
     """
 
     def __init__(self, n_discretization_steps: int, ndim_micro_shape: int = 2):
-        r"""
+        r"""Initialize the SDE
+
         Args:
-        ------
-        n_discretization_steps: number of discretization time steps.
-        ndim_micro_shape: number of dimensions of a sample.
+            n_discretization_steps (int): number of discretization time steps.
+            ndim_micro_shape (int, optional): number of dimensions of a sample.
             e.g. for image with shape [b, c, h, w], ndim_micro_shape = 3
             e.g. for protein with shape [b, n_res, 3], ndim_micro_shape = 2
-
-
         """
         super().__init__()
         self.n_discretization_steps = n_discretization_steps
@@ -32,29 +30,42 @@ class SDE(abc.ABC):
     @property
     @abc.abstractmethod
     def T(self) -> float:
-        """End time of the SDE."""
+        r"""End time of the SDE."""
 
     @abc.abstractmethod
     def get_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
-        r"""
-        returns
-        ------
-        drift: drift.shape = x.shape
-        diffusion: diffusion.shape = x.macro_shape
-            General case diffusion.shape =  (*x.macro_shape, d, d) is not implemented.
+        r"""Get the drift and diffusion of the SDE.
+
+        Args:
+            x (Tensor): the sample.
+            t (Tensor): the time step.
+            mask (Tensor, optional): the mask of the sample. Defaults to None.
+
+        Returns:
+            Tuple[Tensor, Tensor]: the drift and diffusion of the SDE.
         """
 
     def get_discretization_steps(self, t: Tensor) -> Tensor:
         r"""Get the discretization steps.
+
         Args:
-            t: (...), continuous time step
+            t (Tensor): the time step.
+
         Returns:
-            (...), discrete time step
+            Tensor: the discretization steps.
         """
         return t * (self.n_discretization_steps - 1) / self.T
 
     def get_diffusion_coefficient_with_proper_shape(self, x: Tensor, diffusion: Tensor) -> Tensor:
-        r"""Get the diffusion coefficient with the proper shape."""
+        """Get the diffusion coefficient with the proper shape. Complete the micro shape of the diffusion coefficient.
+
+        Args:
+            x (Tensor): the sample.
+            diffusion (Tensor): the diffusion coefficient.
+
+        Returns:
+            Tensor: the diffusion coefficient with the proper shape.
+        """
 
         macro_shape = x.shape[: self.ndim_micro_shape]
         # this means the diffusion coefficient is a scalar for each sample
@@ -65,26 +76,27 @@ class SDE(abc.ABC):
 
     def get_discretized_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
         r"""Euler-Maruyama discretization.
-		$$
-        \begin{align*}
-        dx &= f(x, t)dt + g(x,t)d z\\
-        x_{t+\Delta t} &= x_t + f(x_t, t)(\Delta t) + g(x_t, t) \epsilon, \epsilon \sim \mathcal{N}(0,|\Delta t|))\\
-        \end{align*}
-        $$
+
+                .. math::
+
+            dx &= f(x, t)dt + g(x,t)d z
+
+            x_{t+\Delta t} &= x_t + f(x_t, t)(\Delta t) + g(x_t, t) \epsilon, \epsilon \sim \mathcal{N}(0,|\Delta t|))
+
         Args:
           x: a torch tensor
           t: a torch float representing the time step (from 0 to `self.T`)
           mask: 1 indicates valid region, 0 indicates invalid region
-          
+
           Note: Here dt always greater than 0.
         Returns:
           f, g
-          $$
-		  \begin{align*}
-		  f &= f(x,t) |\Delta t| \\
-		  g &= g(x,t) \sqrt{|\Delta t|}
-		  \end{align*}
-		  $$
+
+          .. math::
+
+            f &= f(x,t) |\Delta t|
+
+            g &= g(x,t) \sqrt{|\Delta t|}
         """
         dt = self.T / self.n_discretization_steps
         drift, diffusion = self.get_drift_and_diffusion(x, t, mask=mask)

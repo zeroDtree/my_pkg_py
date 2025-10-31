@@ -282,7 +282,6 @@ class BasePipeline(metaclass=ABCMeta):
 
     def eval(self):
         """Evaluate the model"""
-        pass
 
     def _cleanup_old_checkpoints(self, save_dir):
         checkpoints = [d for d in os.listdir(save_dir) if d.startswith("checkpoint_")]

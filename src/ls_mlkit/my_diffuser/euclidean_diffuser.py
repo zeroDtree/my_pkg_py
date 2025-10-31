@@ -1,4 +1,4 @@
-from typing import Any, Tuple, Literal
+from typing import Any, Literal, Tuple
 
 import torch
 from torch import Tensor
@@ -50,7 +50,6 @@ class EuclideanDiffuser(BaseDiffuser):
         Returns:
             Tensor: the sample at the next timestep
         """
-        pass
 
     def forward_process_n_step(
         self, x: Tensor, t: Tensor, next_t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any
@@ -66,7 +65,6 @@ class EuclideanDiffuser(BaseDiffuser):
         Returns:
             Tensor: the sample at the next timestep
         """
-        pass
 
     def get_accumulated_conditional_score(
         self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any
@@ -174,10 +172,10 @@ class EuclideanDiffuser(BaseDiffuser):
             )["x_t"]
         x_0 = masker.apply_mask(x_0, padding_mask)
         timesteps = self.time_scheduler.get_discrete_timesteps_schedule()
-        
+
         # Add inpainting_mask to kwargs so it gets passed to the model
         kwargs["inpainting_mask"] = inpainting_mask
-        
+
         for i, t in tqdm(enumerate(timesteps)):
             for u in range(1, n_repaint_steps + 1):
                 t = torch.ones(macro_shape, device=device, dtype=torch.long) * t

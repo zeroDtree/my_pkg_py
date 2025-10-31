@@ -1,6 +1,5 @@
 # official packages
 
-import torch
 import wandb
 from accelerate import Accelerator
 from diffusers.utils.pil_utils import make_image_grid, numpy_to_pil
@@ -56,7 +55,7 @@ def main(cfg: DictConfig):
                 **cfg.optimizer,
                 **cfg.train,
                 **cfg.log,
-                **cfg.diffuser,
+                **cfg.flow,
             },
         )
 
@@ -98,7 +97,7 @@ def main(cfg: DictConfig):
     if accelerator.is_local_main_process:
         wandb.finish()
 
-    if accelerator.is_local_main_process:
+    if accelerator.is_local_main_process and True:
         # Generate sample
         pass
 
@@ -109,39 +108,22 @@ def main(cfg: DictConfig):
         model = get_model(
             cfg,
             # model=unet_model,
-            final_model_ckpt_path=f"checkpoints/UNet2DModel/huggan/smithsonian_butterflies_subset/-lr:0.0001-bs:16-{cfg.optimizer.name}-{cfg.diffuser.mode}/checkpoint_epoch50_step0_global3150/model.safetensors",
+            final_model_ckpt_path=f"checkpoints/UNet2DModel/huggan/smithsonian_butterflies_subset/-lr:0.0001-bs:16/checkpoint_epoch50_step0_global3150/model.safetensors",
         )
         model = model.to(accelerator.device)
 
-        x_0 = torch.stack(train_set[0:16]["images"]).to(accelerator.device)
-        print(f"x_0 shape: {x_0.shape}")
-
-        # Create inpainting mask to remove right half of the image
-        # inpainting_mask: 1 = inpaint (remove), 0 = keep original
-        batch_size, channels, height, width = x_0.shape
-        inpainting_mask = torch.zeros(batch_size, channels, height, width, device=accelerator.device)
-        # Set right half to 1 (will be inpainted/removed)
-        inpainting_mask[:, :, :, width // 2 :] = 1.0
-
-        result: Tensor = model.inpainting_x0_unconditionally(
-            x_0=x_0,
-            padding_mask=torch.ones(*x_0.shape, device=accelerator.device),
-            inpainting_mask=inpainting_mask,
+        result: Tensor = model.sampling_x1_unconditionally(
+            shape=(16, 3, cfg.dataset.image_size, cfg.dataset.image_size),
             device=accelerator.device,
-            mode=cfg.diffuser.mode,
-            recovery_mode=cfg.diffuser.recovery_mode,
-            n_repaint_steps=cfg.diffuser.n_repaint_steps,
         )
         image = result
-        print(f"Inpainted tensor shape: {result.shape}")
+        print(f"Generated tensor shape: {result.shape}")
         image = (image / 2 + 0.5).clamp(0, 1)
         image = image.cpu().permute(0, 2, 3, 1).numpy()  # (batch_size, height, width, channels)
 
         image = numpy_to_pil(image)
         image_grid = make_image_grid(image, rows=4, cols=4)
-        image_grid.save(
-            f"inpainted_sample_{cfg.optimizer.name}_{cfg.diffuser.mode}_{cfg.diffuser.name}_{cfg.diffuser.n_inference_steps}_{cfg.diffuser.n_repaint_steps}.png"
-        )
+        image_grid.save(f"generated_sample.png")
 
     return
 
@@ -209,23 +191,11 @@ if __name__ == "__main__":
                 "group": "default",
                 "entity": "superposed-tree",
             },
-            "diffuser": {
-                "name": "DDPM",
+            "flow": {
+                "name": "EuclideanFlow",
                 "n_discretization_steps": 1000,
-                "n_inference_steps": 20,
-                "eta": 0.0,
-                "mode": "epsilon",
-                "recovery_mode": "x_t",
-                "n_repaint_steps": 1,
             },
         }
     )
-    for optimizer_name in ["AdamW"]:
-        for diffusion_mode in ["epsilon"]:
-            for n_inference_steps in [1000]:
-                for n_repaint_steps in [1, 3]:
-                    cfg.optimizer.name = optimizer_name
-                    cfg.diffuser.mode = diffusion_mode
-                    cfg.diffuser.n_inference_steps = n_inference_steps
-                    cfg.diffuser.n_repaint_steps = n_repaint_steps
-                    main(cfg)
+
+    main(cfg)

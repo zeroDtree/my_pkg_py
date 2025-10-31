@@ -1,153 +1,143 @@
-import torch
-from torch import nn, Tensor
-
-import matplotlib.pyplot as plt
-from sklearn.datasets import make_moons
-
-
-class Flow(nn.Module):
-    def __init__(self, dim: int = 2, h: int = 64):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim + 1, h), nn.ELU(), nn.Linear(h, h), nn.ELU(), nn.Linear(h, h), nn.ELU(), nn.Linear(h, dim)
-        )
-
-    def forward(self, t: Tensor, x_t: Tensor) -> Tensor:
-        return self.net(torch.cat((t, x_t), -1))
-
-    def step(self, x_t: Tensor, t_start: Tensor, t_end: Tensor) -> Tensor:
-        t_start = t_start.view(1, 1).expand(x_t.shape[0], 1)
-
-        return x_t + (t_end - t_start) * self(
-            t=t_start + (t_end - t_start) / 2, x_t=x_t + self(x_t=x_t, t=t_start) * (t_end - t_start) / 2
-        )
-
-
-flow = Flow()
-
-optimizer = torch.optim.Adam(flow.parameters(), 1e-2)
-loss_fn = nn.MSELoss()
-
-for _ in range(10000):
-    x_1 = Tensor(make_moons(256, noise=0.15)[0])
-    x_0 = torch.randn_like(x_1)
-    t = torch.rand(len(x_1), 1)
-
-    x_t = (1 - t) * x_0 + t * x_1
-    dx_t = x_1 - x_0
-
-    optimizer.zero_grad()
-    loss_fn(flow(t=t, x_t=x_t), dx_t).backward()
-    optimizer.step()
-
-
-x = torch.randn(300, 2)
-n_steps = 8
-fig, axes = plt.subplots(1, n_steps + 1, figsize=(30, 4), sharex=True, sharey=True)
-time_steps = torch.linspace(0, 1.0, n_steps + 1)
-
-axes[0].scatter(x.detach()[:, 0], x.detach()[:, 1], s=10)
-axes[0].set_title(f"t = {time_steps[0]:.2f}")
-axes[0].set_xlim(-3.0, 3.0)
-axes[0].set_ylim(-3.0, 3.0)
-
-for i in range(n_steps):
-    x = flow.step(x_t=x, t_start=time_steps[i], t_end=time_steps[i + 1])
-    axes[i + 1].scatter(x.detach()[:, 0], x.detach()[:, 1], s=10)
-    axes[i + 1].set_title(f"t = {time_steps[i + 1]:.2f}")
-
-plt.tight_layout()
-plt.savefig("flow_matching_unconditional.png")
+from copy import deepcopy
+from typing import Any, Callable
 
 import torch
-from torch import nn, Tensor
-
-import matplotlib.pyplot as plt
-from sklearn.datasets import make_moons
+from torch import Tensor, nn
+from torch.nn import Module
 
 
-class Flow(nn.Module):
-    def __init__(self, dim: int = 2, h: int = 64):
+class EuclideanFlowConfig:
+    def __init__(
+        self, n_discretization_steps: int, ndim_micro_shape: int = 2, *args: list[Any], **kwargs: dict[Any, Any]
+    ):
+        self.n_discretization_steps = n_discretization_steps
+        self.ndim_micro_shape = ndim_micro_shape
+
+    def to(self, device: torch.device | str | Tensor, inplace: bool = True) -> "EuclideanFlowConfig":
+        """Move the config to the given device
+
+        Args:
+            device (torch.device | str | Tensor): the device to move the config to
+            inplace (bool, optional): whether to move the config in place. Defaults to True.
+
+        Returns:
+            EuclideanFlowConfig: the config moved to the given device
+        """
+        obj = self if inplace else deepcopy(self)
+        if isinstance(device, Tensor):
+            device = device.device
+        for k, v in obj.__dict__.items():
+            if isinstance(v, Tensor):
+                setattr(obj, k, v.to(device))
+        return obj
+
+
+class EuclideanFlow(Module):
+    def __init__(self, config: EuclideanFlowConfig, model: Module, loss_fn: Callable):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(dim + 2, h), nn.ELU(), nn.Linear(h, h), nn.ELU(), nn.Linear(h, h), nn.ELU(), nn.Linear(h, dim)
+        self.config = config
+        self.model = model
+        self.loss_fn = loss_fn
+
+    def compute_loss(self, batch: dict[str, Any], *args: list[Any], **kwargs: dict[Any, Any]) -> Tensor:
+        """Compute the loss of the flow, used in training.
+
+        Args:
+            x_1 (Tensor): (*macro_shape, *micro_shape)
+            t (Tensor): (*macro_shape, )
+            padding_mask (Tensor): (*macro_shape, ). Defaults to None.
+
+        Returns:
+            Tensor: (*macro_shape, )
+        """
+        x_1 = batch["x_1"]
+        t = batch.get("t", None)
+        padding_mask = batch.get("padding_mask", None)
+        device = x_1.device
+        macro_shape = self.get_macro_shape(x_1)
+        if t is None:
+            t = torch.rand(macro_shape, device=device)
+        copied_t = t.clone().detach()
+        t = self.complete_micro_shape(t)
+        x_0 = torch.randn_like(x_1, device=device)
+        x_t = x_0 * (1 - t) + x_1 * t
+        dx_t = x_1 - x_0
+        p_dx_t = self.model.forward(x_t=x_t, t=copied_t, padding_mask=padding_mask, *args, **kwargs)
+        loss = self.loss_fn(p_dx_t, dx_t, padding_mask)
+        return loss
+
+    def forward(self, batch: dict[str, Any], *args: list[Any], **kwargs: dict[Any, Any]) -> Tensor:
+        """Module Forward, pytorch
+
+        Args:
+            x_t (Tensor): (*macro_shape, *micro_shape)
+            t (Tensor): (*macro_shape, )
+            padding_mask (Tensor, optional): _description_. Defaults to None.
+
+        Returns:
+            Tensor: (*macro_shape, *micro_shape)
+        """
+        return self.compute_loss(batch, *args, **kwargs)
+
+    def step(self, x_t: Tensor, t_start: Tensor, t_end: Tensor, padding_mask: Tensor = None) -> Tensor:
+        """Step the flow, used for sampling.
+
+        Args:
+            x_t (Tensor): (*macro_shape, *micro_shape)
+            t_start (Tensor): (*macro_shape, )
+            t_end (Tensor): (*macro_shape, )
+            padding_mask (Tensor, optional): (*macro_shape, ). Defaults to None.
+
+        Returns:
+            Tensor: (*macro_shape, *micro_shape)
+        """
+        copied_t_start = t_start.clone().detach()
+        copied_t_end = t_end.clone().detach()
+        t_start = self.complete_micro_shape(copied_t_start)
+        t_end = self.complete_micro_shape(copied_t_end)
+
+        return x_t + (t_end - t_start) * self.model.forward(
+            t=copied_t_start + (copied_t_end - copied_t_start) / 2,
+            x_t=x_t + self.model.forward(x_t=x_t, t=copied_t_start, padding_mask=padding_mask) * (t_end - t_start) / 2,
+            padding_mask=padding_mask,
         )
 
-    def forward(self, t: Tensor, c: Tensor, x_t: Tensor) -> Tensor:
-        x = torch.cat((t, c, x_t), -1)
-        print(f"x.shape = {x.shape}")
-        return self.net(x)
+    def get_macro_shape(self, x: Tensor) -> tuple[int, ...]:
+        return x.shape[: -self.config.ndim_micro_shape]
 
-    def step(self, x_t: Tensor, t_start: Tensor, t_end: Tensor, c: Tensor) -> Tensor:
-        t_start = t_start.view(1, 1).expand(x_t.shape[0], 1)
+    def get_micro_shape(self, x: Tensor) -> tuple[int, ...]:
+        return x.shape[-self.config.ndim_micro_shape :]
 
-        return x_t + (t_end - t_start) * self(
-            t=t_start + (t_end - t_start) / 2, c=c, x_t=x_t + self(c=c, x_t=x_t, t=t_start) * (t_end - t_start) / 2
-        )
+    def get_macro_and_micro_shape(self, x: Tensor) -> tuple[tuple[int, ...], tuple[int, ...]]:
+        return x.shape[: -self.config.ndim_micro_shape], x.shape[-self.config.ndim_micro_shape :]
 
+    def complete_micro_shape(self, x: Tensor) -> Tensor:
+        """Complete the micro shape of :math:`x`, assuming the macro shape is already known.
 
-flow = Flow()
+        Args:
+            x (Tensor): (*macro_shape,)
 
-optimizer = torch.optim.Adam(flow.parameters(), 1e-2)
-loss_fn = nn.MSELoss()
+        Returns:
+            Tensor: (*macro_shape, *micro_shape)
+        """
+        return x.view(*x.shape, *([1] * self.config.ndim_micro_shape))
 
-for _ in range(10000):
-    x_1, c = make_moons(256, noise=0.15)
-    x_1 = Tensor(x_1)
-    c = Tensor(c)
-    # print(f"c.shape = {c.shape},x_1.shape = {x_1.shape}")
-    c = c.view(-1, 1)
+    def sampling_x1_unconditionally(self, shape, device) -> Tensor:
+        """Sample :math:`x_1` unconditionally
 
-    x_0 = torch.randn_like(x_1)
-    t = torch.rand(len(x_1), 1)
+        Args:
+            shape (tuple): the shape of the sample
+            device (device): the device to use for sampling
 
-    x_t = (1 - t) * x_0 + t * x_1
-    dx_t = x_1 - x_0
-
-    optimizer.zero_grad()
-    loss_fn(flow(t=t, x_t=x_t, c=c), dx_t).backward()
-    optimizer.step()
-
-# --- evaluation / visualisation section --------------------------
-n_samples = 256
-
-sigma = 1.0
-x = torch.randn(n_samples, 2) * sigma  # (n_samples, 2)
-
-# if you just want random labels –– otherwise load real labels here
-c_eval = torch.randint(0, 2, (n_samples, 1), dtype=torch.float32)  # (n_samples, 1)
-
-# colours for the scatter (same length as x)
-colors = ["blue" if lbl == 0 else "orange" for lbl in c_eval.squeeze().tolist()]
-
-# -----------------------------------------------------------------
-n_steps = 100
-plot_every = 20
-plot_indices = list(range(0, n_steps + 1, plot_every))
-if plot_indices[-1] != n_steps:
-    plot_indices.append(n_steps)
-
-fig, axes = plt.subplots(1, len(plot_indices), figsize=(4 * len(plot_indices), 4), sharex=True, sharey=True)
-time_steps = torch.linspace(0, 1.0, n_steps + 1)
-
-# initial frame
-axes[0].scatter(x[:, 0], x[:, 1], s=10, c=colors)
-axes[0].set_title(f"t = {time_steps[0]:.2f}")
-axes[0].set_xlim(-3.0, 3.0)
-axes[0].set_ylim(-3.0, 3.0)
-
-plot_count = 0
-with torch.no_grad():  # no gradients while sampling
-    for i in range(n_steps):
-        x = flow.step(
-            x_t=x, t_start=time_steps[i], t_end=time_steps[i + 1], c=c_eval
-        )  # 2️⃣ use the same‑sized label tensor
-        if (i + 1) in plot_indices:
-            plot_count += 1
-            axes[plot_count].scatter(x[:, 0], x[:, 1], s=10, c=colors)
-            axes[plot_count].set_title(f"t = {time_steps[i + 1]:.2f}")
-            axes[plot_count].set_xlim(-3.0, 3.0)
-            axes[plot_count].set_ylim(-3.0, 3.0)
-
-plt.tight_layout()
-plt.savefig("flow_matching.png")
+        Returns:
+            Tensor: (*macro_shape, *micro_shape)
+        """
+        x_t = torch.randn(shape, device=device)
+        macro_shape = self.get_macro_shape(x_t)
+        timesteps = torch.linspace(0, 1, self.config.n_discretization_steps + 1, device=device)
+        for i in range(len(timesteps) - 1):
+            t_start = timesteps[i] * torch.ones(macro_shape, device=device)
+            t_end = timesteps[i + 1] * torch.ones(macro_shape, device=device)
+            print(f"t_start.shape = {t_start.shape}, t_end.shape = {t_end.shape},x_t.shape = {x_t.shape}")
+            x_t = self.step(x_t=x_t, t_start=t_start, t_end=t_end)
+        return x_t

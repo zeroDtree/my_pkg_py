@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import shutil
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Literal, Optional, Tuple, Union
 
 import accelerate
 import datasets
@@ -12,7 +12,6 @@ from accelerate import Accelerator
 
 from ls_mlkit.my_pipeline.pipeline import BasePipeline, LogConfig, TrainingConfig
 from ls_mlkit.my_utils.decorators import inherit_docstrings
-from typing import Literal
 
 
 @inherit_docstrings

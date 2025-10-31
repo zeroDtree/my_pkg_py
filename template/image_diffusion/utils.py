@@ -1,10 +1,11 @@
-from omegaconf import DictConfig
-from torch import Tensor
+import math
+import os
 from typing import Any, cast
+
 import matplotlib.pyplot as plt
 import torch
-import os
-import math
+from omegaconf import DictConfig
+from torch import Tensor
 from torch.nn import Module
 
 
@@ -47,12 +48,12 @@ def get_dataset(cfg: DictConfig):
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from diffusers import UNet2DModel
 
-    from ls_mlkit.my_diffuser.euclidean_ddpm_diffuser import EuclideanDDPMConfig, EuclideanDDPMDiffuser
+    from ls_mlkit.my_diffuser.conditioner import Conditioner
     from ls_mlkit.my_diffuser.euclidean_ddim_diffuser import EuclideanDDIMConfig, EuclideanDDIMDiffuser
+    from ls_mlkit.my_diffuser.euclidean_ddpm_diffuser import EuclideanDDPMConfig, EuclideanDDPMDiffuser
+    from ls_mlkit.my_diffuser.model_interface import Model4DiffuserInterface
     from ls_mlkit.my_diffuser.time_scheduler import TimeScheduler
     from ls_mlkit.my_utils.mask.image_masker import ImageMasker
-    from ls_mlkit.my_diffuser.conditioner import Conditioner
-    from ls_mlkit.my_diffuser.model_interface import Model4DiffuserInterface
 
     if model is None:
         model = UNet2DModel(

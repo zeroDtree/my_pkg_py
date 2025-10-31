@@ -11,7 +11,6 @@ from ls_mlkit.my_utils.mask.masker_interface import MaskerInterface
 from .conditioner import Conditioner
 from .euclidean_diffuser import EuclideanDiffuser, EuclideanDiffuserConfig
 from .model_interface import Model4DiffuserInterface
-from ls_mlkit.my_utils.decorators import inherit_docstrings
 
 
 @inherit_docstrings
