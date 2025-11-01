@@ -77,7 +77,9 @@ def main(cfg: DictConfig):
     PipelineClass, TrainingConfigClass = get_train_class()
     training_config = TrainingConfigClass(**cfg.train)
     if accelerator.is_local_main_process:
-        training_config.save_dir = get_new_save_dir(training_config.save_dir, cfg)
+        training_config.save_dir = get_new_save_dir(
+            training_config.save_dir, cfg, suffix=f"-{cfg.optimizer.name}-{cfg.diffuser.mode}"
+        )
 
     print(training_config.__dict__)
 
@@ -108,7 +110,7 @@ def main(cfg: DictConfig):
         model = get_model(
             cfg,
             # model=unet_model,
-            final_model_ckpt_path=f"checkpoints/UNet2DModel/huggan/smithsonian_butterflies_subset/-lr:0.0001-bs:16-{cfg.optimizer.name}-{cfg.diffuser.mode}/checkpoint_epoch50_step0_global3150/model.safetensors",
+            final_model_ckpt_path=f"{pipeline.get_latest_checkpoint_dir()}/model.safetensors",
         )
         model = model.to(accelerator.device)
 
@@ -187,7 +189,7 @@ if __name__ == "__main__":
             },
             "wandb": {
                 "reinit": True,
-                "mode": "online",
+                "mode": "offline",
                 "project": "test",
                 "group": "default",
                 "entity": "superposed-tree",
@@ -199,8 +201,8 @@ if __name__ == "__main__":
             },
         }
     )
-    for optimizer_name in ["Adam", "AdamW"]:
-        for diffusion_mode in ["epsilon", "x_0"]:
+    for optimizer_name in ["AdamW"]:
+        for diffusion_mode in ["epsilon"]:
             cfg.optimizer.name = optimizer_name
             cfg.diffuser.mode = diffusion_mode
             main(cfg)

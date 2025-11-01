@@ -1,5 +1,7 @@
 # official packages
 
+import os
+
 import wandb
 from accelerate import Accelerator
 from diffusers.utils.pil_utils import make_image_grid, numpy_to_pil
@@ -108,7 +110,7 @@ def main(cfg: DictConfig):
         model = get_model(
             cfg,
             # model=unet_model,
-            final_model_ckpt_path=f"checkpoints/UNet2DModel/huggan/smithsonian_butterflies_subset/-lr:0.0001-bs:16/checkpoint_epoch50_step0_global3150/model.safetensors",
+            final_model_ckpt_path=f"{pipeline.get_latest_checkpoint_dir()}/model.safetensors",
         )
         model = model.to(accelerator.device)
 
@@ -123,7 +125,9 @@ def main(cfg: DictConfig):
 
         image = numpy_to_pil(image)
         image_grid = make_image_grid(image, rows=4, cols=4)
-        image_grid.save(f"generated_sample.png")
+        save_dir = "fm_image"
+        os.makedirs(save_dir, exist_ok=True)
+        image_grid.save(os.path.join(save_dir, f"fm_uc_{cfg.flow.n_inference_steps}.png"))
 
     return
 
@@ -194,8 +198,11 @@ if __name__ == "__main__":
             "flow": {
                 "name": "EuclideanFlow",
                 "n_discretization_steps": 1000,
+                "n_inference_steps": 1,
             },
         }
     )
 
-    main(cfg)
+    for n_inference_steps in [2]:
+        cfg.flow.n_inference_steps = n_inference_steps
+        main(cfg)

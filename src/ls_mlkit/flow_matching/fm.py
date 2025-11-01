@@ -2,16 +2,26 @@ from copy import deepcopy
 from typing import Any, Callable
 
 import torch
-from torch import Tensor, nn
+from torch import Tensor
 from torch.nn import Module
+from tqdm.auto import tqdm
 
 
 class EuclideanFlowConfig:
     def __init__(
-        self, n_discretization_steps: int, ndim_micro_shape: int = 2, *args: list[Any], **kwargs: dict[Any, Any]
+        self,
+        n_discretization_steps: int,
+        ndim_micro_shape: int = 2,
+        n_inference_steps: int = None,
+        *args: list[Any],
+        **kwargs: dict[Any, Any],
     ):
         self.n_discretization_steps = n_discretization_steps
         self.ndim_micro_shape = ndim_micro_shape
+        if n_inference_steps is not None:
+            self.n_inference_steps = n_inference_steps
+        else:
+            self.n_inference_steps = n_discretization_steps
 
     def to(self, device: torch.device | str | Tensor, inplace: bool = True) -> "EuclideanFlowConfig":
         """Move the config to the given device
@@ -79,6 +89,7 @@ class EuclideanFlow(Module):
         """
         return self.compute_loss(batch, *args, **kwargs)
 
+    @torch.no_grad()
     def step(self, x_t: Tensor, t_start: Tensor, t_end: Tensor, padding_mask: Tensor = None) -> Tensor:
         """Step the flow, used for sampling.
 
@@ -122,6 +133,7 @@ class EuclideanFlow(Module):
         """
         return x.view(*x.shape, *([1] * self.config.ndim_micro_shape))
 
+    @torch.no_grad()
     def sampling_x1_unconditionally(self, shape, device) -> Tensor:
         """Sample :math:`x_1` unconditionally
 
@@ -134,10 +146,9 @@ class EuclideanFlow(Module):
         """
         x_t = torch.randn(shape, device=device)
         macro_shape = self.get_macro_shape(x_t)
-        timesteps = torch.linspace(0, 1, self.config.n_discretization_steps + 1, device=device)
-        for i in range(len(timesteps) - 1):
+        timesteps = torch.linspace(0, 1, self.config.n_inference_steps + 1, device=device)
+        for i in tqdm(range(len(timesteps) - 1)):
             t_start = timesteps[i] * torch.ones(macro_shape, device=device)
             t_end = timesteps[i + 1] * torch.ones(macro_shape, device=device)
-            print(f"t_start.shape = {t_start.shape}, t_end.shape = {t_end.shape},x_t.shape = {x_t.shape}")
             x_t = self.step(x_t=x_t, t_start=t_start, t_end=t_end)
         return x_t

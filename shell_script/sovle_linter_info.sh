@@ -4,8 +4,7 @@ set -e
 
 max_line_length=120
 
-
-for dir in src template; do
+for dir in src template test; do
     autoflake --in-place --remove-all-unused-imports --remove-unused-variables -r $dir
     isort $dir
     black --line-length $max_line_length $dir

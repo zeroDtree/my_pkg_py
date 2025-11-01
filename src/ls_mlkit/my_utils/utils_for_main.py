@@ -62,7 +62,7 @@ def get_new_save_dir(save_dir, cfg: DictConfig, prefix: str = "", suffix: str = 
     return new_save_dir
 
 
-def load_checkpoint(model: Module, final_model_ckpt_path: str):
+def load_checkpoint(model: Module, final_model_ckpt_path: str) -> Module:
     # Handle different checkpoint formats
     if final_model_ckpt_path.endswith(".safetensors"):
         print(f"Loading safetensors checkpoint: {final_model_ckpt_path}")

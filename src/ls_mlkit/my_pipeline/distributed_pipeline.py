@@ -1,6 +1,5 @@
 import logging
 import os
-import re
 import shutil
 from typing import Any, Callable, Dict, Literal, Optional, Tuple, Union
 
@@ -234,18 +233,7 @@ class DistributedPipeline(BasePipeline):
 
     def load(self) -> None:
         # check load condition ============================================================================
-        save_dir = self.training_config.save_dir
-        if save_dir is None or save_dir == "" or not os.path.exists(save_dir) or len(os.listdir(save_dir)) <= 0:
-            return
-        checkpoints = [d for d in os.listdir(save_dir) if d.startswith("checkpoint_")]
-        checkpoints.sort(
-            key=lambda x: int(re.search(r"global(\d+)", x).group(1)),
-            reverse=True,
-        )
-        if len(checkpoints) <= 0:
-            return
-        checkpoint_dir = checkpoints.pop(0)
-        checkpoint_dir = os.path.join(save_dir, checkpoint_dir)
+        checkpoint_dir = self.get_latest_checkpoint_dir()
         if len(os.listdir(checkpoint_dir)) <= 0:
             return
 

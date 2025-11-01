@@ -378,18 +378,7 @@ class BasePipeline(metaclass=ABCMeta):
             None
         """
         # check load condition ============================================================================
-        save_dir = self.training_config.save_dir
-        if save_dir is None or save_dir == "" or not os.path.exists(save_dir) or len(os.listdir(save_dir)) <= 0:
-            return
-        checkpoints = [d for d in os.listdir(save_dir) if d.startswith("checkpoint_")]
-        checkpoints.sort(
-            key=lambda x: int(re.search(r"global(\d+)", x).group(1)),
-            reverse=True,
-        )
-        if len(checkpoints) <= 0:
-            return
-        checkpoint_dir = checkpoints.pop(0)
-        checkpoint_dir = os.path.join(save_dir, checkpoint_dir)
+        checkpoint_dir = self.get_latest_checkpoint_dir()
         if len(os.listdir(checkpoint_dir)) <= 0:
             return
 
@@ -405,3 +394,18 @@ class BasePipeline(metaclass=ABCMeta):
 
         if self.logger is not None:
             self.logger.info(f"Model loaded from {checkpoint_dir}")
+
+    def get_latest_checkpoint_dir(self) -> str:
+        save_dir = self.training_config.save_dir
+        if save_dir is None or save_dir == "" or not os.path.exists(save_dir) or len(os.listdir(save_dir)) <= 0:
+            return
+        checkpoints = [d for d in os.listdir(save_dir) if d.startswith("checkpoint_")]
+        checkpoints.sort(
+            key=lambda x: int(re.search(r"global(\d+)", x).group(1)),
+            reverse=True,
+        )
+        if len(checkpoints) <= 0:
+            return
+        checkpoint_dir = checkpoints.pop(0)
+        checkpoint_dir = os.path.join(save_dir, checkpoint_dir)
+        return checkpoint_dir

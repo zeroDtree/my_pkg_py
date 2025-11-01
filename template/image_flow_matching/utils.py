@@ -98,12 +98,16 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     flow_config = EuclideanFlowConfig(
         n_discretization_steps=cfg.flow.n_discretization_steps,
         ndim_micro_shape=3,
+        n_inference_steps=cfg.flow.n_inference_steps,
     )
     flow = EuclideanFlow(
         config=flow_config,
         model=model4fm,
         loss_fn=mse,
     )
+
+    if final_model_ckpt_path is not None and final_model_ckpt_path != "":
+        flow = load_checkpoint(flow, final_model_ckpt_path)
 
     return flow
 
