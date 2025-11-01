@@ -1,4 +1,3 @@
-from copy import deepcopy
 from typing import Any, Callable
 
 import torch
@@ -6,8 +5,10 @@ from torch import Tensor
 from torch.nn import Module
 from tqdm.auto import tqdm
 
+from ls_mlkit.my_utils.base_config_class import BaseConfigClass
 
-class EuclideanFlowConfig:
+
+class EuclideanFlowConfig(BaseConfigClass):
     def __init__(
         self,
         n_discretization_steps: int,
@@ -16,30 +17,13 @@ class EuclideanFlowConfig:
         *args: list[Any],
         **kwargs: dict[Any, Any],
     ):
+        super().__init__(*args, **kwargs)
         self.n_discretization_steps = n_discretization_steps
         self.ndim_micro_shape = ndim_micro_shape
         if n_inference_steps is not None:
             self.n_inference_steps = n_inference_steps
         else:
             self.n_inference_steps = n_discretization_steps
-
-    def to(self, device: torch.device | str | Tensor, inplace: bool = True) -> "EuclideanFlowConfig":
-        """Move the config to the given device
-
-        Args:
-            device (torch.device | str | Tensor): the device to move the config to
-            inplace (bool, optional): whether to move the config in place. Defaults to True.
-
-        Returns:
-            EuclideanFlowConfig: the config moved to the given device
-        """
-        obj = self if inplace else deepcopy(self)
-        if isinstance(device, Tensor):
-            device = device.device
-        for k, v in obj.__dict__.items():
-            if isinstance(v, Tensor):
-                setattr(obj, k, v.to(device))
-        return obj
 
 
 class EuclideanFlow(Module):

@@ -3,17 +3,17 @@ Base Diffuser Config and Base Diffuser.
 """
 
 import abc
-from copy import deepcopy
 from typing import Any, Tuple
 
-import torch
 from torch import Tensor
 from torch.nn import Module
+
+from ls_mlkit.my_utils.base_config_class import BaseConfigClass
 
 from .time_scheduler import TimeScheduler
 
 
-class BaseDiffuserConfig:
+class BaseDiffuserConfig(BaseConfigClass):
     r"""Diffuser configure base class"""
 
     def __init__(
@@ -28,29 +28,9 @@ class BaseDiffuserConfig:
             n_discretization_steps (int): number of discretization steps
             ndim_micro_shape (int): umber of dimensions of a sample
         """
-        super().__init__()
+        super().__init__(*args, **kwargs)
         self.n_discretization_steps: int = n_discretization_steps
         self.ndim_micro_shape: int = ndim_micro_shape
-        self.args = args
-        self.kwargs = kwargs
-
-    def to(self, device: torch.device | str | Tensor, inplace: bool = True) -> "BaseDiffuserConfig":
-        """Move the config to the given device
-
-        Args:
-            device (torch.device | str | Tensor): the device to move the config to
-            inplace (bool, optional): whether to move the config in place. Defaults to True.
-
-        Returns:
-            BaseDiffuserConfig: the config moved to the given device
-        """
-        obj = self if inplace else deepcopy(self)
-        if isinstance(device, Tensor):
-            device = device.device
-        for k, v in obj.__dict__.items():
-            if isinstance(v, Tensor):
-                setattr(obj, k, v.to(device))
-        return obj
 
 
 class BaseDiffuser(Module, abc.ABC):

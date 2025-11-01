@@ -39,7 +39,7 @@ class EuclideanDiffuser(BaseDiffuser):
         self.masker = masker
         self.conditioner_list = conditioner_list
 
-    def forward_process_one_step(x: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
+    def forward_process_one_step(self, x: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
         """Forward process one step
 
         Args:
@@ -137,6 +137,7 @@ class EuclideanDiffuser(BaseDiffuser):
         recovery_mode: Literal["x_0", "x_t"] = "x_t",
         n_repaint_steps: int = 1,
         x_init_posterior: Tensor = None,
+        inpainting_mask_key="inpainting_mask",
         *args: Any,
         **kwargs: Any,
     ) -> Tensor:
@@ -174,9 +175,9 @@ class EuclideanDiffuser(BaseDiffuser):
         timesteps = self.time_scheduler.get_discrete_timesteps_schedule()
 
         # Add inpainting_mask to kwargs so it gets passed to the model
-        kwargs["inpainting_mask"] = inpainting_mask
+        kwargs[inpainting_mask_key] = inpainting_mask
 
-        for i, t in tqdm(enumerate(timesteps)):
+        for i, t in enumerate(tqdm(timesteps)):
             for u in range(1, n_repaint_steps + 1):
                 t = torch.ones(macro_shape, device=device, dtype=torch.long) * t
                 if recovery_mode == "x_t":
