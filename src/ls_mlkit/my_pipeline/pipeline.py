@@ -379,7 +379,7 @@ class BasePipeline(metaclass=ABCMeta):
         """
         # check load condition ============================================================================
         checkpoint_dir = self.get_latest_checkpoint_dir()
-        if len(os.listdir(checkpoint_dir)) <= 0:
+        if checkpoint_dir is None or len(os.listdir(checkpoint_dir)) <= 0:
             return
 
         # load ============================================================================================
