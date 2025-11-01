@@ -23,30 +23,39 @@ Features Overview
 -----------------
 
    **Pipeline**
-   `BasePipeline`, `DistributedPipeline`, `MyDistributedPipeline`
+   ``BasePipeline``, ``DistributedPipeline``, ``MyDistributedPipeline``
 
    **Diffuser**
-   DDPM, DDIM, and SO(3)VPSDE
+   ``DDPM``, ``DDIM``, and ``SO(3)VPSDE``
 
    **Scheduler**
-   cosine(_with_warmup), linear(_with_warmup), constant, cosine_annealing
+   ``cosine(_with_warmup)``, ``linear(_with_warmup)``, ``constant``, ``cosine_annealing``
 
    **Optimizers**
-   KFA, SAM
+   ``KFA``, ``SAM``
+
+   **Flow Matching**
+   ``EuclideanFlow``
 
    **Datasets**
       Numerical datasets:
-         IrisDataset
+         ``IrisDataset``
       Image datasets:
-         MNIST, FashionMNIST, CIFAR10, CIFAR100
+         ``MNIST``, ``FashionMNIST``, ``CIFAR10``, ``CIFAR100``
       Language datasets:
-         LDADataset, MT19937, RegularLanguageDataset, meta-math/MetaMathQA, gsm8k, glue/sst2, m-a-p/CodeFeedback-Filtered-Instruction, silk-road/Wizard-LM-Chinese-instruct-evol, tatsu-lab/alpaca
+         ``LDADataset``, ``MT19937``, ``RegularLanguageDataset``, ``meta-math/MetaMathQA``, ``gsm8k``, ``glue/sst2``, ``m-a-p/CodeFeedback-Filtered-Instruction``, ``silk-road/Wizard-LM-Chinese-instruct-evol``, ``tatsu-lab/alpaca``
 
    **Models**
-   LongLinearModel, CausalLanguageModelForAuto
+   ``LongLinearModel``, ``CausalLanguageModelForAuto``
 
    **Utils**
    Various tools
+
+Templates
+-------------
+
+`template` directory contains templates for some specific tasks, which maybe useful for you to understand (familiarize yourself with) the usage of ls-mlkit.
+
 
 .. toctree::
    :maxdepth: 1
