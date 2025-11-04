@@ -7,7 +7,7 @@ from torch import Tensor
 class ForceField(metaclass=abc.ABCMeta):
     r"""
     Subclasses of this abstract base class define the force constants of
-    the modeled springs between atoms in a *Elastic network model*. 
+    the modeled springs between atoms in a *Elastic network model*.
     ``...`` is arbitrary number of dimensions, for example, batch size.
 
 
@@ -35,15 +35,15 @@ class ForceField(metaclass=abc.ABCMeta):
         contact_pair_on : Tensor, shape=(..., m, 2), dtype=int, optional
             Indices that point to pairs of atoms, whose contacts
             are are established in any case.
-            If ``None``, no contacts are artificially switched on.    
+            If ``None``, no contacts are artificially switched on.
     """
 
     @abc.abstractmethod
     def force_constant(self, atom_i: Tensor, atom_j: Tensor, sq_distance: Tensor):
         """
         Get the force constant for the interaction of the given atoms.
-        
-        ABSTRACT: 
+
+        ABSTRACT:
             Override when inheriting.
 
         Parameters:
@@ -110,7 +110,7 @@ class InvariantForceField(ForceField):
     def force_constant(self, atom_i: Tensor, atom_j: Tensor = None, sq_distance: Tensor = None):
         """
         Calculate force constants for atom interactions.
-        
+
         Args:
             atom_i: Tensor, shape=(len(...) + 2, m), len(...)=macro_shape, dtype=int
             atom_j: Tensor, shape=(len(...) + 2, m), len(...)=macro_shape, dtype=int
@@ -151,12 +151,12 @@ class HinsenForceField(ForceField):
     def force_constant(self, atom_i: Tensor, atom_j: Tensor, sq_distance: Tensor):
         """
         Calculate force constants using the Hinsen force field parameters.
-        
+
         Args:
             atom_i: Tensor, indices of first atoms
-            atom_j: Tensor, indices of second atoms  
+            atom_j: Tensor, indices of second atoms
             sq_distance: Tensor, squared distances between atom pairs
-            
+
         Returns:
             Tensor: Force constants for each atom pair
         """
