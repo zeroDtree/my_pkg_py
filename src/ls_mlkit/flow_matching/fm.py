@@ -6,9 +6,12 @@ from torch.nn import Module
 from tqdm.auto import tqdm
 
 from ..util.base_config_class import BaseConfigClass
-
+from ..util.mask.masker_interface import MaskerInterface
+from ..diffuser.conditioner.conditioner import Conditioner
 
 class EuclideanFlowConfig(BaseConfigClass):
+    EPS = 1e-5
+
     def __init__(
         self,
         n_discretization_steps: int,
@@ -34,9 +37,10 @@ class EuclideanFlowConfig(BaseConfigClass):
 
 
 class EuclideanFlow(Module):
-    def __init__(self, config: EuclideanFlowConfig, model: Module, loss_fn: Callable):
+    def __init__(self, config: EuclideanFlowConfig, masker: MaskerInterface, model: Module, loss_fn: Callable):
         super().__init__()
         self.config = config
+        self.masker = masker
         self.model = model
         self.loss_fn = loss_fn
 
@@ -85,7 +89,15 @@ class EuclideanFlow(Module):
         return self.compute_loss(batch, *args, **kwargs)
 
     @torch.no_grad()
-    def step(self, x_t: Tensor, t_start: Tensor, t_end: Tensor, padding_mask: Tensor = None) -> Tensor:
+    def step(
+        self,
+        x_t: Tensor,
+        t_start: Tensor,
+        t_end: Tensor,
+        padding_mask: Tensor = None,
+        *args: list[Any],
+        **kwargs: dict[Any, Any],
+    ) -> Tensor:
         """Step the flow, used for sampling.
 
         Args:
@@ -104,8 +116,13 @@ class EuclideanFlow(Module):
 
         return x_t + (t_end - t_start) * self.model.forward(
             t=copied_t_start + (copied_t_end - copied_t_start) / 2,
-            x_t=x_t + self.model.forward(x_t=x_t, t=copied_t_start, padding_mask=padding_mask) * (t_end - t_start) / 2,
+            x_t=x_t
+            + self.model.forward(x_t=x_t, t=copied_t_start, padding_mask=padding_mask, *args, **kwargs)
+            * (t_end - t_start)
+            / 2,
             padding_mask=padding_mask,
+            *args,
+            **kwargs,
         )
 
     def get_macro_shape(self, x: Tensor) -> tuple[int, ...]:
@@ -129,7 +146,7 @@ class EuclideanFlow(Module):
         return x.view(*x.shape, *([1] * self.config.ndim_micro_shape))
 
     @torch.no_grad()
-    def sampling_x1_unconditionally(self, shape, device) -> Tensor:
+    def sampling_x1_unconditionally(self, shape, device, *args: list[Any], **kwargs: dict[Any, Any]) -> Tensor:
         """Sample :math:`x_1` unconditionally
 
         Args:
@@ -139,11 +156,46 @@ class EuclideanFlow(Module):
         Returns:
             Tensor: ``(*macro_shape, *micro_shape)``
         """
-        x_t = torch.randn(shape, device=device)
+        x_0 = torch.randn(shape, device=device)
+        x_t = x_0
         macro_shape = self.get_macro_shape(x_t)
         timesteps = torch.linspace(0, 1, self.config.n_inference_steps + 1, device=device)
         for i in tqdm(range(len(timesteps) - 1)):
             t_start = timesteps[i] * torch.ones(macro_shape, device=device)
             t_end = timesteps[i + 1] * torch.ones(macro_shape, device=device)
-            x_t = self.step(x_t=x_t, t_start=t_start, t_end=t_end)
+            x_t = self.step(x_t=x_t, t_start=t_start, t_end=t_end, *args, **kwargs)
+        return x_t
+
+    def inpainting_x1_unconditionally(
+        self,
+        x_1: Tensor,
+        padding_mask: Tensor,
+        inpainting_mask: Tensor,
+        device: torch.device,
+        x_init_posterior: Tensor = None,
+        inpainting_mask_key="inpainting_mask",
+        *args,
+        **kwargs,
+    ) -> Tensor:
+        shape = x_1.shape
+        config = self.config
+        masker = self.masker
+        macro_shape = shape[: -config.ndim_micro_shape]
+        # Add inpainting_mask to kwargs so it gets passed to the model
+        kwargs[inpainting_mask_key] = inpainting_mask
+
+        x_1 = masker.apply_mask(x_1, padding_mask)
+        x_0 = torch.randn(shape, device=device)
+        if x_init_posterior is not None:
+            x_0 = x_init_posterior * self.EPS + (1 - self.EPS) * x_0
+        x_t = x_0
+        timesteps = torch.linspace(0, 1, self.config.n_inference_steps + 1, device=device)
+        for i in tqdm(range(len(timesteps) - 1)):
+            t_start = timesteps[i] * torch.ones(macro_shape, device=device)
+            t_end = timesteps[i + 1] * torch.ones(macro_shape, device=device)
+            x_1_t = t_start * x_1 + (1 - t_start) * x_0
+            x_t = masker.apply_inpainting_mask(x_1_t, x_t, inpainting_mask)
+            x_t = self.step(x_t=x_t, t_start=t_start, t_end=t_end, padding_mask=padding_mask, *args, **kwargs)
+            x_t = masker.apply_mask(x_t, padding_mask)
+        x_t = masker.apply_inpainting_mask(x_1, x_t, inpainting_mask)
         return x_t
