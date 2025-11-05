@@ -9,10 +9,9 @@ import torch
 import wandb
 from accelerate import Accelerator
 
-from ls_mlkit.pipeline.pipeline import BasePipeline, LogConfig, TrainingConfig
-
 from ..util.decorators import inherit_docstrings
 from .callback import BaseCallback, CallbackEvent
+from .pipeline import BasePipeline, LogConfig, TrainingConfig
 
 
 @inherit_docstrings
