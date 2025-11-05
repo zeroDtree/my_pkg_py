@@ -4,6 +4,8 @@ import random
 import numpy as np
 import torch
 
+import accelerate
+
 
 def seed_everything(seed: int):
     random.seed(seed)
@@ -13,3 +15,5 @@ def seed_everything(seed: int):
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = True
+
+    accelerate.utils.set_seed(seed)
