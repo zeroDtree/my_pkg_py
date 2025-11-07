@@ -4,12 +4,11 @@ import torch
 from torch import Tensor
 from tqdm.auto import tqdm
 
-from .time_scheduler import DiffusionTimeScheduler
-
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .base_diffuser import BaseDiffuser, BaseDiffuserConfig
 from .conditioner import Conditioner
+from .time_scheduler import DiffusionTimeScheduler
 
 
 @inherit_docstrings

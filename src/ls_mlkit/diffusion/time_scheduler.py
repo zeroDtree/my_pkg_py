@@ -2,14 +2,10 @@ r"""
 Time Scheduler for Diffusion
 """
 
-import abc
-from typing import Tuple
-
 import torch
-from torch import Tensor
 
-from ..util.decorators import inherit_docstrings
 from ..util.base_class.base_time_class import BaseTimeScheduler
+from ..util.decorators import inherit_docstrings
 
 
 @inherit_docstrings

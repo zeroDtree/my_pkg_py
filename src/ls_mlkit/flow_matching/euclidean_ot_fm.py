@@ -1,17 +1,15 @@
-from math import e
 from typing import Any, Callable
 
-from numpy.f2py.rules import k
 import torch
-from torch.nn import Module
 from torch import Tensor
+from torch.nn import Module
+from tqdm.auto import tqdm
 
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .base_fm import BaseFlow, BaseFlowConfig
-from tqdm.auto import tqdm
-from .time_scheduler import FlowMatchingTimeScheduler
 from .model_interface import Model4FMInterface
+from .time_scheduler import FlowMatchingTimeScheduler
 
 
 @inherit_docstrings

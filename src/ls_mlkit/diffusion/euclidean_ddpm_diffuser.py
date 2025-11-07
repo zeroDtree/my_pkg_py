@@ -4,13 +4,12 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from .time_scheduler import DiffusionTimeScheduler
-
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .conditioner import Conditioner
 from .euclidean_diffuser import EuclideanDiffuser, EuclideanDiffuserConfig
 from .model_interface import Model4DiffuserInterface
+from .time_scheduler import DiffusionTimeScheduler
 
 
 @inherit_docstrings
@@ -235,9 +234,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         x_t = self.masker.apply_mask(x_t, mask)
         return {"x_t": x_t, "noise": noise, "expectation": expectation, "standard_deviation": standard_deviation}
 
-    def step(
-        self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any
-    ) -> Tensor:
+    def step(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
         r"""
         Predict the sample from the previous timestep by reversing the SDE.
         This function propagates the diffusion process from the learned model outputs.

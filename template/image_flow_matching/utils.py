@@ -52,9 +52,10 @@ def get_dataset(cfg: DictConfig):
 
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from diffusers import UNet2DModel
+
     from ls_mlkit.flow_matching.euclidean_ot_fm import EuclideanOTFlow, EuclideanOTFlowConfig
-    from ls_mlkit.flow_matching.time_scheduler import FlowMatchingTimeScheduler
     from ls_mlkit.flow_matching.model_interface import Model4FMInterface
+    from ls_mlkit.flow_matching.time_scheduler import FlowMatchingTimeScheduler
     from ls_mlkit.util.mask.image_masker import ImageMasker
 
     if model is None:

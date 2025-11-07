@@ -3,13 +3,12 @@ from typing import Any, Callable, Literal, cast
 import torch
 from torch import Tensor
 
-from .time_scheduler import DiffusionTimeScheduler
-
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .conditioner import Conditioner
 from .euclidean_ddpm_diffuser import EuclideanDDPMConfig, EuclideanDDPMDiffuser
 from .model_interface import Model4DiffuserInterface
+from .time_scheduler import DiffusionTimeScheduler
 
 
 @inherit_docstrings

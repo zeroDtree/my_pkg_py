@@ -1,7 +1,4 @@
-import abc
-from typing import Any, Tuple
-
-from torch import Tensor
+from typing import Any
 
 from ..util.base_class.base_gm_class import BaseGenerativeModel, BaseGenerativeModelConfig
 from ..util.decorators import inherit_docstrings
