@@ -53,11 +53,11 @@ def get_dataset(cfg: DictConfig):
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from diffusers import UNet2DModel
 
-    from ls_mlkit.diffuser.conditioner import Conditioner
-    from ls_mlkit.diffuser.euclidean_ddim_diffuser import EuclideanDDIMConfig, EuclideanDDIMDiffuser
-    from ls_mlkit.diffuser.euclidean_ddpm_diffuser import EuclideanDDPMConfig, EuclideanDDPMDiffuser
-    from ls_mlkit.diffuser.model_interface import Model4DiffuserInterface
-    from ls_mlkit.diffuser.time_scheduler import TimeScheduler
+    from ls_mlkit.diffusion.conditioner import Conditioner
+    from ls_mlkit.diffusion.euclidean_ddim_diffuser import EuclideanDDIMConfig, EuclideanDDIMDiffuser
+    from ls_mlkit.diffusion.euclidean_ddpm_diffuser import EuclideanDDPMConfig, EuclideanDDPMDiffuser
+    from ls_mlkit.diffusion.model_interface import Model4DiffuserInterface
+    from ls_mlkit.diffusion.time_scheduler import DiffusionTimeScheduler
     from ls_mlkit.util.mask.image_masker import ImageMasker
 
     if model is None:
@@ -106,7 +106,7 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             return {"x": p_noise}
 
     model = MyModel(model=model)
-    time_scheduler = TimeScheduler(
+    time_scheduler = DiffusionTimeScheduler(
         continuous_time_start=0.0,
         continuous_time_end=1.0,
         num_train_timesteps=cfg.diffuser.n_discretization_steps,

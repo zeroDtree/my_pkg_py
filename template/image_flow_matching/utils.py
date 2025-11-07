@@ -52,8 +52,10 @@ def get_dataset(cfg: DictConfig):
 
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from diffusers import UNet2DModel
-
-    from ls_mlkit.flow_matching.fm import EuclideanFlow, EuclideanFlowConfig
+    from ls_mlkit.flow_matching.euclidean_ot_fm import EuclideanOTFlow, EuclideanOTFlowConfig
+    from ls_mlkit.flow_matching.time_scheduler import FlowMatchingTimeScheduler
+    from ls_mlkit.flow_matching.model_interface import Model4FMInterface
+    from ls_mlkit.util.mask.image_masker import ImageMasker
 
     if model is None:
         model = UNet2DModel(
@@ -80,13 +82,19 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             ),
         )
 
-    class MyModel(Module):
+    class MyModel(Module, Model4FMInterface):
         def __init__(self, model: Module):
             super().__init__()
             self.model = model
 
-        def forward(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
+        def __call__(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
             return self.model(x_t, t, return_dict=False)[0]
+
+        def get_model_device(self):
+            return next(self.model.parameters()).device
+
+        def prepare_batch_data_for_input(self, batch):
+            return batch
 
     def mse(predicted: Tensor, ground_truth: Tensor, mask: Tensor):
         from torch.nn.functional import mse_loss
@@ -94,15 +102,21 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         return mse_loss(predicted, ground_truth)
 
     model4fm = MyModel(model=model)
+    time_scheduler = FlowMatchingTimeScheduler(
+        num_train_timesteps=cfg.flow.n_discretization_steps,
+        num_inference_steps=cfg.flow.n_inference_steps,
+    )
 
-    flow_config = EuclideanFlowConfig(
+    flow_config = EuclideanOTFlowConfig(
         n_discretization_steps=cfg.flow.n_discretization_steps,
         ndim_micro_shape=3,
         n_inference_steps=cfg.flow.n_inference_steps,
     )
-    flow = EuclideanFlow(
+    flow = EuclideanOTFlow(
         config=flow_config,
+        time_scheduler=time_scheduler,
         model=model4fm,
+        masker=ImageMasker(ndim_mini_micro_shape=0),
         loss_fn=mse,
     )
 

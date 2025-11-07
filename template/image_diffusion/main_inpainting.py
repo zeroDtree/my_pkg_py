@@ -101,12 +101,6 @@ def main(cfg: DictConfig):
         wandb.finish()
 
     if accelerator.is_local_main_process:
-        # Generate sample
-        pass
-
-        # unet_model_path = "../ddpm-butterflies-128/unet/"
-        # unet_model = UNet2DModel.from_pretrained(unet_model_path, use_safetensors=True).to(accelerator.device)
-        # model = get_model(cfg, model=unet_model)
 
         model = get_model(
             cfg,
@@ -125,13 +119,12 @@ def main(cfg: DictConfig):
         # Set right half to 1 (will be inpainted/removed)
         inpainting_mask[:, :, :, width // 2 :] = 1.0
 
-        result: Tensor = model.inpainting_x0_unconditionally(
-            x_0=x_0,
+        result: Tensor = model.inpainting(
+            x=x_0,
             padding_mask=torch.ones(*x_0.shape, device=accelerator.device),
             inpainting_mask=inpainting_mask,
             device=accelerator.device,
             mode=cfg.diffuser.mode,
-            recovery_mode=cfg.diffuser.recovery_mode,
             n_repaint_steps=cfg.diffuser.n_repaint_steps,
         )
         image = result

@@ -114,7 +114,7 @@ def main(cfg: DictConfig):
         )
         model = model.to(accelerator.device)
 
-        result: Tensor = model.sample_x0_unconditionally(
+        result: Tensor = model.sampling(
             shape=(16, 3, cfg.dataset.image_size, cfg.dataset.image_size),
             device=accelerator.device,
             mode=cfg.diffuser.mode,

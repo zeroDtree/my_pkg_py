@@ -100,17 +100,9 @@ def main(cfg: DictConfig):
         wandb.finish()
 
     if accelerator.is_local_main_process:
-        # Generate sample
-        pass
-
-        # unet_model_path = "../ddpm-butterflies-128/unet/"
-        # unet_model = UNet2DModel.from_pretrained(unet_model_path, use_safetensors=True).to(accelerator.device)
-        # model = get_model(cfg, model=unet_model)
-
         model = get_model(
             cfg,
-            # model=unet_model,
-            final_model_ckpt_path=f"checkpoints/UNet2DModel/huggan/smithsonian_butterflies_subset/-lr:0.0001-bs:16-{cfg.optimizer.name}-{cfg.diffuser.mode}{save_dir_suffix}/checkpoint_epoch50_step0_global3150/model.safetensors",
+            final_model_ckpt_path=f"{pipeline.get_latest_checkpoint_dir()}/model.safetensors",
         )
         model = model.to(accelerator.device)
 
@@ -124,8 +116,8 @@ def main(cfg: DictConfig):
         # Set right half to 1 (will be inpainted/removed)
         inpainting_mask[:, :, :, width // 2 :] = 1.0
         masked_x_0 = x_0 * inpainting_mask
-        result: Tensor = model.inpainting_x0_unconditionally(
-            x_0=x_0,
+        result: Tensor = model.inpainting(
+            x=x_0,
             padding_mask=torch.ones(*x_0.shape, device=accelerator.device),
             masked_x_0=masked_x_0,
             inpainting_mask=inpainting_mask,

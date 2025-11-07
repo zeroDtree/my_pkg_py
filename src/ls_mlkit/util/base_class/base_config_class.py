@@ -4,12 +4,15 @@ from typing import Any
 import torch
 from torch import Tensor
 
+from ..decorators import inherit_docstrings
 
-class BaseConfigClass:
-    def __init__(self, *args: list[Any], **kwargs: dict[Any, Any]):
+
+@inherit_docstrings
+class BaseConfig(object):
+    def __init__(self, *args: list[Any], **kwargs: dict[Any, Any]) -> None:
         pass
 
-    def to(self, device: torch.device | str | Tensor, inplace: bool = True) -> "BaseConfigClass":
+    def to(self, device: torch.device | str | Tensor, inplace: bool = True) -> "BaseConfig":
         """Move the config to the given device
 
         Args:
@@ -17,7 +20,7 @@ class BaseConfigClass:
             inplace (bool, optional): whether to move the config in place. Defaults to True.
 
         Returns:
-            BaseConfigClass: the config moved to the given device
+            BaseConfig: the config moved to the given device
         """
         obj = self if inplace else deepcopy(self)
         if isinstance(device, Tensor):

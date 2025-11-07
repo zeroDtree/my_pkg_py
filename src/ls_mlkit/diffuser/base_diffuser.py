@@ -8,7 +8,7 @@ from typing import Any, Tuple
 from torch import Tensor
 from torch.nn import Module
 
-from ..util.base_config_class import BaseConfigClass
+from ..util.base_class.base_config_class import BaseConfig as BaseConfigClass
 from .time_scheduler import TimeScheduler
 
 

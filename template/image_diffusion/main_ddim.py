@@ -114,7 +114,7 @@ def main(cfg: DictConfig):
         )
         model = model.to(accelerator.device)
 
-        result: Tensor = model.sample_x0_unconditionally(
+        result: Tensor = model.sampling(
             shape=(16, 3, cfg.dataset.image_size, cfg.dataset.image_size),
             device=accelerator.device,
             mode=cfg.diffuser.mode,
@@ -126,7 +126,9 @@ def main(cfg: DictConfig):
 
         image = numpy_to_pil(image)
         image_grid = make_image_grid(image, rows=4, cols=4)
-        image_grid.save(f"generated_sample_{cfg.optimizer.name}_{cfg.diffuser.mode}_{cfg.diffuser.name}.png")
+        image_grid.save(
+            f"generated_sample_{cfg.optimizer.name}_{cfg.diffuser.mode}_{cfg.diffuser.name}_{cfg.diffuser.n_inference_steps}.png"
+        )
 
     return
 
@@ -198,7 +200,7 @@ if __name__ == "__main__":
                 "name": "DDIM",
                 "n_discretization_steps": 1000,
                 "n_inference_steps": 200,
-                "eta": 0.0,
+                "eta": 0.5,
                 "mode": "epsilon",
             },
         }

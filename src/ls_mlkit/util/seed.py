@@ -1,10 +1,9 @@
 import os
 import random
 
+import accelerate
 import numpy as np
 import torch
-
-import accelerate
 
 
 def seed_everything(seed: int):

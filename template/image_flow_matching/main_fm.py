@@ -113,8 +113,14 @@ def main(cfg: DictConfig):
             final_model_ckpt_path=f"{pipeline.get_latest_checkpoint_dir()}/model.safetensors",
         )
         model = model.to(accelerator.device)
+        import torch
 
-        result: Tensor = model.sampling_x1_unconditionally(
+        result = torch.randn((16, 3, cfg.dataset.image_size, cfg.dataset.image_size), device=accelerator.device)
+        # with torch.no_grad():
+        #     for t in range(cfg.flow.n_inference_steps):
+        #         result = model.step(result, t, torch.ones_like(result, dtype=torch.bool, device=accelerator.device))
+
+        result: Tensor = model.sampling(
             shape=(16, 3, cfg.dataset.image_size, cfg.dataset.image_size),
             device=accelerator.device,
         )
@@ -198,11 +204,11 @@ if __name__ == "__main__":
             "flow": {
                 "name": "EuclideanFlow",
                 "n_discretization_steps": 1000,
-                "n_inference_steps": 1,
+                "n_inference_steps": 10,
             },
         }
     )
 
-    for n_inference_steps in [2]:
+    for n_inference_steps in [1, 2, 5, 10, 50]:
         cfg.flow.n_inference_steps = n_inference_steps
         main(cfg)
