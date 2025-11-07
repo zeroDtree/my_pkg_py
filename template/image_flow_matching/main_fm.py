@@ -209,6 +209,6 @@ if __name__ == "__main__":
         }
     )
 
-    for n_inference_steps in [1, 2, 5, 10, 50]:
+    for n_inference_steps in [10]:
         cfg.flow.n_inference_steps = n_inference_steps
         main(cfg)

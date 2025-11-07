@@ -61,7 +61,11 @@ class EuclideanOTFlow(BaseFlow):
         x_0: torch.Tensor = torch.randn_like(x_1, device=device)
         x_t = x_0 * (1 - t) + x_1 * t
         dx_t = x_1 - x_0
-        p_dx_t = self.model(x_t=x_t, t=copied_t, padding_mask=padding_mask, *args, **kwargs)
+        model_input_dict = batch
+        model_input_dict.pop("x_1")
+        model_input_dict.pop("padding_mask")
+        model_input_dict.pop("t", None)
+        p_dx_t = self.model(x_t, copied_t, padding_mask, **model_input_dict)["x"]
         loss = self.loss_fn(p_dx_t, dx_t, padding_mask)
         return loss
 
@@ -75,13 +79,16 @@ class EuclideanOTFlow(BaseFlow):
         t_start: torch.Tensor = self.complete_micro_shape(copied_t_start)
         t_end: torch.Tensor = self.complete_micro_shape(copied_t_end)
 
-        return x_t + (t_end - t_start) * self.model(
-            x_t=x_t
-            + self.model(x_t=x_t, t=copied_t_start, padding_mask=padding_mask, *args, **kwargs) * (t_end - t_start) / 2,
-            t=copied_t_start + (copied_t_end - copied_t_start) / 2,
-            padding_mask=padding_mask,
-            *args,
-            **kwargs,
+        return (
+            x_t
+            + (t_end - t_start)
+            * self.model(
+                x_t + self.model(x_t, copied_t_start, padding_mask, *args, **kwargs)["x"] * (t_end - t_start) / 2,
+                copied_t_start + (copied_t_end - copied_t_start) / 2,
+                padding_mask,
+                *args,
+                **kwargs,
+            )["x"]
         )
 
     @torch.no_grad()
