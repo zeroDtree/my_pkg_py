@@ -5,6 +5,7 @@ Base Diffuser Config and Base Diffuser.
 import abc
 from typing import Any, Callable
 
+from numpy import isin
 from torch import Tensor
 from torch.nn import Module
 
@@ -61,7 +62,10 @@ class BaseLossClass(Module, BaseShapeClass, abc.ABC):
             ``dict`` | ``Tensor``: a dictionary that must contain the key "loss" or a tensor of loss
         """
         result = self.compute_loss(batch, *args, **kwargs)
-        result = self.hook_manager.run_hooks(stage=HookStage.POST_LOSS_COMPUTE, **result)
+        hook_result = self.hook_manager.run_hooks(stage=HookStage.POST_LOSS_COMPUTE, **result)
+        if hook_result is not None:
+            assert isinstance(hook_result, (dict, Tensor))
+            result = hook_result
         return result
 
     def register_after_compute_loss_hook(
