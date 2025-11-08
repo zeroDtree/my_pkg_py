@@ -11,10 +11,11 @@ from .base_fm import BaseFlow, BaseFlowConfig
 from .model_interface import Model4FMInterface
 from .time_scheduler import FlowMatchingTimeScheduler
 
+EPS = 1e-5
+
 
 @inherit_docstrings
 class EuclideanOTFlowConfig(BaseFlowConfig):
-    EPS = 1e-5
 
     def __init__(
         self,
@@ -131,17 +132,23 @@ class EuclideanOTFlow(BaseFlow):
 
         x_0 = self.prior_sampling(shape).to(device)
         if x_init_posterior is not None:
-            x_0 = x_init_posterior * self.EPS + (1 - self.EPS) * x_0
+            x_0 = x_init_posterior * EPS + (1 - EPS) * x_0
         x_t = x_0
 
         x_1 = masker.apply_mask(x_1, padding_mask)
         timesteps = self.time_scheduler.get_discrete_timesteps_schedule().to(device)
         for idx, t in enumerate(tqdm(timesteps)):
+            kwargs["idx"] = idx
             t = torch.ones(macro_shape, device=device, dtype=torch.long) * t
             x_t = self.recovery_bright_rigion(
-                x_known=x_1, x_t=x_t, t=t, padding_mask=padding_mask, inpainting_mask=inpainting_mask, x_prior=x_0
+                x_known=x_1,
+                x_t=x_t,
+                t=t,
+                padding_mask=padding_mask,
+                inpainting_mask=inpainting_mask,
+                x_prior=x_0,
+                **kwargs,
             )
-            kwargs["idx"] = idx
             x_t = self.step(x_t=x_t, t=t, padding_mask=padding_mask, *args, **kwargs)
             x_t = masker.apply_mask(x_t, padding_mask)
         x_t = masker.apply_inpainting_mask(x_1, x_t, inpainting_mask)
@@ -150,8 +157,12 @@ class EuclideanOTFlow(BaseFlow):
     def prior_sampling(self, shape) -> torch.Tensor:
         return torch.randn(shape)
 
-    def recovery_bright_rigion(self, x_known, x_t, t, padding_mask, inpainting_mask, x_prior) -> Tensor:
-        t_start = self.time_scheduler.get_continuous_timesteps_schedule()[t]
+    def recovery_bright_rigion(
+        self, x_known, x_t, t, padding_mask, inpainting_mask, x_prior, *args, **kwargs
+    ) -> Tensor:
+        device = x_t.device
+        idx = kwargs.get("idx")
+        t_start = self.time_scheduler.get_continuous_timesteps_schedule().to(device)[idx]
         t_start = self.complete_micro_shape(t_start)
         x_1_t = t_start * x_known + (1 - t_start) * x_prior
         x_t = self.masker.apply_inpainting_mask(x_1_t, x_t, inpainting_mask)

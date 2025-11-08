@@ -135,6 +135,7 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         ndim_micro_shape=3,
         n_inference_steps=cfg.diffuser.get("n_inference_steps", None),
         eta=cfg.diffuser.get("eta", 0.0),
+        use_clip=False,
     )
     diffuser = DiffuserClass(
         config=diffusion_config,
