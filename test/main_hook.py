@@ -1,28 +1,9 @@
-from typing import Any, Callable, Dict, List, Optional, cast
-from torch import Tensor
+from typing import Callable, cast
+
 import torch
-from ls_mlkit.util.base_class.base_hook import Hook, HookStage
+from torch import Tensor
 
-
-def get_accumulated_conditional_score(
-    conditioner_list, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any
-) -> Tensor:
-    r"""Get the accumulated conditional score
-
-    Args:
-        x_t (``Tensor``): :math:`x_t`
-        t (``Tensor``): :math:`t`
-        padding_mask (``Tensor``): the padding mask
-
-    Returns:
-        ``Tensor``: the accumulated conditional score
-    """
-    accumulated_conditional_score = torch.zeros_like(x_t)
-    for conditioner in conditioner_list:
-        if not conditioner.is_enabled():
-            continue
-        accumulated_conditional_score += conditioner.get_conditional_score(x_t, t, padding_mask, *args, **kwargs)
-    return accumulated_conditional_score
+from ls_mlkit.diffusion.conditioner.utils import get_accumulated_conditional_score
 
 
 def get_posterior_mean_fn(config, score: Tensor = None, score_fn: Callable = None):
@@ -67,11 +48,11 @@ def get_posterior_mean_fn(config, score: Tensor = None, score_fn: Callable = Non
     return _ddpm_posterior_mean_fn
 
 
-def get_hook(conditioner_list):
+def get_ddpm_hook(conditioner_list):
 
     def _hook_fn(**kwargs):
         nonlocal conditioner_list
-        
+
         loss = kwargs.get("loss")
         x_0 = kwargs.get("clean_data")
         x_t = kwargs.get("x_t")
@@ -116,4 +97,4 @@ def get_hook(conditioner_list):
         kwargs["loss"] = total_loss
         return kwargs
 
-    return Hook(name="DDPM_condition_hook", stage=HookStage.POST_LOSS_COMPUTE, fn=_hook_fn)
+    return _hook_fn

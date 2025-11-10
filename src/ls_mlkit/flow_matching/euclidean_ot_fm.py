@@ -167,3 +167,4 @@ class EuclideanOTFlow(BaseFlow):
         x_1_t = t_start * x_known + (1 - t_start) * x_prior
         x_t = self.masker.apply_inpainting_mask(x_1_t, x_t, inpainting_mask)
         return x_t
+

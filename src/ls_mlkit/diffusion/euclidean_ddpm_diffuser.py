@@ -4,9 +4,11 @@ import numpy as np
 import torch
 from torch import Tensor
 
+from ..util.base_class.base_hook import Hook, HookStage
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .conditioner import Conditioner
+from .conditioner.utils import get_accumulated_conditional_score
 from .euclidean_diffuser import EuclideanDiffuser, EuclideanDiffuserConfig
 from .model_interface import Model4DiffuserInterface
 from .time_scheduler import DiffusionTimeScheduler
@@ -75,7 +77,6 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         config: EuclideanDDPMConfig,
         time_scheduler: DiffusionTimeScheduler,
         masker: MaskerInterface,
-        conditioner_list: list[Conditioner],
         model: Model4DiffuserInterface,
         loss_fn: Callable[[Tensor, Tensor, Tensor], Tensor],  # (predicted, ground_true, padding_mask)
     ):
@@ -85,14 +86,13 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             config (EuclideanDDPMConfig): the config of the diffuser
             time_scheduler (DiffusionTimeScheduler): the time scheduler of the diffuser
             masker (MaskerInterface): the masker of the diffuser
-            conditioner_list (list[Conditioner]): the list of conditioners of the diffuser
             model (Model4DiffuserInterface): the model of the diffuser
             loss_fn (Callable[[Tensor, Tensor, Tensor], Tensor]): the loss function of the diffuser
 
         Returns:
             None
         """
-        super().__init__(config=config, time_scheduler=time_scheduler, masker=masker, conditioner_list=conditioner_list)
+        super().__init__(config=config, time_scheduler=time_scheduler, masker=masker)
         self.config: EuclideanDDPMConfig = config
         self.model = model
         self.loss_fn = loss_fn
@@ -142,38 +142,21 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         else:
             raise ValueError(f"Invalid mode: {mode}")
 
-        # Handle conditioners if any (for advanced use cases)
-        if len(self.conditioner_list) > 0:
-            # Original complex logic for conditioners
-            p_uc_score = -predicted_noise / b
-            gt_uc_score = -noise / b
-
-            tgt_mask = padding_mask
-            for conditioner in self.conditioner_list:
-                if not conditioner.is_enabled():
-                    continue
-                conditioner.set_condition(
-                    **{
-                        **conditioner.prepare_condition_dict(
-                            train=True,
-                            **{
-                                "tgt_mask": tgt_mask,
-                                "x_0": x_0,
-                                "padding_mask": padding_mask,
-                                "posterior_mean_fn": self.get_posterior_mean_fn(score=p_uc_score, score_fn=None),
-                            },
-                        ),
-                    }
-                )
-
-            acc_c_score = self.get_accumulated_conditional_score(x_t, t, padding_mask)
-            gt_score = gt_uc_score + acc_c_score
-
-            # Scale and compute conditioned loss
-            p_uc_score = b * p_uc_score
-            gt_score = b * gt_score
-            loss = self.loss_fn(p_uc_score, gt_score, padding_mask)
-        return {"loss": loss, "model_output": model_output}
+        return {
+            "loss": loss,
+            "clean_data": x_0,
+            "t": t,
+            "x_t": x_t,
+            "padding_mask": padding_mask,
+            "noise": noise,
+            "predicted_noise": predicted_noise,
+            "get_posterior_mean_fn": self.get_posterior_mean_fn,
+            "a": a,
+            "b": b,
+            "loss_fn": self.loss_fn,
+            "mode": mode,
+            "config": self.config,
+        }
 
     def q_xt_x_0(self, x_0: Tensor, t: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
         r"""Forward process
@@ -384,42 +367,95 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
         return sample
 
-    def get_posterior_mean_fn(self, score: Tensor = None, score_fn: Callable = None):
-        r"""Get the posterior mean function
 
+def get_posterior_mean_fn(config, score: Tensor = None, score_fn: Callable = None):
+    r"""Get the posterior mean function
+
+    Args:
+        score (Tensor, optional): the score of the sample
+        score_fn (Callable, optional): the function to compute score
+
+    Returns:
+        Callable: the posterior mean function
+    """
+
+    def _ddpm_posterior_mean_fn(
+        x_t: Tensor,
+        t: Tensor,
+        padding_mask: Tensor,
+    ):
+        r"""
         Args:
-            score (Tensor, optional): the score of the sample
-            score_fn (Callable, optional): the function to compute score
+            x_t: shape=(..., n_nodes, 3)
+            t: shape=(...), dtype=torch.long
 
-        Returns:
-            Callable: the posterior mean function
-        """
+        For the case of DDPM sampling, the posterior mean is given by
 
-        def _posterior_mean_fn(
-            x_t: Tensor,
-            t: Tensor,
-            padding_mask: Tensor,
-        ):
-            r"""
-            Args:
-                x_t: shape=(..., n_nodes, 3)
-                t: shape=(...), dtype=torch.long
-
-            For the case of DDPM sampling, the posterior mean is given by
-
-            .. math::
+        .. math::
 
             E[x_0|x_t] = \frac{1}{\sqrt{\bar{\alpha}(t)}}(x_t + (1 - \bar{\alpha}(t))\nabla_{x_t}\log p_t(x_t))
 
-            """
-            nonlocal score, score_fn
-            assert score is not None or score_fn is not None, "either score or score_fn must be provided"
-            if score is None:
-                score = score_fn(x_t, t, padding_mask)
-            config = cast(EuclideanDDPMConfig, self.config.to(t))
-            alpha_bar_t = config.alphas_cumprod[t]  # macro_shape
-            alpha_bar_t = self.complete_micro_shape(alpha_bar_t)
-            x_0 = (x_t + (1 - alpha_bar_t) * score) / torch.sqrt(alpha_bar_t)
-            return x_0
+        """
+        nonlocal config, score, score_fn
+        assert score is not None or score_fn is not None, "either score or score_fn must be provided"
+        if score is None:
+            score = score_fn(x_t, t, padding_mask)
+        config = cast(EuclideanDDPMConfig, config.to(t))
+        alpha_bar_t = config.alphas_cumprod[t]  # macro_shape
+        alpha_bar_t.view(*alpha_bar_t.shape, *([1] * config.ndim_micro_shape))
+        x_0 = (x_t + (1 - alpha_bar_t) * score) / torch.sqrt(alpha_bar_t)
+        return x_0
 
-        return _posterior_mean_fn
+    return _ddpm_posterior_mean_fn
+
+
+def get_ddpm_condition_hook(conditioner_list: list[Conditioner]):
+
+    def _hook_fn(**kwargs):
+        nonlocal conditioner_list
+
+        loss = kwargs.get("loss")
+        x_0 = kwargs.get("clean_data")
+        x_t = kwargs.get("x_t")
+        t = kwargs.get("t", None)
+        noise = kwargs.get("noise", None)
+        predicted_noise = kwargs.get("predicted_noise")
+        padding_mask = kwargs.get("padding_mask")
+        a = kwargs.get("a")
+        b = kwargs.get("b")
+        loss_fn = kwargs.get("loss_fn")
+        mode = kwargs.get("mode")
+        config = kwargs.get("config")
+
+        p_uc_score = -predicted_noise / b
+        gt_uc_score = -noise / b
+
+        tgt_mask = padding_mask
+        for conditioner in conditioner_list:
+            if not conditioner.is_enabled():
+                continue
+            conditioner.set_condition(
+                **{
+                    **conditioner.prepare_condition_dict(
+                        train=True,
+                        **{
+                            "tgt_mask": tgt_mask,
+                            "x_0": x_0,
+                            "padding_mask": padding_mask,
+                            "posterior_mean_fn": get_posterior_mean_fn(config=config, score=p_uc_score, score_fn=None),
+                        },
+                    ),
+                }
+            )
+
+        acc_c_score = get_accumulated_conditional_score(conditioner_list, x_t, t, padding_mask)
+        gt_score = gt_uc_score + acc_c_score
+
+        # Scale and compute conditioned loss
+        p_uc_score = b * p_uc_score
+        gt_score = b * gt_score
+        total_loss = loss_fn(p_uc_score, gt_score, padding_mask)
+        kwargs["loss"] = total_loss
+        return kwargs
+
+    return Hook(name="DDPM_conditioner_hook", stage=HookStage.POST_LOSS_COMPUTE, fn=_hook_fn, priority=0, enabled=True)

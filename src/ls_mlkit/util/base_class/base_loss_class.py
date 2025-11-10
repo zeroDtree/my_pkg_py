@@ -5,13 +5,12 @@ Base Diffuser Config and Base Diffuser.
 import abc
 from typing import Any, Callable
 
-from numpy import isin
 from torch import Tensor
 from torch.nn import Module
 
 from ..decorators import inherit_docstrings
+from .base_hook import Hook, HookManager, HookStage
 from .base_shape_class import BaseShapeClass, BaseShapeConfig
-from .base_hook import HookStage, Hook, HookManager
 
 
 @inherit_docstrings
@@ -81,3 +80,7 @@ class BaseLossClass(Module, BaseShapeClass, abc.ABC):
         """
         hook = Hook(name=name, stage=HookStage.POST_LOSS_COMPUTE, fn=fn, priority=priority, enabled=enabled)
         self.hook_manager.register_hook(hook)
+
+    def register_hooks(self, hooks: list[Hook]) -> None:
+        for hook in hooks:
+            self.hook_manager.register_hook(hook)

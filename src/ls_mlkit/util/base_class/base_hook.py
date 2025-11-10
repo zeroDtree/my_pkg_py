@@ -1,8 +1,8 @@
-from typing import Callable, Any, Dict, List, Optional, Literal
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 
-class HookStage(str, Enum):
+class HookStage(Enum):
     PRE_FORWARD = "pre_forward"
     POST_FORWARD = "post_forward"
     PRE_LOSS_COMPUTE = "pre_loss_compute"

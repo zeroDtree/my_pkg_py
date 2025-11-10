@@ -7,7 +7,6 @@ from tqdm.auto import tqdm
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .base_diffuser import BaseDiffuser, BaseDiffuserConfig
-from .conditioner import Conditioner
 from .time_scheduler import DiffusionTimeScheduler
 
 
@@ -37,13 +36,11 @@ class EuclideanDiffuser(BaseDiffuser):
         config: EuclideanDiffuserConfig,
         time_scheduler: DiffusionTimeScheduler,
         masker: MaskerInterface,
-        conditioner_list: list[Conditioner] = [],
     ):
         super().__init__(config=config, time_scheduler=time_scheduler)
         self.config: EuclideanDiffuserConfig = config
         self.time_scheduler: DiffusionTimeScheduler = time_scheduler
         self.masker = masker
-        self.conditioner_list = conditioner_list
 
     def forward_process_one_step(self, x: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
         r"""Forward process one step
@@ -71,26 +68,6 @@ class EuclideanDiffuser(BaseDiffuser):
         Returns:
             ``Tensor``: the sample at the next timestep
         """
-
-    def get_accumulated_conditional_score(
-        self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any
-    ) -> Tensor:
-        r"""Get the accumulated conditional score
-
-        Args:
-            x_t (``Tensor``): :math:`x_t`
-            t (``Tensor``): :math:`t`
-            padding_mask (``Tensor``): the padding mask
-
-        Returns:
-            ``Tensor``: the accumulated conditional score
-        """
-        accumulated_conditional_score = torch.zeros_like(x_t)
-        for conditioner in self.conditioner_list:
-            if not conditioner.is_enabled():
-                continue
-            accumulated_conditional_score += conditioner.get_conditional_score(x_t, t, padding_mask, *args, **kwargs)
-        return accumulated_conditional_score
 
     @torch.no_grad()
     def sampling(
