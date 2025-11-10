@@ -12,7 +12,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "datasets",
     "exrex",
@@ -30,7 +30,6 @@ dependencies = [
     "bitsandbytes",
     "safetensors",
     "torchvision",
-    "biotite",
     "pillow",
     "diffusers",
     "einops",
@@ -43,3 +42,7 @@ license-files = ["LICEN[CS]E*"]
 
 [project.urls]
 Homepage = "https://github.com/zeroDtree/pkg_py"
+
+
+[project.optional-dependencies]
+bio = ["biotite"]

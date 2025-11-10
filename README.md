@@ -1,5 +1,11 @@
 ## Install
 
+### Install Pytorch
+
+Install [pytorch](https://pytorch.org/get-started/locally/) that matches your CUDA version. 
+
+###
+
 ```bash
 git clone https://github.com/zeroDtree/my_pkg_py.git
 cd my_pkg_py
