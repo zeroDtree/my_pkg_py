@@ -4,7 +4,7 @@ Installation Guide
 Requirements
 ------------
 
-- Python >= 3.11
+- Python >= 3.12
 - PyTorch (recommended latest stable version)
 - CUDA (optional, for GPU acceleration)
 

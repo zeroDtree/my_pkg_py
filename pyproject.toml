@@ -14,6 +14,7 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "hydra-core",
     "datasets",
     "exrex",
     "numpy",
