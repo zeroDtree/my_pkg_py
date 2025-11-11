@@ -71,20 +71,14 @@ class EuclideanDiffuser(BaseDiffuser):
 
     @torch.no_grad()
     def sampling(
-        self, shape: Tuple[int, ...], device, x_init_posterior: Tensor = None, *args: Any, **kwargs: Any
-    ) -> Tensor:
-        r"""Sample :math:`x_0` unconditionally
-
-        Args:
-            shape (``Tuple[int, ...]``): the shape of the sample
-            device (``device``): the device to use for sampling
-            x_init_posterior (``Tensor``): Use x_init_posterior as the initial posterior if provided, otherwise sample from prior.
-            *args: additional arguments
-            **kwargs: additional keyword arguments
-
-        Returns:
-            Tensor: :math:`x_0`
-        """
+        self,
+        shape: Tuple[int, ...],
+        device,
+        x_init_posterior: Tensor = None,
+        return_all=False,
+        *args: Any,
+        **kwargs: Any,
+    ) -> dict:
         config = self.config
         if x_init_posterior is not None:
             shape = x_init_posterior.shape
@@ -103,12 +97,16 @@ class EuclideanDiffuser(BaseDiffuser):
                 padding_mask,
             )["x_t"]
 
+        x_list = [x_t]
+
         time_steps = self.time_scheduler.get_discrete_timesteps_schedule().to(device)
         for _, t in enumerate(tqdm(time_steps)):
             t = torch.ones(macro_shape, device=device, dtype=torch.long) * t
             no_padding_mask = masker.get_full_bright_mask(x_t)
             x_t = self.step(x_t=x_t, t=t, padding_mask=no_padding_mask, *args, **kwargs)
-        return x_t
+            if return_all:
+                x_list.append(x_t)
+        return {"x": x_t, "x_list": x_list}
 
     @torch.no_grad()
     def inpainting(
@@ -120,9 +118,10 @@ class EuclideanDiffuser(BaseDiffuser):
         x_init_posterior: Tensor = None,
         inpainting_mask_key="inpainting_mask",
         n_repaint_steps: int = 1,
+        return_all=False,
         *args: Any,
         **kwargs: Any,
-    ) -> Tensor:
+    ) -> dict:
         x_0 = x
         shape = x_0.shape
         config = self.config
@@ -144,11 +143,13 @@ class EuclideanDiffuser(BaseDiffuser):
         x_0 = masker.apply_mask(x_0, padding_mask)
         x_T = x_t.detach().clone()
 
+        x_list = [x_t]
+
         timesteps = self.time_scheduler.get_discrete_timesteps_schedule().to(device)
         for i, t in enumerate(tqdm(timesteps)):
             for u in range(1, n_repaint_steps + 1):
                 t = torch.ones(macro_shape, device=device, dtype=torch.long) * t
-                x_t = self.recovery_bright_rigion(
+                x_t = self.recover_bright_region(
                     x_known=x_0, x_t=x_t, t=t, inpainting_mask=inpainting_mask, padding_mask=padding_mask, x_prior=x_T
                 )
                 x_t = self.step(x_t, t, padding_mask, *args, **kwargs)  # get x_tm1
@@ -157,10 +158,13 @@ class EuclideanDiffuser(BaseDiffuser):
                     assert i < len(timesteps) - 1
                     prev_t = timesteps[i + 1].to(device)
                     x_t = self.forward_process_n_step(x_t, prev_t, t, padding_mask, *args, **kwargs)
+            if return_all:
+                x_list.append(x_t)
         x_t = masker.apply_inpainting_mask(x_0, x_t, inpainting_mask)
-        return x_t
 
-    def recovery_bright_rigion(self, x_known, x_t, t, padding_mask, inpainting_mask, x_prior) -> Tensor:
+        return {"x": x_t, "x_list": x_list}
+
+    def recover_bright_region(self, x_known, x_t, t, padding_mask, inpainting_mask, x_prior) -> Tensor:
         x_0 = x_known
         x_0t = self.forward_process(x_0, t, padding_mask)["x_t"]
         x_t = self.masker.apply_inpainting_mask(x_0t, x_t, inpainting_mask)

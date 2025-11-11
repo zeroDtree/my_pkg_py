@@ -7,13 +7,9 @@ from torch import Tensor
 from ...util.decorators import inherit_docstrings
 
 
+@inherit_docstrings
 class Conditioner(abc.ABC):
     def __init__(self, guidance_scale: float = 1.0):
-        r"""Initialize the Conditioner
-
-        Args:
-            guidance_scale (``float``, *optional*): the guidance scale of the conditioner. Defaults to 1.0.
-        """
         self._enabled: bool = True
         self.ready: bool = False
         self._guidance_scale: float = guidance_scale
@@ -71,26 +67,21 @@ class Conditioner(abc.ABC):
 
 @inherit_docstrings
 class LGDConditioner(Conditioner):
-    r"""Loss Guidance Conditioner"""
+    r"""Loss Guidance Diffusion Conditioner"""
 
     def __init__(
         self,
         guidance_scale: float = 1.0,
     ):
-        r"""Initialize the LGDConditioner
-
-        Args:
-            guidance_scale (``float``, *optional*): the guidance scale of the conditioner. Defaults to 1.0.
-        """
         super().__init__(guidance_scale)
+        self.posterior_mean_fn = None
 
     @abc.abstractmethod
-    def compute_conditional_loss(self, x_t: Tensor, t: Tensor, padding_mask: Tensor) -> Tensor:
+    def compute_conditional_loss(self, p_clean_data: Tensor, padding_mask: Tensor) -> Tensor:
         r"""Compute the conditional loss
 
         Args:
-            x_t (``Tensor``): the input tensor
-            t (``Tensor``): the time tensor
+            p_clean_data (``Tensor``): predicted clean data.
             padding_mask (``Tensor``): the padding mask
 
         Returns:
@@ -112,8 +103,10 @@ class LGDConditioner(Conditioner):
             return torch.zeros_like(x_t, device=x_t.device)
         assert self.ready == True, "Conditioner is not ready, please call set_condition first"
         with torch.autograd.set_detect_anomaly(True, check_nan=True):
-            x = x_t.detach().clone().requires_grad_(True)
-            conditional_loss = self.compute_conditional_loss(x, t, padding_mask)
-            grad = torch.autograd.grad(conditional_loss, x, create_graph=True)[0]
-            score = -grad
+            with torch.enable_grad():
+                x_t = x_t.detach().clone().requires_grad_(True)
+                p_clean_data = self.posterior_mean_fn(x_t, t, padding_mask)
+                conditional_loss = self.compute_conditional_loss(p_clean_data, padding_mask)
+                grad = torch.autograd.grad(conditional_loss, x_t)[0]
+        score = -grad
         return score * self.guidance_scale

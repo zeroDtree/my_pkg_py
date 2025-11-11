@@ -1,10 +1,11 @@
 from abc import abstractmethod
-from typing import Any
+from enum import Enum
+from typing import Any, Callable
 
-import torch
 from torch import Tensor
 
 from ..decorators import inherit_docstrings
+from .base_hook import Hook, HookManager
 from .base_loss_class import BaseLossClass, BaseLossConfig
 
 
@@ -41,6 +42,7 @@ class BaseGenerativeModel(BaseLossClass):
     def __init__(self, config: BaseGenerativeModelConfig):
         super().__init__(config=config)
         self.config: BaseGenerativeModelConfig = config
+        self.hook_manager = GMHookManager()
 
     @abstractmethod
     def prior_sampling(self, shape: tuple[int, ...]) -> Tensor:
@@ -76,44 +78,106 @@ class BaseGenerativeModel(BaseLossClass):
     @abstractmethod
     def sampling(
         self,
-        shape: tuple[int, ...],
-        device: torch.device,
+        shape,
+        device,
         x_init_posterior=None,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
-    ) -> Tensor:
-        """Sample unconditionally
+        return_all=False,
+        sampling_condition=None,
+        sapmling_condition_key="sapmling_condition",
+        *args,
+        **kwargs,
+    ) -> dict:
+        """_summary_
 
         Args:
-            shape (``tuple[int, ...]``): the shape of the sample
-            device (``device``): the device to use for sampling
-            x_init_posterior (``Tensor``, *optional*): ``(*macro_shape, *micro_shape)``. Defaults to None.
+            shape (``_type_``): _description_
+            device (``_type_``): _description_
+            x_init_posterior (``_type_``, *optional*): _description_. Defaults to None.
+            return_all (``bool``, *optional*): _description_. Defaults to False.
+            sampling_condition (``_type_``, *optional*): _description_. Defaults to None.
+            sapmling_condition_key (``str``, *optional*): _description_. Defaults to "sapmling_condition".
+
         Returns:
-            ``Tensor``: ``(*macro_shape, *micro_shape)``
+            ``dict``: _description_
         """
 
     @abstractmethod
     def inpainting(
         self,
-        x: Tensor,
-        padding_mask: Tensor,
-        inpainting_mask: Tensor,
-        device: torch.device,
-        x_init_posterior: Tensor = None,
+        x,
+        padding_mask,
+        inpainting_mask,
+        device,
+        x_init_posterior=None,
         inpainting_mask_key="inpainting_mask",
+        sapmling_condition_key="sapmling_condition",
+        return_all=False,
+        sampling_condition=None,
         *args,
         **kwargs,
-    ) -> Tensor:
-        """Inpainting
+    ) -> dict:
+        """_summary_
 
         Args:
-            x_1 (``Tensor``): ``(*macro_shape, *micro_shape)``
-            padding_mask (``Tensor``):
-            inpainting_mask (``Tensor``):
-            device (``torch.device``): the device to use for sampling
-            x_init_posterior (``Tensor``, *optional*): ``(*macro_shape, *micro_shape)``. Defaults to None.
-            inpainting_mask_key (``str``, *optional*): the key of the inpainting mask. Defaults to "inpainting_mask".
+            x (``_type_``): _description_
+            padding_mask (``_type_``): _description_
+            inpainting_mask (``_type_``): _description_
+            device (``_type_``): _description_
+            x_init_posterior (``_type_``, *optional*): _description_. Defaults to None.
+            inpainting_mask_key (``str``, *optional*): _description_. Defaults to "inpainting_mask".
+            sapmling_condition_key (``str``, *optional*): _description_. Defaults to "sapmling_condition".
+            return_all (``bool``, *optional*): _description_. Defaults to False.
+            sampling_condition (``_type_``, *optional*): _description_. Defaults to None.
 
         Returns:
-            ``Tensor``:
+            ``dict``: _description_
         """
+
+    def forward(self, batch: dict[str, Any], *args: list[Any], **kwargs: dict[Any, Any]) -> dict | Tensor:
+        r"""Forward function, input batch of data and return the dictionary containing the loss
+
+        Args:
+            batch (``dict[str, Any]``): the batch of data
+
+        Returns:
+            ``dict`` | ``Tensor``: a dictionary that must contain the key "loss" or a tensor of loss
+        """
+        result = self.compute_loss(batch, *args, **kwargs)
+        hook_result = self.hook_manager.run_hooks(stage=GMHookStageType.POST_COMPUTE_LOSS, **result)
+        if hook_result is not None:
+            assert isinstance(hook_result, (dict, Tensor))
+            result = hook_result
+        return result
+
+    def register_post_compute_loss_hook(
+        self, name: str, fn: Callable[..., Any], priority: int = 0, enabled: bool = True
+    ) -> None:
+        r"""Register a hook to be called after loss computation
+
+        Args:
+            name (``str``): the name of the hook
+            fn (``Callable[..., Any]``): the function to be called
+            priority (``int``, optional): the priority of the hook. Defaults to 0.
+            enabled (``bool``, optional): whether the hook is enabled. Defaults to True.
+        """
+        hook = Hook(name=name, stage=GMHookStageType.POST_COMPUTE_LOSS, fn=fn, priority=priority, enabled=enabled)
+        self.hook_manager.register_hook(hook)
+
+    def register_hooks(self, hooks: list[Hook]) -> None:
+        for hook in hooks:
+            self.hook_manager.register_hook(hook)
+
+
+class GMHookStageType(Enum):
+    PRE_UPDATE_IN_STEP_FN = "pre_update_in_step_fn"
+    POST_UPDATE_IN_STEP_FN = "post_update_in_step_fn"
+    PRE_COMPUTE_LOSS = "pre_compute_loss"
+    POST_COMPUTE_LOSS = "post_compute_loss"
+
+
+class GMHook(Hook[GMHookStageType]):
+    pass
+
+
+class GMHookManager(HookManager[GMHookStageType]):
+    pass

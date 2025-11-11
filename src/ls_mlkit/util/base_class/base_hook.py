@@ -1,20 +1,13 @@
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar
+
+HookStageType = TypeVar("HookStageType", bound=Enum)
 
 
-class HookStage(Enum):
-    PRE_FORWARD = "pre_forward"
-    POST_FORWARD = "post_forward"
-    PRE_LOSS_COMPUTE = "pre_loss_compute"
-    POST_LOSS_COMPUTE = "post_loss_compute"
-    PRE_BACKWARD = "pre_backward"
-    POST_BACKWARD = "post_backward"
-
-
-class Hook:
+class Hook(Generic[HookStageType]):
 
     def __init__(
-        self, name: str, stage: HookStage, fn: Callable[..., Optional[Any]], priority: int = 0, enabled: bool = True
+        self, name: str, stage: HookStageType, fn: Callable[..., Optional[Any]], priority: int = 0, enabled: bool = True
     ):
         self.name = name
         self.stage = stage
@@ -31,16 +24,16 @@ class Hook:
         return f"Hook(name={self.name}, stage={self.stage}, priority={self.priority})"
 
 
-class HookManager:
+class HookManager(Generic[HookStageType]):
 
     def __init__(self) -> None:
-        self._hooks: Dict[HookStage, List[Hook]] = {}
+        self._hooks: Dict[HookStageType, List[Hook[HookStageType]]] = {}
 
     def register_hook(self, hook: Hook):
         self._hooks.setdefault(hook.stage, []).append(hook)
         self._hooks[hook.stage].sort(key=lambda h: h.priority, reverse=False)
 
-    def unregister_hook(self, name: str, stage: Optional[HookStage] = None) -> None:
+    def unregister_hook(self, name: str, stage: Optional[HookStageType] = None) -> None:
         if stage:
             if stage in self._hooks:
                 self._hooks[stage] = [h for h in self._hooks[stage] if h.name != name]
@@ -48,7 +41,7 @@ class HookManager:
             for s in self._hooks:
                 self._hooks[s] = [h for h in self._hooks[s] if h.name != name]
 
-    def enable_hook(self, name: str = None, stage: HookStage = None, enabled: bool = True) -> None:
+    def enable_hook(self, name: str = None, stage: HookStageType = None, enabled: bool = True) -> None:
         hook_found = False
         for stage_key, hooks in self._hooks.items():
             if stage is not None and stage_key != stage:
@@ -60,10 +53,10 @@ class HookManager:
         if not hook_found:
             raise ValueError(f"Hook with name {name} not found.")
 
-    def disable_hook(self, name: str = None, stage: HookStage = None) -> None:
+    def disable_hook(self, name: str = None, stage: HookStageType = None) -> None:
         self.enable_hook(name=name, stage=stage, enabled=False)
 
-    def run_hooks(self, stage: HookStage, **kwargs) -> Optional[Any]:
+    def run_hooks(self, stage: HookStageType, **kwargs) -> Optional[Any]:
         if stage not in self._hooks:
             return None
         result = None

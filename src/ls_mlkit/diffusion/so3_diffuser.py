@@ -3,7 +3,7 @@ from typing import Any, Callable, Tuple
 import torch
 from torch import Tensor
 
-from ls_mlkit.diffuser.sde.sde_lib import VESDE
+from ls_mlkit.diffusion.sde.sde_lib import VESDE
 
 from ..util.decorators import inherit_docstrings
 from ..util.interp import interp

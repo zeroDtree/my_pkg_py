@@ -1,4 +1,4 @@
-from typing import Any, cast
+from typing import Any
 
 import matplotlib.pyplot as plt
 import torch
@@ -53,7 +53,6 @@ def get_dataset(cfg: DictConfig):
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from diffusers import UNet2DModel
 
-    from ls_mlkit.diffusion.conditioner import Conditioner
     from ls_mlkit.diffusion.euclidean_ddim_diffuser import EuclideanDDIMConfig, EuclideanDDIMDiffuser
     from ls_mlkit.diffusion.euclidean_ddpm_diffuser import EuclideanDDPMConfig, EuclideanDDPMDiffuser
     from ls_mlkit.diffusion.model_interface import Model4DiffuserInterface
@@ -118,8 +117,6 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
         return mse_loss(predicted, ground_truth)
 
-    conditioner_list = []
-
     DiffuserConfigClass = None
     DiffuserClass = None
     if cfg.diffuser.name == "DDPM":
@@ -135,12 +132,11 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         ndim_micro_shape=3,
         n_inference_steps=cfg.diffuser.get("n_inference_steps", None),
         eta=cfg.diffuser.get("eta", 0.0),
-        use_clip=False,
+        use_clip=True,
     )
     diffuser = DiffuserClass(
         config=diffusion_config,
         time_scheduler=time_scheduler,
-        conditioner_list=cast(list[Conditioner], conditioner_list),
         loss_fn=mse,
         masker=ImageMasker(),
         model=model,
