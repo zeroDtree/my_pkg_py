@@ -43,20 +43,23 @@ def get_collate_fn(cfg: DictConfig):
         # Extract the "images" from each example and stack them
         batch = examples
         x_1 = torch.stack(batch)
-        return {"x_1": Tensor(make_moons(256, noise=0.15)[0]), "padding_mask": torch.ones_like(x_1)}
+        return {"x_0": Tensor(make_moons(256, noise=0.15)[0]), "padding_mask": torch.ones_like(x_1)}
 
     return collate_fn
 
 
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
-    pass
-
     from torch import nn
 
-    from ls_mlkit.flow_matching.euclidean_ot_fm import EuclideanOTFlow, EuclideanOTFlowConfig
-    from ls_mlkit.flow_matching.model_interface import Model4FMInterface
-    from ls_mlkit.flow_matching.time_scheduler import FlowMatchingTimeScheduler
-    from ls_mlkit.util.mask.image_masker import ImageMasker
+    from ls_mlkit.diffusion.euclidean_ddpm_diffuser import EuclideanDDPMDiffuser, EuclideanDDPMConfig
+    from ls_mlkit.diffusion.model_interface import Model4DiffuserInterface
+    from ls_mlkit.diffusion.time_scheduler import DiffusionTimeScheduler
+    from ls_mlkit.util.mask.onedim_masker import OneDimMasker
+    from ls_mlkit.diffusion.conditioner.conditioner import LGDConditioner
+    from ls_mlkit.diffusion.euclidean_ddpm_diffuser import (
+        get_condition_pre_update_in_step_fn_hook,
+        get_condition_post_compute_loss_hook,
+    )
 
     class BaseModel(Module):
         def __init__(self, dim: int = 2, h: int = 64):
@@ -68,9 +71,9 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         def forward(self, x_t: Tensor, t: Tensor, *args, **kwarg) -> Tensor:
             return self.net(torch.cat((t, x_t), -1))
 
-    model = BaseModel()
+    base_model = BaseModel()
 
-    class MyModel(Module, Model4FMInterface):
+    class MyModel(Module, Model4DiffuserInterface):
         def __init__(self, model: Module):
             super().__init__()
             self.model = model
@@ -90,27 +93,28 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
         return mse_loss(predicted, ground_truth)
 
-    model4fm = MyModel(model=model)
-    time_scheduler = FlowMatchingTimeScheduler(
-        num_train_timesteps=cfg.flow.n_discretization_steps,
-        num_inference_steps=cfg.flow.n_inference_steps,
+    model4fm = MyModel(model=base_model)
+    time_scheduler = DiffusionTimeScheduler(
+        num_train_timesteps=cfg.diffusion.n_discretization_steps,
+        num_inference_steps=cfg.diffusion.n_inference_steps,
     )
 
-    flow_config = EuclideanOTFlowConfig(
-        n_discretization_steps=cfg.flow.n_discretization_steps,
+    model_config = EuclideanDDPMConfig(
+        n_discretization_steps=cfg.diffusion.n_discretization_steps,
         ndim_micro_shape=1,
-        n_inference_steps=cfg.flow.n_inference_steps,
+        n_inference_steps=cfg.diffusion.n_inference_steps,
+        use_clip=False,
     )
-    flow = EuclideanOTFlow(
-        config=flow_config,
+    model = EuclideanDDPMDiffuser(
+        config=model_config,
         time_scheduler=time_scheduler,
         model=model4fm,
-        masker=ImageMasker(ndim_mini_micro_shape=0),
+        masker=OneDimMasker(ndim_mini_micro_shape=0),
         loss_fn=mse,
     )
 
     if final_model_ckpt_path is not None and final_model_ckpt_path != "":
-        flow = load_checkpoint(flow, final_model_ckpt_path)
+        model = load_checkpoint(model, final_model_ckpt_path)
 
     from torch.optim import AdamW
     from sklearn.datasets import make_moons
@@ -158,8 +162,6 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
     classifier_model = classifier_model.to(Accelerator().device)
 
-    from ls_mlkit.diffusion.conditioner.conditioner import LGDConditioner
-
     class ClassifierConditioner(LGDConditioner):
         def __init__(self, classifier_model, guidance_scale: float = 1.0):
             super().__init__(guidance_scale)
@@ -206,12 +208,13 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             loss = F.cross_entropy(logits, c)
             return loss
 
-    from ls_mlkit.flow_matching.euclidean_ot_fm import get_condition_pre_update_in_step_fn_hook
-    from ls_mlkit.flow_matching.euclidean_ot_fm import get_condition_post_compute_loss_hook
-
-    classifier_conditioner = ClassifierConditioner(classifier_model=classifier_model, guidance_scale=7.0)
+    classifier_conditioner = ClassifierConditioner(classifier_model=classifier_model, guidance_scale=cfg.diffusion.gs)
     samling_hook = get_condition_pre_update_in_step_fn_hook([classifier_conditioner])
-    sampling_hook_handlers = flow.register_hooks([samling_hook])
+    sampling_hook_handlers = model.register_hooks([samling_hook])
     train_hook = get_condition_post_compute_loss_hook([classifier_conditioner])
-    train_hook_handlers = flow.register_hooks([train_hook])
-    return {"model": flow, "train_hook_handlers": train_hook_handlers, "sampling_hook_handlers": sampling_hook_handlers}
+    train_hook_handlers = model.register_hooks([train_hook])
+    return {
+        "model": model,
+        "train_hook_handlers": train_hook_handlers,
+        "sampling_hook_handlers": sampling_hook_handlers,
+    }

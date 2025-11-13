@@ -5,8 +5,27 @@ from typing import Any, Callable
 from torch import Tensor
 
 from ..decorators import inherit_docstrings
-from .base_hook import Hook, HookManager
+from .base_hook import Hook, HookManager, HookHandler
 from .base_loss_class import BaseLossClass, BaseLossConfig
+
+
+class GMHookStageType(Enum):
+    PRE_UPDATE_IN_STEP_FN = "pre_update_in_step_fn"
+    POST_UPDATE_IN_STEP_FN = "post_update_in_step_fn"
+    PRE_COMPUTE_LOSS = "pre_compute_loss"
+    POST_COMPUTE_LOSS = "post_compute_loss"
+
+
+class GMHookHandler(HookHandler[GMHookStageType]):
+    pass
+
+
+class GMHook(Hook[GMHookStageType]):
+    pass
+
+
+class GMHookManager(HookManager[GMHookStageType]):
+    pass
 
 
 @inherit_docstrings
@@ -151,7 +170,7 @@ class BaseGenerativeModel(BaseLossClass):
 
     def register_post_compute_loss_hook(
         self, name: str, fn: Callable[..., Any], priority: int = 0, enabled: bool = True
-    ) -> None:
+    ) -> GMHookHandler:
         r"""Register a hook to be called after loss computation
 
         Args:
@@ -161,23 +180,15 @@ class BaseGenerativeModel(BaseLossClass):
             enabled (``bool``, optional): whether the hook is enabled. Defaults to True.
         """
         hook = Hook(name=name, stage=GMHookStageType.POST_COMPUTE_LOSS, fn=fn, priority=priority, enabled=enabled)
-        self.hook_manager.register_hook(hook)
+        handler = self.hook_manager.register_hook(hook)
+        return handler
 
-    def register_hooks(self, hooks: list[Hook]) -> None:
+    def register_hooks(self, hooks: list[GMHook]) -> list[GMHookHandler]:
+        handler_list = []
         for hook in hooks:
-            self.hook_manager.register_hook(hook)
+            handler = self.hook_manager.register_hook(hook)
+            handler_list.append(handler)
+        return handler_list
 
-
-class GMHookStageType(Enum):
-    PRE_UPDATE_IN_STEP_FN = "pre_update_in_step_fn"
-    POST_UPDATE_IN_STEP_FN = "post_update_in_step_fn"
-    PRE_COMPUTE_LOSS = "pre_compute_loss"
-    POST_COMPUTE_LOSS = "post_compute_loss"
-
-
-class GMHook(Hook[GMHookStageType]):
-    pass
-
-
-class GMHookManager(HookManager[GMHookStageType]):
-    pass
+    def register_hook(self, hook: GMHook) -> GMHookHandler:
+        self.hook_manager.register_hook(hook)

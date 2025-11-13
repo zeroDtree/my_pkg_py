@@ -60,7 +60,13 @@ def main(cfg: DictConfig):
         )
 
     # model
-    model = get_model(cfg)
+    result_get_model = get_model(cfg)
+    model = result_get_model["model"]
+    train_hook_handlers = result_get_model["train_hook_handlers"]
+    sampling_hook_handlers = result_get_model["sampling_hook_handlers"]
+
+    # for handler in train_hook_handlers:
+    #     handler.disable()
 
     # dataset
     train_set, val_set, test_set = get_dataset(cfg)
@@ -101,16 +107,21 @@ def main(cfg: DictConfig):
         import torch
         from ls_mlkit.flow_matching.euclidean_ot_fm import EuclideanOTFlow
 
-        model = get_model(
+        result_get_model = get_model(
             cfg,
             # model=unet_model,
             final_model_ckpt_path=f"{pipeline.get_latest_checkpoint_dir()}/model.safetensors",
         )
-        model = model.to(accelerator.device)
 
+        model = result_get_model["model"]
+        train_hook_handlers = result_get_model["train_hook_handlers"]
+        sampling_hook_handlers = result_get_model["sampling_hook_handlers"]
+
+        model = model.to(accelerator.device)
         n_samples = 256
 
-        model.hook_manager.disable_hook()
+        for handler in sampling_hook_handlers:
+            handler.disable()
         result: dict = model.sampling(shape=(n_samples, 2), device=accelerator.device, return_all=True)
 
         x_list = result["x_list"]
@@ -136,7 +147,8 @@ def main(cfg: DictConfig):
 
         # =================================
 
-        model.hook_manager.enable_hook()
+        for handler in sampling_hook_handlers:
+            handler.enable()
 
         sigma = 1.0
         x = torch.randn(n_samples, 2) * sigma  # (n_samples, 2)
@@ -247,8 +259,8 @@ if __name__ == "__main__":
     )
     import shutil
 
-    # if os.path.exists("checkpoints"):
-    #     shutil.rmtree("checkpoints")
+    if os.path.exists("checkpoints"):
+        shutil.rmtree("checkpoints")
     # Accelerator(cpu=True, mixed_precision="fp16")
 
     for n_inference_steps in [8]:

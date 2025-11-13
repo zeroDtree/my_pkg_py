@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from ..util.base_class.base_hook import Hook, HookStage
+from ..util.base_class.base_gm_class import GMHook, GMHookHandler, GMHookStageType
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .conditioner import Conditioner
@@ -25,7 +25,7 @@ class EuclideanDDPMConfig(EuclideanDiffuserConfig):
         n_discretization_steps: int = 1000,
         ndim_micro_shape: int = 2,
         use_probability_flow=False,
-        use_clip: bool = True,
+        use_clip: bool = False,
         clip_sample_range: float = 1.0,
         use_dyn_thresholding: bool = False,
         dynamic_thresholding_ratio=0.995,
@@ -150,7 +150,6 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             "padding_mask": padding_mask,
             "noise": noise,
             "predicted_noise": predicted_noise,
-            "get_posterior_mean_fn": self.get_posterior_mean_fn,
             "a": a,
             "b": b,
             "loss_fn": self.loss_fn,
@@ -250,7 +249,20 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
         if mode == "epsilon":
             model_pred = model_output["x"]
+            hook_input = {
+                "x_t": x_t,
+                "t": t,
+                "predicted_noise": model_pred,
+                "padding_mask": padding_mask,
+                "config": self.config,
+                "sampling_condition": kwargs.get("sampling_condition"),
+                "b": self.complete_micro_shape(self.config.sqrt_1m_alphas_cumprod[t]),
+            }
+            hook_output = self.hook_manager.run_hooks(GMHookStageType.PRE_UPDATE_IN_STEP_FN, **hook_input)
+            if hook_output is not None:
+                model_pred = hook_output
         elif mode == "x_0":
+            raise ValueError(f"Currently not supported mode: {mode}")
             model_pred = model_output["x"]
         elif mode == "score":
             raise ValueError(f"Currently not supported mode: {mode}")
@@ -273,6 +285,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         if mode == "epsilon":
             pred_original_sample = (x_t - beta_prod_t**0.5 * model_pred) / alpha_prod_t**0.5
         elif mode == "x_0":
+            raise ValueError(f"Currently not supported mode: {mode}")
             pred_original_sample = model_pred
 
         # Clip predicted x_0 (following standard DDPM implementation)
@@ -398,6 +411,7 @@ def get_posterior_mean_fn(config, score: Tensor = None, score_fn: Callable = Non
         """
         nonlocal config, score, score_fn
         assert score is not None or score_fn is not None, "either score or score_fn must be provided"
+        t = t.view(*t.shape, *([1] * (x_t.ndim - t.ndim)))
         if score is None:
             score = score_fn(x_t, t, padding_mask)
         config = cast(EuclideanDDPMConfig, config.to(t))
@@ -409,7 +423,7 @@ def get_posterior_mean_fn(config, score: Tensor = None, score_fn: Callable = Non
     return _ddpm_posterior_mean_fn
 
 
-def get_ddpm_condition_hook(conditioner_list: list[Conditioner]):
+def get_condition_post_compute_loss_hook(conditioner_list: list[Conditioner]):
 
     def _hook_fn(**kwargs):
         nonlocal conditioner_list
@@ -440,7 +454,7 @@ def get_ddpm_condition_hook(conditioner_list: list[Conditioner]):
                         train=True,
                         **{
                             "tgt_mask": tgt_mask,
-                            "x_0": x_0,
+                            "clean_data": x_0,
                             "padding_mask": padding_mask,
                             "posterior_mean_fn": get_posterior_mean_fn(config=config, score=p_uc_score, score_fn=None),
                         },
@@ -458,4 +472,56 @@ def get_ddpm_condition_hook(conditioner_list: list[Conditioner]):
         kwargs["loss"] = total_loss
         return kwargs
 
-    return Hook(name="DDPM_conditioner_hook", stage=HookStage.POST_LOSS_COMPUTE, fn=_hook_fn, priority=0, enabled=True)
+    return GMHook(
+        name="DDPM_condition_post_compute_loss_hookk",
+        stage=GMHookStageType.POST_COMPUTE_LOSS,
+        fn=_hook_fn,
+        priority=0,
+        enabled=True,
+    )
+
+
+def get_condition_pre_update_in_step_fn_hook(conditioner_list: list[Conditioner]):
+    def _hook_fn(**kwargs):
+        nonlocal conditioner_list
+        x_t = kwargs.get("x_t")
+        t = kwargs.get("t", None)
+        predicted_noise = kwargs.get("predicted_noise")
+        padding_mask = kwargs.get("padding_mask")
+        b = kwargs.get("b")
+        config = kwargs.get("config")
+        sampling_condition = kwargs.get("sampling_condition")
+        p_uc_score = -predicted_noise / b
+
+        tgt_mask = padding_mask
+        for conditioner in conditioner_list:
+            if not conditioner.is_enabled():
+                continue
+            conditioner.set_condition(
+                **{
+                    **conditioner.prepare_condition_dict(
+                        train=False,
+                        **{
+                            "tgt_mask": tgt_mask,
+                            "sampling_condition": sampling_condition,
+                            "padding_mask": padding_mask,
+                            "posterior_mean_fn": get_posterior_mean_fn(config=config, score=p_uc_score, score_fn=None),
+                        },
+                    ),
+                }
+            )
+
+        acc_c_score = get_accumulated_conditional_score(conditioner_list, x_t, t, padding_mask)
+        print(-b * acc_c_score)
+
+        # Scale and compute conditioned loss
+        p_epsilon = -b * (p_uc_score + acc_c_score)
+        return p_epsilon
+
+    return GMHook(
+        name="DDPM_condition_pre_update_in_step_fn_hook",
+        stage=GMHookStageType.PRE_UPDATE_IN_STEP_FN,
+        fn=_hook_fn,
+        priority=0,
+        enabled=True,
+    )

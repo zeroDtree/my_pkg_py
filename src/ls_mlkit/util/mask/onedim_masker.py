@@ -6,7 +6,7 @@ from torch import Tensor
 from .masker_interface import MaskerInterface
 
 
-class ImageMasker(MaskerInterface):
+class OneDimMasker(MaskerInterface):
 
     def __init__(self, ndim_mini_micro_shape: int = 0, **kwargs: dict[Any, Any]):
         super().__init__(**kwargs)
@@ -21,8 +21,6 @@ class ImageMasker(MaskerInterface):
 
     def check_mask_shape(self, x: Tensor, mask: Tensor):
         if self.ndim_mini_micro_shape == 0:
-            if mask.shape[-3] == 1:
-                mask = mask.expand(-1, x.shape[-3], -1, -1)
             assert x.shape == mask.shape
         else:
             assert x.shape[: -self.ndim_mini_micro_shape] == mask.shape

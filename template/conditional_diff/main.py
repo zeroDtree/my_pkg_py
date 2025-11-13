@@ -4,9 +4,7 @@ import os
 
 import wandb
 from accelerate import Accelerator
-from diffusers.utils.pil_utils import make_image_grid, numpy_to_pil
 from omegaconf import DictConfig, OmegaConf
-from torch import Tensor
 from utils import (
     get_collate_fn,
     get_dataset,
@@ -57,12 +55,18 @@ def main(cfg: DictConfig):
                 **cfg.optimizer,
                 **cfg.train,
                 **cfg.log,
-                **cfg.flow,
+                **cfg.diffusion,
             },
         )
 
     # model
-    model = get_model(cfg)
+    result_get_model = get_model(cfg)
+    model = result_get_model["model"]
+    train_hook_handlers = result_get_model["train_hook_handlers"]
+    sampling_hook_handlers = result_get_model["sampling_hook_handlers"]
+
+    # for handler in train_hook_handlers:
+    #     handler.disable()
 
     # dataset
     train_set, val_set, test_set = get_dataset(cfg)
@@ -100,36 +104,97 @@ def main(cfg: DictConfig):
         wandb.finish()
 
     if accelerator.is_local_main_process and True:
-        model = get_model(
+        import torch
+        import matplotlib.pyplot as plt
+
+        result_get_model = get_model(
             cfg,
             # model=unet_model,
             final_model_ckpt_path=f"{pipeline.get_latest_checkpoint_dir()}/model.safetensors",
         )
+
+        model = result_get_model["model"]
+        train_hook_handlers = result_get_model["train_hook_handlers"]
+        sampling_hook_handlers = result_get_model["sampling_hook_handlers"]
+
         model = model.to(accelerator.device)
-        import torch
+        n_samples = 256
+        n_discretization_steps = cfg.diffusion.n_discretization_steps
+        n_inference_steps = cfg.diffusion.n_inference_steps
 
-        result = torch.randn((16, 3, cfg.dataset.image_size, cfg.dataset.image_size), device=accelerator.device)
-        # with torch.no_grad():
-        #     for t in range(cfg.flow.n_inference_steps):
-        #         result = model.step(result, t, torch.ones_like(result, dtype=torch.bool, device=accelerator.device))
+        for handler in sampling_hook_handlers:
+            handler.disable()
+        result: dict = model.sampling(shape=(n_samples, 2), device=accelerator.device, return_all=True)
 
-        result = model.sampling(
-            shape=(16, 3, cfg.dataset.image_size, cfg.dataset.image_size),
-            device=accelerator.device,
+        x_list = result["x_list"]
+        print(f"total length of x_list={len(x_list)}")
+        x_list = [x.detach().cpu() for x in x_list]
+        total_len = len(x_list)
+
+        n_steps = 8
+        indexes = torch.linspace(0, n_inference_steps - 1, steps=n_steps + 1).round().long().numpy().tolist()
+        print(f"paint indexes = {indexes}")
+        x_list = [x_list[i] for i in indexes]
+
+        fig, axes = plt.subplots(1, n_steps + 1, figsize=(30, 4), sharex=True, sharey=True)
+
+        axes[0].scatter(x_list[0][:, 0], x_list[0][:, 1], s=10)
+        axes[0].set_title(f"idx = {0}")
+        axes[0].set_xlim(-3.0, 3.0)
+        axes[0].set_ylim(-3.0, 3.0)
+
+        for i in range(n_steps):
+            x = x_list[i + 1]
+            axes[i + 1].scatter(x[:, 0], x[:, 1], s=10)
+            axes[i + 1].set_title(f"idx = {i+1}")
+
+        plt.tight_layout()
+        plt.savefig("fm_uc.png")
+
+        # =================================
+
+        for handler in sampling_hook_handlers:
+            handler.enable()
+
+        sigma = 1.0
+        x = torch.randn(n_samples, 2) * sigma  # (n_samples, 2)
+
+        # if you just want random labels –– otherwise load real labels here
+        c_eval = torch.randint(0, 2, (n_samples, 1), dtype=torch.float32, device=accelerator.device)  # (n_samples, 1)
+        result: dict = model.sampling(
+            shape=(256, 2), device=accelerator.device, return_all=True, sampling_condition=c_eval
         )
-        print(f"{result.keys()}")
-        result = result["x"]
-        print(f"Generated tensor shape: {result.shape}")
-        image = result
-        image = (image / 2 + 0.5).clamp(0, 1)
-        image = image.cpu().permute(0, 2, 3, 1).numpy()  # (batch_size, height, width, channels)
+        x_list = result["x_list"]
+        x_list = [x.detach().cpu() for x in x_list]
 
-        image = numpy_to_pil(image)
-        image_grid = make_image_grid(image, rows=4, cols=4)
-        save_dir = "fm_image"
-        os.makedirs(save_dir, exist_ok=True)
-        image_grid.save(os.path.join(save_dir, f"fm_uc_{cfg.flow.n_inference_steps}.png"))
+        n_steps = 8
+        indexes = torch.linspace(0, n_inference_steps - 1, steps=n_steps + 1).round().long().numpy().tolist()
+        print(f"paint indexes = {indexes}")
+        x_list = [x_list[i] for i in indexes]
 
+        # colours for the scatter (same length as x)
+        colors = ["blue" if lbl == 0 else "orange" for lbl in c_eval.squeeze().tolist()]
+
+        fig, axes = plt.subplots(1, n_steps + 1, figsize=(4 * (n_steps + 1), 4), sharex=True, sharey=True)
+
+        # initial frame
+        axes[0].scatter(x[:, 0], x[:, 1], s=10, c=colors)
+        axes[0].set_title(f"idx = 0")
+        axes[0].set_xlim(-3.0, 3.0)
+        axes[0].set_ylim(-3.0, 3.0)
+
+        plot_count = 0
+        with torch.no_grad():  # no gradients while sampling
+            for i in range(n_steps):
+                plot_count += 1
+                x = x_list[i + 1]
+                axes[plot_count].scatter(x[:, 0], x[:, 1], s=10, c=colors)
+                axes[plot_count].set_title(f"idx = {i}")
+                axes[plot_count].set_xlim(-3.0, 3.0)
+                axes[plot_count].set_ylim(-3.0, 3.0)
+
+        plt.tight_layout()
+        plt.savefig("fm_c.png")
     return
 
 
@@ -146,10 +211,10 @@ if __name__ == "__main__":
             },
             "optimizer": {
                 "name": "AdamW",
-                "lr": 1e-4,
+                "lr": 1e-2,
                 "betas": [0.9, 0.999],
                 "eps": 1e-8,
-                "weight_decay": 0.01,
+                "weight_decay": 0.0,
                 "amsgrad": False,
                 "maximize": False,
                 "foreach": None,
@@ -159,35 +224,35 @@ if __name__ == "__main__":
             },
             "train": {
                 "seed": 97,
-                "train_strategy": "epochs",
-                "n_epochs": 50,
-                "n_steps": 40388,
+                "train_strategy": "steps",
+                "n_epochs": 10000,
+                "n_steps": 1000,
                 "num_workers": 1,
                 "train_shuffle": True,
                 "n_warmup_steps": 500,
                 "lr_scheduler_type": "cosine_with_warmup",
-                "batch_size": 16,
+                "batch_size": 256,
                 "device": "cuda",
-                "grad_clip_strategy": "norm",
+                "grad_clip_strategy": None,
                 "max_grad_norm": 1.0,
                 "max_grad_value": 1.0,
                 "gradient_accumulation_steps": 1,
-                "real_batch_size": 16,
-                "save_strategy": "steps",  # can be "epochs", "steps", or null
+                "real_batch_size": 256,
+                "save_strategy": None,  # can be "epochs", "steps", or null
                 "save_dir": "checkpoints",
                 "save_steps": 1000,
-                "save_epochs": 1,
+                "save_epochs": 100,
                 "save_total_limit": 3,
                 "eval_strategy": None,  # can be "epochs" or "steps" or null
                 "eval_steps": 500,
                 "eval_epochs": 1,
-                "mixed_precision": "fp16",
+                "mixed_precision": None,
             },
             "log": {
                 "log_dir": "logs",
                 "log_steps": 1,
-                "log_epochs": 1,
-                "log_strategy": "steps",
+                "log_epochs": 1000,
+                "log_strategy": None,
             },
             "wandb": {
                 "reinit": True,
@@ -196,14 +261,21 @@ if __name__ == "__main__":
                 "group": "default",
                 "entity": "superposed-tree",
             },
-            "flow": {
-                "name": "EuclideanFlow",
-                "n_discretization_steps": 1000,
-                "n_inference_steps": 10,
+            "diffusion": {
+                "name": "DDPM",
+                "n_discretization_steps": 8,
+                "n_inference_steps": 8,
+                "gs": 60.0,
             },
         }
     )
+    import shutil
+
+    # if os.path.exists("checkpoints"):
+    #     shutil.rmtree("checkpoints")
+    # Accelerator(cpu=True, mixed_precision="fp16")
 
     for n_inference_steps in [100]:
-        cfg.flow.n_inference_steps = n_inference_steps
+        cfg.diffusion.n_inference_steps = n_inference_steps
+        cfg.diffusion.n_discretization_steps = n_inference_steps
         main(cfg)

@@ -24,14 +24,39 @@ class Hook(Generic[HookStageType]):
         return f"Hook(name={self.name}, stage={self.stage}, priority={self.priority})"
 
 
+class HookHandler(Generic[HookStageType]):
+
+    def __init__(self, manager: "HookManager[HookStageType]", hook: Hook[HookStageType]):
+        self._manager = manager
+        self._hook = hook
+
+    @property
+    def hook(self) -> Hook[HookStageType]:
+        return self._hook
+
+    def enable(self) -> None:
+        self._hook.enabled = True
+
+    def disable(self) -> None:
+        self._hook.enabled = False
+
+    def remove(self) -> None:
+        self._manager.unregister_hook(name=self._hook.name, stage=self._hook.stage)
+
+    def __repr__(self):
+        state = "enabled" if self._hook.enabled else "disabled"
+        return f"<HookHandler {self._hook.name} ({state})>"
+
+
 class HookManager(Generic[HookStageType]):
 
     def __init__(self) -> None:
         self._hooks: Dict[HookStageType, List[Hook[HookStageType]]] = {}
 
-    def register_hook(self, hook: Hook):
+    def register_hook(self, hook: Hook) -> HookHandler[HookStageType]:
         self._hooks.setdefault(hook.stage, []).append(hook)
         self._hooks[hook.stage].sort(key=lambda h: h.priority, reverse=False)
+        return HookHandler(self, hook=hook)
 
     def unregister_hook(self, name: str, stage: Optional[HookStageType] = None) -> None:
         if stage:
