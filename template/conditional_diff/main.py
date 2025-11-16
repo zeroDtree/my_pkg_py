@@ -65,8 +65,17 @@ def main(cfg: DictConfig):
     train_hook_handlers = result_get_model["train_hook_handlers"]
     sampling_hook_handlers = result_get_model["sampling_hook_handlers"]
 
-    # for handler in train_hook_handlers:
-    #     handler.disable()
+    def get_callbacks(training_handlers):
+        from callbacks import TrainingStepCallback
+
+        return None
+
+        return [TrainingStepCallback(training_handlers)]
+
+    callbacks = get_callbacks(train_hook_handlers)
+
+    for handler in train_hook_handlers:
+        handler.disable()
 
     # dataset
     train_set, val_set, test_set = get_dataset(cfg)
@@ -96,6 +105,7 @@ def main(cfg: DictConfig):
         log_config=log_config,
         collate_fn=get_collate_fn(cfg),  # Pass cfg to get_collate_fn
         logger=logger if accelerator.is_local_main_process else None,
+        callbacks=callbacks,
     )
 
     pipeline.train()
@@ -271,8 +281,8 @@ if __name__ == "__main__":
     )
     import shutil
 
-    # if os.path.exists("checkpoints"):
-    #     shutil.rmtree("checkpoints")
+    if os.path.exists("checkpoints"):
+        shutil.rmtree("checkpoints")
     # Accelerator(cpu=True, mixed_precision="fp16")
 
     for n_inference_steps in [100]:

@@ -473,7 +473,7 @@ def get_condition_post_compute_loss_hook(conditioner_list: list[Conditioner]):
         return kwargs
 
     return GMHook(
-        name="DDPM_condition_post_compute_loss_hookk",
+        name="DDPM_condition_post_compute_loss_hook",
         stage=GMHookStageType.POST_COMPUTE_LOSS,
         fn=_hook_fn,
         priority=0,
@@ -512,8 +512,6 @@ def get_condition_pre_update_in_step_fn_hook(conditioner_list: list[Conditioner]
             )
 
         acc_c_score = get_accumulated_conditional_score(conditioner_list, x_t, t, padding_mask)
-        print(-b * acc_c_score)
-
         # Scale and compute conditioned loss
         p_epsilon = -b * (p_uc_score + acc_c_score)
         return p_epsilon

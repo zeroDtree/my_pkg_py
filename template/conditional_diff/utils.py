@@ -155,10 +155,8 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     c = Tensor(c).long()
     logits = classifier_model(x)
     p_l = torch.argmax(logits, dim=-1)
-    print(p_l)
-    print(c)
     acc = (p_l == c).float().sum() / 100
-    print(f"acc={acc}")
+    print(f"classifier acc={acc}")
 
     classifier_model = classifier_model.to(Accelerator().device)
 
