@@ -8,7 +8,7 @@ Subpackages
    :maxdepth: 1
 
    ls_mlkit.dataset
-   ls_mlkit.diffuser
+   ls_mlkit.diffusion
    ls_mlkit.model
    ls_mlkit.optimizer
    ls_mlkit.pipeline

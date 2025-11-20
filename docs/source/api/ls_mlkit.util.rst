@@ -18,7 +18,6 @@ Submodules
 .. toctree::
    :maxdepth: 1
 
-   ls_mlkit.util.base_config_class
    ls_mlkit.util.cgraph
    ls_mlkit.util.cuda
    ls_mlkit.util.decorators

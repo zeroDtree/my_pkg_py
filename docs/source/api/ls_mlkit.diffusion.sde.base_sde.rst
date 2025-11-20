@@ -1,7 +1,7 @@
-ls\_mlkit.diffuser.base\_diffuser module
+ls\_mlkit.diffusion.sde.base\_sde module
 ========================================
 
-.. automodule:: ls_mlkit.diffuser.base_diffuser
+.. automodule:: ls_mlkit.diffusion.sde.base_sde
    :members:
    :undoc-members:
    :show-inheritance:

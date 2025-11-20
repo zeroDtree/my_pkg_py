@@ -1,7 +1,7 @@
-ls\_mlkit.diffuser.sde.sde\_lib module
+ls\_mlkit.diffusion.sde.sampler module
 ======================================
 
-.. automodule:: ls_mlkit.diffuser.sde.sde_lib
+.. automodule:: ls_mlkit.diffusion.sde.sampler
    :members:
    :undoc-members:
    :show-inheritance:

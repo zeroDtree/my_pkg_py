@@ -10,6 +10,7 @@ Submodules
    ls_mlkit.util.mask.bio_masker
    ls_mlkit.util.mask.image_masker
    ls_mlkit.util.mask.masker_interface
+   ls_mlkit.util.mask.onedim_masker
 
 Module contents
 ---------------

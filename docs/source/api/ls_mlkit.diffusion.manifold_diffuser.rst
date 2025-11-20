@@ -1,7 +1,7 @@
-ls\_mlkit.diffuser.euclidean\_diffuser module
+ls\_mlkit.diffusion.manifold\_diffuser module
 =============================================
 
-.. automodule:: ls_mlkit.diffuser.euclidean_diffuser
+.. automodule:: ls_mlkit.diffusion.manifold_diffuser
    :members:
    :undoc-members:
    :show-inheritance:

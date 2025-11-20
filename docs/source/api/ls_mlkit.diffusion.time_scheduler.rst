@@ -1,7 +1,7 @@
-ls\_mlkit.diffuser.model\_interface module
+ls\_mlkit.diffusion.time\_scheduler module
 ==========================================
 
-.. automodule:: ls_mlkit.diffuser.model_interface
+.. automodule:: ls_mlkit.diffusion.time_scheduler
    :members:
    :undoc-members:
    :show-inheritance:

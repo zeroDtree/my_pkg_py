@@ -1,7 +1,7 @@
-ls\_mlkit.diffuser.sde.score\_fn\_utils module
+ls\_mlkit.diffusion.euclidean\_diffuser module
 ==============================================
 
-.. automodule:: ls_mlkit.diffuser.sde.score_fn_utils
+.. automodule:: ls_mlkit.diffusion.euclidean_diffuser
    :members:
    :undoc-members:
    :show-inheritance:

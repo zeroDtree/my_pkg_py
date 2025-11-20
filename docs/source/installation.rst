@@ -48,16 +48,18 @@ From Source (Recommended)
 
 .. code-block:: bash
 
-   git clone https://github.com/zeroDtree/pkg_py.git
-   cd pkg_py
+   git clone https://github.com/zeroDtree/my_pkg_py.git
+   cd my_pkg_py
    pip install -e .
 
-Verification
-------------
+or
 
-To verify your installation, run:
+.. code-block:: bash
 
-.. code-block:: python
+   pip install "ls_mlkit @ git+https://github.com/zeroDtree/my_pkg_py.git" --no-cache-dir
 
-   import ls_mlkit
-   print("ls-mlkit installed successfully!")
+or
+
+.. code-block:: bash
+
+   pip install "ls_mlkit[bio] @ git+https://github.com/zeroDtree/my_pkg_py.git" --no-cache-dir
