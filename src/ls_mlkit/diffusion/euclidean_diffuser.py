@@ -98,15 +98,19 @@ class EuclideanDiffuser(BaseDiffuser):
             )["x_t"]
 
         x_list = [x_t]
+        E_x0_xt_list = [x_t]
 
         time_steps = self.time_scheduler.get_discrete_timesteps_schedule().to(device)
         for _, t in enumerate(tqdm(time_steps)):
             t = torch.ones(macro_shape, device=device, dtype=torch.long) * t
             no_padding_mask = masker.get_full_bright_mask(x_t)
-            x_t = self.step(x_t=x_t, t=t, padding_mask=no_padding_mask, *args, **kwargs)
+            step_output = self.step(x_t=x_t, t=t, padding_mask=no_padding_mask, *args, **kwargs)
+            x_t = step_output["x"]
+            if "E_x0_xt" in step_output:
+                E_x0_xt_list.append(step_output["E_x0_xt"])
             if return_all:
                 x_list.append(x_t)
-        return {"x": x_t, "x_list": x_list}
+        return {"x": x_t, "x_list": x_list, "E_x0_xt_list": E_x0_xt_list}
 
     @torch.no_grad()
     def inpainting(
@@ -144,6 +148,7 @@ class EuclideanDiffuser(BaseDiffuser):
         x_T = x_t.detach().clone()
 
         x_list = [x_t]
+        E_x0_xt_list = [x_t]
 
         timesteps = self.time_scheduler.get_discrete_timesteps_schedule().to(device)
         for i, t in enumerate(tqdm(timesteps)):
@@ -152,7 +157,10 @@ class EuclideanDiffuser(BaseDiffuser):
                 x_t = self.recover_bright_region(
                     x_known=x_0, x_t=x_t, t=t, inpainting_mask=inpainting_mask, padding_mask=padding_mask, x_prior=x_T
                 )
-                x_t = self.step(x_t, t, padding_mask, *args, **kwargs)  # get x_tm1
+                step_output = self.step(x_t, t, padding_mask, *args, **kwargs)  # get x_tm1
+                x_t = step_output["x"]
+                if "E_x0_xt" in step_output:
+                    E_x0_xt_list.append(step_output["E_x0_xt"])
                 x_t = masker.apply_mask(x_t, padding_mask)
                 if u < n_repaint_steps and (t > 0).all():
                     assert i < len(timesteps) - 1
@@ -162,7 +170,7 @@ class EuclideanDiffuser(BaseDiffuser):
                 x_list.append(x_t)
         x_t = masker.apply_inpainting_mask(x_0, x_t, inpainting_mask)
 
-        return {"x": x_t, "x_list": x_list}
+        return {"x": x_t, "x_list": x_list, "E_x0_xt_list": E_x0_xt_list}
 
     def recover_bright_region(self, x_known, x_t, t, padding_mask, inpainting_mask, x_prior) -> Tensor:
         x_0 = x_known

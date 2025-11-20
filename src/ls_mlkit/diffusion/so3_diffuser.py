@@ -227,7 +227,7 @@ class SO3Diffuser(LieGroupDiffuser):
 
     def step(
         self, x_t: Tensor, discrete_t: Tensor, padding_mask: Tensor, *args: list[Any], **kwargs: dict[Any, Any]
-    ) -> Tensor:
+    ) -> dict:
         r"""
         .. math::
 
@@ -261,7 +261,7 @@ class SO3Diffuser(LieGroupDiffuser):
 
         move_in_tangent_space = term1 + term2
         x_tm1 = self.so3.exp(p=x_t, v=move_in_tangent_space)
-        return x_tm1
+        return {"x": x_tm1}
 
     def sample_noise_in_lie_algebra(
         self,

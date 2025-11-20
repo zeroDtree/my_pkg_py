@@ -82,7 +82,7 @@ class EuclideanOTFlow(BaseFlow):
         }
         return result
 
-    def step(self, x_t, t, padding_mask=None, *args, **kwargs):
+    def step(self, x_t, t, padding_mask=None, *args, **kwargs) -> dict:
         device = x_t.device
         idx = kwargs.get("idx")
         ones = torch.ones_like(t)
@@ -108,7 +108,7 @@ class EuclideanOTFlow(BaseFlow):
             vf = hook_output
         else:
             vf = p_dx_t
-        return x_t + (t_end - t_start) * vf
+        return {"x": x_t + (t_end - t_start) * vf}
 
     @torch.no_grad()
     def sampling(
@@ -137,7 +137,7 @@ class EuclideanOTFlow(BaseFlow):
             t = torch.ones(macro_shape, device=device, dtype=torch.long) * t
             no_padding_mask = masker.get_full_bright_mask(x_t)
             kwargs["idx"] = idx
-            x_t = self.step(x_t=x_t, t=t, padding_mask=no_padding_mask, *args, **kwargs)
+            x_t = self.step(x_t=x_t, t=t, padding_mask=no_padding_mask, *args, **kwargs)["x"]
             if return_all:
                 x_list.append(x_t)
         return {"x": x_t, "x_list": x_list}
@@ -187,7 +187,7 @@ class EuclideanOTFlow(BaseFlow):
                 x_prior=x_0,
                 **kwargs,
             )
-            x_t = self.step(x_t=x_t, t=t, padding_mask=padding_mask, *args, **kwargs)
+            x_t = self.step(x_t=x_t, t=t, padding_mask=padding_mask, *args, **kwargs)["x"]
             x_t = masker.apply_mask(x_t, padding_mask)
             if return_all:
                 x_list.append(x_t)

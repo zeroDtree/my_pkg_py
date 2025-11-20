@@ -102,7 +102,7 @@ class EuclideanDDIMDiffuser(EuclideanDDPMDiffuser):
         variance = (beta_prod_t_prev / beta_prod_t) * (1 - alpha_prod_t / alpha_prod_t_prev)
         return variance
 
-    def step(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
+    def step(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:
         r"""DDIM sampling algorithm:
 
         .. math::
@@ -174,4 +174,4 @@ class EuclideanDDIMDiffuser(EuclideanDDPMDiffuser):
         if t > 0:
             pred_prev_sample = pred_prev_sample + sigma * epsilon_t
 
-        return pred_prev_sample
+        return {"x": pred_prev_sample, "E_x0_xt": pred_original_sample}

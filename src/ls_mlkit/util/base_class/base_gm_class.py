@@ -82,16 +82,16 @@ class BaseGenerativeModel(BaseLossClass):
         padding_mask: Tensor = None,
         *args: list[Any],
         **kwargs: dict[Any, Any],
-    ) -> Tensor:
+    ) -> dict:
         """_summary_
 
         Args:
             x_t (``Tensor``): _description_
-            t (``Tensor``): t is discrete timestep
+            t (``Tensor``): _description_
             padding_mask (``Tensor``, *optional*): _description_. Defaults to None.
 
         Returns:
-            ``Tensor``: _description_
+            ``dict``: A dictionary that must contain the key "x"
         """
 
     @abstractmethod

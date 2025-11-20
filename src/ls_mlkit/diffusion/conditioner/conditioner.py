@@ -51,7 +51,9 @@ class Conditioner(abc.ABC):
     def guidance_scale(self):
         return self._guidance_scale
 
-    @guidance_scale.setter
+    def get_guidance_scale(self):
+        return self._guidance_scale
+
     def set_guidance_scale(self, guidance_scale: float):
         self._guidance_scale = guidance_scale
 

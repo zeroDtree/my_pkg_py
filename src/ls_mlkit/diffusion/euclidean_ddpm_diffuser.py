@@ -313,7 +313,10 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             variance = (variance_value**0.5) * variance_noise
             pred_prev_sample = pred_prev_sample + variance
 
-        return pred_prev_sample
+        return {
+            "x": pred_prev_sample,
+            "E_x0_xt": pred_original_sample,
+        }
 
     def _get_previous_timestep(self, timestep: int) -> int:
         r"""Get the previous timestep for sampling.

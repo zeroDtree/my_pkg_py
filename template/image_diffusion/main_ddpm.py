@@ -100,12 +100,6 @@ def main(cfg: DictConfig):
         wandb.finish()
 
     if accelerator.is_local_main_process:
-        # Generate sample
-        pass
-
-        # unet_model_path = "../ddpm-butterflies-128/unet/"
-        # unet_model = UNet2DModel.from_pretrained(unet_model_path, use_safetensors=True).to(accelerator.device)
-        # model = get_model(cfg, model=unet_model)
 
         model = get_model(
             cfg,
@@ -114,19 +108,43 @@ def main(cfg: DictConfig):
         )
         model = model.to(accelerator.device)
 
-        result: Tensor = model.sampling(
+        result: dict = model.sampling(
             shape=(16, 3, cfg.dataset.image_size, cfg.dataset.image_size),
             device=accelerator.device,
             mode=cfg.diffuser.mode,
         )
-        image = result
-        print(f"Generated tensor shape: {result.shape}")
+        image = result["x"]
+        print(f"Generated tensor shape: {image.shape}")
         image = (image / 2 + 0.5).clamp(0, 1)
         image = image.cpu().permute(0, 2, 3, 1).numpy()  # (batch_size, height, width, channels)
 
         image = numpy_to_pil(image)
         image_grid = make_image_grid(image, rows=4, cols=4)
         image_grid.save(f"generated_sample_{cfg.optimizer.name}_{cfg.diffuser.mode}_{cfg.diffuser.name}.png")
+
+        E_x0_xt_list = result["E_x0_xt_list"]
+        
+        # Visualize E_x0_xt_list by uniformly sampling
+        if E_x0_xt_list is not None and len(E_x0_xt_list) > 0:
+            num_samples = min(8, len(E_x0_xt_list))  # Sample up to 8 timesteps
+            indices = [int(i * (len(E_x0_xt_list) - 1) / (num_samples - 1)) for i in range(num_samples)] if num_samples > 1 else [0]
+            
+            sampled_images = []
+            for idx in indices:
+                img_tensor = E_x0_xt_list[idx]
+                # Take only the first image from the batch
+                img_tensor = img_tensor[0:1]  # Shape: (1, 3, H, W)
+                # Normalize to [0, 1]
+                img_tensor = (img_tensor / 2 + 0.5).clamp(0, 1)
+                img_tensor = img_tensor.cpu().permute(0, 2, 3, 1).numpy()
+                sampled_images.extend(numpy_to_pil(img_tensor))
+            
+            # Create grid and save
+            grid_rows = 2 if num_samples > 4 else 1
+            grid_cols = (num_samples + grid_rows - 1) // grid_rows
+            denoising_grid = make_image_grid(sampled_images, rows=grid_rows, cols=grid_cols)
+            denoising_grid.save(f"denoising_process_{cfg.optimizer.name}_{cfg.diffuser.mode}_{cfg.diffuser.name}.png")
+            print(f"Saved denoising process visualization with {num_samples} timesteps from {len(E_x0_xt_list)} total steps")
 
     return
 
