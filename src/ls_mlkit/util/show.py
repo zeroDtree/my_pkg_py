@@ -37,12 +37,12 @@ def show_info(
     batch_size: int = 7,
 ) -> None:
     def get_model_size(model: Module) -> dict[str, float]:
-        # 每个参数占用 4 bytes (32-bit float)
+        # each parameter occupies 4 bytes (32-bit float)
         param_size = 4
         total_params = sum(p.numel() for p in model.parameters())
         total_size_bytes = total_params * param_size
 
-        # 转换为 MB 和 GB
+        # convert to KB, MB and GB
         total_size_kb = total_size_bytes / 1024
         total_size_mb = total_size_bytes / (1024 * 1024)  # bytes to MB
         total_size_gb = total_size_bytes / (1024 * 1024 * 1024)  # MB to GB

@@ -5,6 +5,11 @@ import torch
 
 
 def print_cpu_memory():
+    """Print the CPU memory usage
+
+    Returns:
+        None
+    """
     mem = psutil.virtual_memory()
     str(round(mem.total / 1024**3))
     str(round(mem.used / 1024**3))
@@ -20,6 +25,11 @@ def print_cpu_memory():
 
 
 def print_gpu_memory():
+    """Print the GPU memory usage
+
+    Returns:
+        None
+    """
     allocated_memory = torch.cuda.memory_allocated() / (1024**3)
     max_allocated = torch.cuda.max_memory_allocated()
     print(f"GPU Allocated Memory: {allocated_memory:.2f} GB")
@@ -27,5 +37,10 @@ def print_gpu_memory():
 
 
 def show_gpu_and_cpu_memory():
+    """Show the GPU and CPU memory usage
+
+    Returns:
+        None
+    """
     print_gpu_memory()
     print_cpu_memory()

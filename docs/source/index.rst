@@ -52,12 +52,6 @@ Features Overview
       Language datasets:
          ``LDADataset``, ``MT19937``, ``RegularLanguageDataset``, ``meta-math/MetaMathQA``, ``gsm8k``, ``glue/sst2``, ``m-a-p/CodeFeedback-Filtered-Instruction``, ``silk-road/Wizard-LM-Chinese-instruct-evol``, ``tatsu-lab/alpaca``
 
-   **Models**
-   ``LongLinearModel``, ``CausalLanguageModelForAuto``
-
-   **Utils**
-   Various tools
-
 
 Indices and tables
 ==================

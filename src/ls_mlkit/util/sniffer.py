@@ -6,13 +6,16 @@ class Sniffer:
     def __init__(self):
         pass
 
-    def sniff_file(self, directory_path, pattern, max_deep=-1):
-        """
-        Get all files in the directory_path that match the pattern
-        :param directory_path:
-        :param pattern: judge whether the pattern is in the filename
-        :param max_deep:
-        :return: full path of the files
+    def sniff_file(self, directory_path, pattern, max_deep=-1) -> list[str]:
+        """Get all files in the directory_path that match the pattern
+
+        Args:
+            directory_path (``str``): the path of the directory to sniff
+            pattern (``str``): the pattern to match
+            max_deep (``int``, *optional*): the maximum depth to sniff. Defaults to -1.
+
+        Returns:
+            ``list[str]``: the full path of the files that match the pattern
         """
         ans = list()
         all_file_path_list = self.get_all_by_recursion(directory_path, deep=0, max_deep=max_deep)
@@ -23,13 +26,16 @@ class Sniffer:
                 ans.append(path)
         return ans
 
-    def sniff_file_by_path_pattern(self, directory_path, pattern, max_deep=-1):
-        """
-        Get all files in the directory_path that match the pattern
-        :param directory_path:
-        :param pattern: judge whether the pattern is in the filepath
-        :param max_deep:
-        :return: full path of the files
+    def sniff_file_by_path_pattern(self, directory_path, pattern, max_deep=-1) -> list[str]:
+        """Get all files in the directory_path that match the pattern
+
+        Args:
+            directory_path (``str``): the path of the directory to sniff
+            pattern (``str``): the pattern to match
+            max_deep (``int``, *optional*): the maximum depth to sniff. Defaults to -1.
+
+        Returns:
+            ``list[str]``: the full path of the files that match the pattern
         """
         ans = list()
         all_file_path_list = self.get_all_by_recursion(directory_path, deep=0, max_deep=max_deep)
@@ -42,13 +48,6 @@ class Sniffer:
         all_file_path_list = []
 
         def _get_all_by_recursion(directory_path, deep, max_deep):
-            """
-            Recursively get all files in the directory_path up to a maximum depth of max_deep, and save them to all_file_path_list
-            :param directory_path:
-            :param deep:
-            :param max_deep:
-            :return:
-            """
             if directory_path[len(directory_path) - 1] == "/":
                 directory_path = directory_path[0:-1]
             if os.path.isdir(directory_path) and (max_deep < 0 or deep < max_deep):

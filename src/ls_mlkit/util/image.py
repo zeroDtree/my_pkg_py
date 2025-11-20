@@ -7,7 +7,7 @@ from PIL import Image
 
 def pt_to_pil(images: torch.Tensor) -> List[Image.Image]:
     """
-    Convert a torch image to a PIL image.
+    Convert a torch image to a PIL image. Range of input tensor is assumed to be [0, 1].
     """
     images = (images / 2 + 0.5).clamp(0, 1)
     images = images.cpu().permute(0, 2, 3, 1).float().numpy()
@@ -17,7 +17,7 @@ def pt_to_pil(images: torch.Tensor) -> List[Image.Image]:
 
 def numpy_to_pil(images: np.ndarray) -> List[Image.Image]:
     """
-    Convert a numpy image or a batch of images to a PIL image.
+    Convert a numpy image or a batch of images to a PIL image. Range of input tensor is assumed to be [0, 1].
     """
     if images.ndim == 3:
         images = images[None, ...]

@@ -7,6 +7,14 @@ import torch
 
 
 def seed_everything(seed: int):
+    """fix the seed for all the random number generators
+
+    Args:
+        seed (``int``): the seed to use for the random number generators
+
+    Returns:
+        None
+    """
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
