@@ -109,7 +109,7 @@ class SDE(abc.ABC):
         g = diffusion * torch.sqrt(torch.tensor(dt, device=t.device))
         return f, g
 
-    def get_reverse_sde(self, score_fn: object, use_probability_flow=False):
+    def get_reverse_sde(self, score=None, score_fn: object = None, use_probability_flow=False):
         r"""Create the reverse-time SDE/ODE.
 
         Args:
@@ -120,7 +120,7 @@ class SDE(abc.ABC):
         T = self.T
         ndim_micro_shape = self.ndim_micro_shape
         get_forward_drift_and_diffusion = self.get_drift_and_diffusion
-        get_forward_discretized_drift_and_diffusion = self.get_discretized_drift_and_diffusion
+        # get_forward_discretized_drift_and_diffusion = self.get_discretized_drift_and_diffusion
 
         class RSDE(self.__class__):
             def __init__(self):
@@ -147,26 +147,29 @@ class SDE(abc.ABC):
                 \end{align*}
                 $$
                 """
+                nonlocal score, score_fn
+                assert score is not None or score_fn is not None, "either score or score_fn must be provided"
+                if score is None:
+                    score = score_fn(x, t, mask)
                 drift, diffusion = get_forward_drift_and_diffusion(x, t, mask=mask)
-                score = score_fn(x, t, mask)
+                rev_diffusion = 0.0 if self.use_probability_flow else diffusion
                 diffusion = self.get_diffusion_coefficient_with_proper_shape(x, diffusion)
-                drift = drift - diffusion**2 * score * (0.5 if self.use_probability_flow else 1.0)
+                rev_drift = drift - diffusion**2 * score * (0.5 if self.use_probability_flow else 1.0)
                 # Set the diffusion function to zero for ODEs.
-                diffusion = 0.0 if self.use_probability_flow else diffusion
-                return drift, diffusion
+                return rev_drift, rev_diffusion
 
-            def get_discretized_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
-                r"""Create discretized iteration rules for the reverse diffusion sampler.
-                $$
-                \begin{align*}
-                    rev\_f &= (f(x,t) - g(x,t)^2 \nabla_x \log p_t(x)) |\Delta t| \\
-                    rev\_g &= g(x,t) \sqrt{|\Delta t|}
-                \end{align*}
-                $$
-                """
-                f, g = get_forward_discretized_drift_and_diffusion(x, t, mask=mask)
-                rev_f = f - g**2 * score_fn(x, t) * (0.5 if self.use_probability_flow else 1.0)
-                rev_g = torch.zeros_like(g) if self.use_probability_flow else g
-                return rev_f, rev_g
+            # def get_discretized_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
+            #     r"""Create discretized iteration rules for the reverse diffusion sampler.
+            #     $$
+            #     \begin{align*}
+            #         rev\_f &= (f(x,t) - g(x,t)^2 \nabla_x \log p_t(x)) |\Delta t| \\
+            #         rev\_g &= g(x,t) \sqrt{|\Delta t|}
+            #     \end{align*}
+            #     $$
+            #     """
+            #     f, g = get_forward_discretized_drift_and_diffusion(x, t, mask=mask)
+            #     rev_f = f - g**2 * score_fn(x, t) * (0.5 if self.use_probability_flow else 1.0)
+            #     rev_g = torch.zeros_like(g) if self.use_probability_flow else g
+            #     return rev_f, rev_g
 
         return RSDE()

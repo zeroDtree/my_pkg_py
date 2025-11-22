@@ -129,16 +129,22 @@ class DistributedPipeline(BasePipeline):
             collate_fn=collate_fn,
             logger=logger,
             callbacks=callbacks,
+            load_checkpoint=False,
             *args,
             **kwargs,
         )
 
-        # Prepare everything for distributed training
+        # Prepare everything for distributed training BEFORE loading
         self.model, self.optimizer, self.dataloader = self.accelerator.prepare(
             self.model, self.optimizer, self.dataloader
         )
 
-        if self.accelerator.is_main_process:
+        # Load checkpoint AFTER prepare to ensure proper state restoration
+        if self.training_config.save_dir is not None and self.training_config.save_dir != "":
+            self.load()
+            self.training_config = training_config
+
+        if self.accelerator.is_local_main_process:
             assert self.logger is not None, f"Error from {self.__class__.__name__}: logger is required"
             self.logger.info(f"Using distributed training with accelerate")
             self.logger.info(f"Number of processes: {self.accelerator.num_processes}")
@@ -246,8 +252,7 @@ class DistributedPipeline(BasePipeline):
             return
 
         # load ============================================================================================
-        # Load accelerator state (this includes model, optimizer, and scheduler)
-        self.accelerator.load_state(checkpoint_dir)
+        self.accelerator.load_state(checkpoint_dir, load_kwargs={"weights_only": False})
 
         # Load training metadata
         for base_name in ["training_state", "training_config", "log_config"]:

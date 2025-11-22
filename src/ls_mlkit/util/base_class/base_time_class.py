@@ -62,7 +62,6 @@ class BaseTimeScheduler(ABC):
         Returns:
             Tensor: the continuous time
         """
-        print(f"discrete_time: {discrete_time}, num_train_timesteps: {self.num_train_timesteps}, T: {self.T}")
         return 1.0 * (discrete_time + 1) / (self.num_train_timesteps) * self.T
 
     def get_discrete_timesteps_schedule(self) -> Tensor:

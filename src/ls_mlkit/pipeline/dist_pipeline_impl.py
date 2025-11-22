@@ -201,7 +201,7 @@ class MyDistributedPipeline(DistributedPipeline):
             raise ValueError("n_steps must be specified")
         i = 0
         result = None
-        for _ in tqdm(range(self.training_config.n_steps), desc="training"):
+        for _ in tqdm(range(self.training_config.n_steps), desc="training", mininterval=0):
             if i < self.training_state.current_global_step:
                 i += 1
                 continue

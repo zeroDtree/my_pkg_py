@@ -12,6 +12,8 @@ from torch import Tensor
 from ..util.observer import Observer
 from .callback import BaseCallback, CallbackEvent, CallbackManager
 
+from tqdm.auto import tqdm
+
 
 class TrainingConfig:
     def __init__(
@@ -133,6 +135,7 @@ class BasePipeline(metaclass=ABCMeta):
         logger: logging.Logger,
         collate_fn: Optional[Callable] = None,
         callbacks: Optional[List[BaseCallback]] = None,
+        load_checkpoint: bool = True,
         *args,
         **kwargs,
     ):
@@ -170,10 +173,9 @@ class BasePipeline(metaclass=ABCMeta):
         )
         self.observer = Observer(model=self.model)
 
-        if self.training_config.save_dir is not None and self.training_config.save_dir != "":
-            n_epochs = self.training_config.n_epochs
+        if load_checkpoint and self.training_config.save_dir is not None and self.training_config.save_dir != "":
             self.load()
-            self.training_config.n_epochs = n_epochs
+            self.training_config = training_config
 
     @abstractmethod
     def compute_loss(self, model: torch.nn.Module, batch: dict) -> Tensor | dict:
@@ -196,7 +198,7 @@ class BasePipeline(metaclass=ABCMeta):
         self.trigger_callbacks(event=CallbackEvent.TRAINING_START)
         n_epochs = self.training_config.n_epochs
 
-        for epoch in range(n_epochs):
+        for epoch in tqdm(range(n_epochs), desc="training", mininterval=0):
             if epoch < self.training_state.current_epoch:
                 continue
             self.train_an_epoch()

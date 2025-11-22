@@ -256,7 +256,7 @@ if __name__ == "__main__":
                 "seed": 97,
                 "train_strategy": "steps",
                 "n_epochs": 400,
-                "n_steps": 300,
+                "n_steps": 3000,
                 "num_workers": 1,
                 "train_shuffle": True,
                 "n_warmup_steps": 500,

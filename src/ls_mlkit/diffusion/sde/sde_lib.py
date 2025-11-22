@@ -2,7 +2,6 @@ from typing import Tuple
 
 import numpy as np
 import torch
-from overrides import override
 from torch import Tensor
 
 from .base_sde import SDE
@@ -23,20 +22,11 @@ class VPSDE(SDE):
         super().__init__(n_discretization_steps=n_discretization_steps, ndim_micro_shape=ndim_micro_shape)
         self.beta_0 = beta_min
         self.beta_1 = beta_max
-        self.discrete_betas = torch.linspace(
-            beta_min / n_discretization_steps, beta_max / n_discretization_steps, n_discretization_steps
-        )
-        self.alphas = 1.0 - self.discrete_betas
-        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
-        self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)  # mean
-        self.sqrt_1m_alphas_cumprod = torch.sqrt(1.0 - self.alphas_cumprod)  # std
 
     @property
-    @override
     def T(self) -> float:
         return 1
 
-    @override
     def get_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
         r"""continuous DDPM SDE
 
@@ -59,18 +49,7 @@ class VPSDE(SDE):
         diffusion = torch.sqrt(beta_t)
         return drift, diffusion
 
-    @override
-    def get_discretized_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
-        """DDPM discretization."""
-        timestep = (t * (self.n_discretization_steps - 1) / self.T).long()
-        beta = self.discrete_betas.to(x.device)[timestep]
-        alpha = self.alphas.to(x.device)[timestep]
-        sqrt_beta = torch.sqrt(beta)
-        f = torch.sqrt(alpha).view(alpha.shape[0], *[1 for _ in range(self.ndim_micro_shape)]) * x - x
-        g = sqrt_beta
-        return f, g
-
-    def get_target_score(self, x_0: Tensor, x_t: Tensor, t: Tensor, mask: Tensor, continuous: bool = False) -> Tensor:
+    def get_score(self, x_t, mean, std) -> Tensor:
         r"""
 
         .. math::
@@ -78,21 +57,18 @@ class VPSDE(SDE):
             p_{0t} (x_t|x_0) = \nabla_{x_t} \ln p_{0t} (x_t|x_0)
 
         """
-        mu = None  # $$E_{x_t\sim p_{0t}(x_t|x_0)}[x_t]$$
-
-        sigma = None  # $$\sqrt{Var_{x_t\sim p_{0t}(x_t|x_0)}[x_t]}$$
-
-        macro_shape = x_t.shape[: self.ndim_micro_shape]
-
-        if continuous:
-            mu, sigma = self.marginal_prob(x_0, t, mask=None)
-        else:
-            mu = self.sqrt_alphas_cumprod[t].view(*macro_shape, *[1 for _ in range(self.ndim_micro_shape)]) * x_0
-            sigma = self.sqrt_1m_alphas_cumprod[t].view(*macro_shape, *[1 for _ in range(self.ndim_micro_shape)])
-        score = -(x_t - mu) / sigma**2
+        score = -(x_t - mean) / std**2
         return score
 
-    def marginal_prob(self, x_0: Tensor, t: Tensor, mask: Tensor = None) -> Tuple[Tensor, Tensor]:
+    def get_a_b(self, t: Tensor) -> Tuple[Tensor, Tensor]:
+        macro_shape = t.shape
+        log_mean_coeff = -0.25 * t**2 * (self.beta_1 - self.beta_0) - 0.5 * t * self.beta_0  # mcro_shape
+        log_mean_coeff = log_mean_coeff.view(*macro_shape, *[1 for _ in range(self.ndim_micro_shape)])
+        a = torch.exp(log_mean_coeff)
+        b = torch.sqrt(1.0 - torch.exp(2.0 * log_mean_coeff))
+        return a, b
+
+    def forward_process(self, x_0: Tensor, t: Tensor, mask: Tensor = None) -> Tuple[Tensor, Tensor]:
         r"""
 
         .. math::
@@ -108,17 +84,29 @@ class VPSDE(SDE):
             std = \sqrt{1 - e^{2 \gamma }}
 
         """
-        log_mean_coeff = -0.25 * t**2 * (self.beta_1 - self.beta_0) - 0.5 * t * self.beta_0
-        macro_shape = x_0.shape[: self.ndim_micro_shape]
-        log_mean_coeff = log_mean_coeff.view(*macro_shape, *[1 for _ in range(self.ndim_micro_shape)])
-        mean = torch.exp(log_mean_coeff) * x_0
-        std = torch.sqrt(1.0 - torch.exp(2.0 * log_mean_coeff))
-        return mean, std
+        a, b = self.get_a_b(t)
+        mean = a * x_0
+        x_t = mean + b * torch.randn_like(x_0)
+        return {
+            "x_t": x_t,
+            "mean": mean,
+            "std": b,
+            "a": a,
+            "b": b,
+        }
+
+    def forward_from_t1_to_t2(self, x_t1: Tensor, t1: Tensor, t2: Tensor) -> Tensor:
+        a1, b1 = self.get_a_b(t1)
+        a2, b2 = self.get_a_b(t2)
+        a12 = a2 / a1
+        b12 = a2 * torch.sqrt((b2 / a2) ** 2 - (b1 / a1) ** 2)
+        x_t2 = a12 * x_t1 + b12 * torch.randn_like(x_t1)
+        return x_t2
 
     def prior_sampling(self, shape: Tuple) -> Tensor:
         r"""
         .. math::
-                                                                                                                                \epsilon \sim \mathbfcal{N}(0,1)
+            \epsilon \sim \mathbfcal{N}(0,1)
 
         """
         return torch.randn(*shape)
@@ -155,11 +143,9 @@ class SubVPSDE(SDE):
         self.beta_1 = beta_max
 
     @property
-    @override
     def T(self) -> float:
         return 1
 
-    @override
     def get_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
         macro_shape = x.shape[: self.ndim_micro_shape]
@@ -215,11 +201,9 @@ class VESDE(SDE):
             )
 
     @property
-    @override
     def T(self) -> float:
         return 1
 
-    @override
     def get_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
         r"""
         .. math::
@@ -237,7 +221,6 @@ class VESDE(SDE):
         )
         return drift, diffusion
 
-    @override
     def get_discretized_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
         r"""SMLD(NCSN) discretization.
         .. math::

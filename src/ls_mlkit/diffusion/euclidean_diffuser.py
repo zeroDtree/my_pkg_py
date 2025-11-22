@@ -42,18 +42,6 @@ class EuclideanDiffuser(BaseDiffuser):
         self.time_scheduler: DiffusionTimeScheduler = time_scheduler
         self.masker = masker
 
-    def forward_process_one_step(self, x: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
-        r"""Forward process one step
-
-        Args:
-            x (``Tensor``): the sample
-            t (``Tensor``): the timestep
-            padding_mask (``Tensor``): the padding mask
-
-        Returns:
-            ``Tensor``: the sample at the next timestep
-        """
-
     def forward_process_n_step(
         self, x: Tensor, t: Tensor, next_t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any
     ) -> Tensor:

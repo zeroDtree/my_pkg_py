@@ -177,18 +177,6 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         standard_deviation = self.complete_micro_shape(config.sqrt_1m_alphas_cumprod[t])
         return expectation, standard_deviation
 
-    def forward_process_one_step(self, x: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
-        config = cast(EuclideanDDPMConfig, self.config.to(t))
-        beta_t = config.betas[t]  # (macro_shape)
-        a = (1 - beta_t) ** 0.5
-        b = beta_t**0.5
-        a = self.complete_micro_shape(a)
-        b = self.complete_micro_shape(b)
-        noise = torch.randn_like(x)
-        x_next = a * x + b * noise
-        x_next = self.masker.apply_mask(x_next, padding_mask)
-        return x_next
-
     def forward_process_n_step(
         self, x: Tensor, t: Tensor, next_t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any
     ) -> Tensor:
@@ -216,7 +204,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         x_t = self.masker.apply_mask(x_t, mask)
         return {"x_t": x_t, "noise": noise, "expectation": expectation, "standard_deviation": standard_deviation}
 
-    def step(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
+    def step(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:
         r"""
         Predict the sample from the previous timestep by reversing the SDE.
         This function propagates the diffusion process from the learned model outputs.
@@ -235,7 +223,9 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             padding_mask (Tensor): the padding mask
 
         Returns:
-            Tensor: the sample at timestep t-1
+            dict: 
+                "x": the sample at timestep t-1
+                "E_x0_xt": the predicted original sample
         """
         mode: Literal["epsilon", "x_0", "score"] = kwargs.get("mode", "epsilon")
         assert torch.all(t == t.view(-1)[0]).item()
