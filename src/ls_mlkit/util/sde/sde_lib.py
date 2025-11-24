@@ -8,18 +8,15 @@ from .base_sde import SDE
 
 
 class VPSDE(SDE):
-    def __init__(
-        self, beta_min: float = 0.1, beta_max: float = 20, n_discretization_steps: int = 1000, ndim_micro_shape: int = 2
-    ):
+    def __init__(self, beta_min: float = 0.1, beta_max: float = 20, ndim_micro_shape: int = 2):
         r"""Construct a Variance Preserving SDE.
 
         Args:
             beta_min: value of beta(0)
             beta_max: value of beta(1)
-            n_discretization_steps: number of discretization steps
             ndim_micro_shape: number of dimensions of a sample
         """
-        super().__init__(n_discretization_steps=n_discretization_steps, ndim_micro_shape=ndim_micro_shape)
+        super().__init__(ndim_micro_shape=ndim_micro_shape)
         self.beta_0 = beta_min
         self.beta_1 = beta_max
 
@@ -43,7 +40,7 @@ class VPSDE(SDE):
             drift: shape = x.shape
             diffusion: shape=x.macro_shape
         """
-        macro_shape = x.shape[: self.ndim_micro_shape]
+        macro_shape = x.shape[: -self.ndim_micro_shape]
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
         drift = -0.5 * beta_t.view(*macro_shape, *[1 for _ in range(self.ndim_micro_shape)]) * x
         diffusion = torch.sqrt(beta_t)
@@ -104,6 +101,7 @@ class VPSDE(SDE):
         }
 
     def forward_from_t1_to_t2(self, x_t1: Tensor, t1: Tensor, t2: Tensor) -> Tensor:
+        assert (t1 <= t2).all(), "t1 must be less than or equal to t2"
         a1, b1 = self.get_a_b(t1)
         a2, b2 = self.get_a_b(t2)
         a12 = a2 / a1
@@ -135,9 +133,7 @@ class VPSDE(SDE):
 
 
 class SubVPSDE(SDE):
-    def __init__(
-        self, beta_min: float = 0.1, beta_max: float = 20, n_discretization_steps: int = 1000, ndim_micro_shape: int = 2
-    ):
+    def __init__(self, beta_min: float = 0.1, beta_max: float = 20, ndim_micro_shape: int = 2):
         """Construct the sub-VP SDE that excels at likelihoods.
 
         Args:
@@ -146,7 +142,7 @@ class SubVPSDE(SDE):
             n_discretization_steps: number of discretization steps
             ndim_micro_shape: number of dimensions of a sample
         """
-        super().__init__(n_discretization_steps=n_discretization_steps, ndim_micro_shape=ndim_micro_shape)
+        super().__init__(ndim_micro_shape=ndim_micro_shape)
         self.beta_0 = beta_min
         self.beta_1 = beta_max
 
@@ -156,7 +152,7 @@ class SubVPSDE(SDE):
 
     def get_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
         beta_t = self.beta_0 + t * (self.beta_1 - self.beta_0)
-        macro_shape = x.shape[: self.ndim_micro_shape]
+        macro_shape = x.shape[: -self.ndim_micro_shape]
         beta_t = beta_t.view(*macro_shape, *[1 for _ in range(self.ndim_micro_shape)])
         drift = -0.5 * beta_t * x
         discount = 1.0 - torch.exp(-2 * self.beta_0 * t - (self.beta_1 - self.beta_0) * t**2)
@@ -165,7 +161,7 @@ class SubVPSDE(SDE):
 
     def marginal_prob(self, x, t, mask=None):
         log_mean_coeff = -0.25 * t**2 * (self.beta_1 - self.beta_0) - 0.5 * t * self.beta_0
-        macro_shape = x.shape[: self.ndim_micro_shape]
+        macro_shape = x.shape[: -self.ndim_micro_shape]
         log_mean_coeff = log_mean_coeff.view(*macro_shape, *[1 for _ in range(self.ndim_micro_shape)])
         mean = torch.exp(log_mean_coeff) * x
         std = 1 - torch.exp(2.0 * log_mean_coeff)

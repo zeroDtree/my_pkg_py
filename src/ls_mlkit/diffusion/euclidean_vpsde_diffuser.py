@@ -13,7 +13,7 @@ from .euclidean_diffuser import EuclideanDiffuser, EuclideanDiffuserConfig
 from .model_interface import Model4DiffuserInterface
 from .time_scheduler import DiffusionTimeScheduler
 
-from .sde.sde_lib import VPSDE
+from ..util.sde.lib.vpsde import VPSDE
 
 
 @inherit_docstrings
@@ -53,7 +53,6 @@ class EuclideanVPSDEConfig(EuclideanDiffuserConfig):
         self.sde = VPSDE(
             beta_min=beta_min,
             beta_max=beta_max,
-            n_discretization_steps=n_discretization_steps,
             ndim_micro_shape=ndim_micro_shape,
         )
         self.use_probability_flow = use_probability_flow
@@ -136,8 +135,6 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
 
         loss = self.loss_fn(p_uc_score, gt_uc_score, padding_mask)
 
-        print(f"loss: {loss.item()}")
-
         return {
             "loss": loss,
             "clean_data": x_0,
@@ -176,7 +173,12 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
             Tensor: the sample at timestep t-1
         """
         assert torch.all(t == t.view(-1)[0]).item()
-        config = cast(EuclideanVPSDEConfig, self.config.to(t))
+        device = x_t.device
+        idx = kwargs.get("idx")
+        ones = torch.ones_like(t)
+        t_start = self.time_scheduler.get_continuous_timesteps_schedule().to(device)[idx] * ones
+        t_end = self.time_scheduler.get_continuous_timesteps_schedule().to(device)[idx + 1] * ones
+        config = cast(EuclideanVPSDEConfig, self.config.to(device))
         model_output = self.model(x_t, t.long(), padding_mask, *args, **kwargs)
         p_uc_score = model_output["x"]
 
@@ -198,11 +200,13 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         rsde = self.sde.get_reverse_sde(
             score=p_uc_score, score_fn=None, use_probability_flow=self.config.use_probability_flow
         )
-        continuous_t = self.time_scheduler.discrete_time_to_continuous_time(t)
-        f, g = rsde.get_discretized_drift_and_diffusion(x_t, continuous_t, mask=padding_mask)
+        delta_t = t_end - t_start
+        delta_t = self.complete_micro_shape(delta_t)
+        f, g = rsde.get_drift_and_diffusion(x_t, t_start, mask=padding_mask)
+        g = self.complete_micro_shape(g)
         z = torch.randn_like(x_t)
-        x_mean = x_t - f
-        x = x_mean + g * z
+        x_mean = x_t + f * delta_t
+        x = x_mean + g * z * torch.sqrt(delta_t.abs())
 
         return {
             "x": x,

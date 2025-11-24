@@ -135,8 +135,8 @@ class DistributedPipeline(BasePipeline):
         )
 
         # Prepare everything for distributed training BEFORE loading
-        self.model, self.optimizer, self.dataloader = self.accelerator.prepare(
-            self.model, self.optimizer, self.dataloader
+        self.model, self.optimizer, self.dataloader, self.scheduler = self.accelerator.prepare(
+            self.model, self.optimizer, self.dataloader, self.scheduler
         )
 
         # Load checkpoint AFTER prepare to ensure proper state restoration

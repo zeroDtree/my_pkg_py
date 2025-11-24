@@ -89,9 +89,10 @@ class EuclideanDiffuser(BaseDiffuser):
         E_x0_xt_list = [x_t]
 
         time_steps = self.time_scheduler.get_discrete_timesteps_schedule().to(device)
-        for _, t in enumerate(tqdm(time_steps)):
+        for idx, t in enumerate(tqdm(time_steps)):
             t = torch.ones(macro_shape, device=device, dtype=torch.long) * t
             no_padding_mask = masker.get_full_bright_mask(x_t)
+            kwargs["idx"] = idx
             step_output = self.step(x_t=x_t, t=t, padding_mask=no_padding_mask, *args, **kwargs)
             x_t = step_output["x"]
             if "E_x0_xt" in step_output:

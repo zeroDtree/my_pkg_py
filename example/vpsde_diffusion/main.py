@@ -178,7 +178,7 @@ def main(cfg: DictConfig):
             axes[i + 1].set_title(f"idx = {i+1}")
 
         plt.tight_layout()
-        plt.savefig("fm_uc.png")
+        plt.savefig("sample_uc.png")
 
         # =================================
 
@@ -223,7 +223,7 @@ def main(cfg: DictConfig):
                 axes[plot_count].set_ylim(-3.0, 3.0)
 
         plt.tight_layout()
-        plt.savefig("fm_c.png")
+        plt.savefig("sample_c.png")
 
         # =================================
         # Visualize real dataset with categories for comparison
@@ -289,7 +289,7 @@ if __name__ == "__main__":
                 "seed": 97,
                 "train_strategy": "steps",
                 "n_epochs": 400,
-                "n_steps": 4000,
+                "n_steps": 2000,
                 "num_workers": 1,
                 "train_shuffle": True,
                 "n_warmup_steps": 100,
@@ -301,7 +301,7 @@ if __name__ == "__main__":
                 "max_grad_value": 1.0,
                 "gradient_accumulation_steps": 1,
                 "real_batch_size": 512,
-                "save_strategy": None,  # can be "epochs", "steps", or null
+                "save_strategy": "steps",  # can be "epochs", "steps", or null
                 "save_dir": "checkpoints",
                 "save_steps": 1000,
                 "save_epochs": 100,
@@ -313,13 +313,13 @@ if __name__ == "__main__":
             },
             "log": {
                 "log_dir": "logs",
-                "log_steps": 1,
+                "log_steps": 10,
                 "log_epochs": 1000,
-                "log_strategy": None,
+                "log_strategy": "steps",
             },
             "wandb": {
                 "reinit": True,
-                "mode": "offline",
+                "mode": "online",
                 "project": "test",
                 "group": "default",
                 "entity": "superposed-tree",
@@ -338,7 +338,7 @@ if __name__ == "__main__":
     #     shutil.rmtree("checkpoints")
     # Accelerator(cpu=True, mixed_precision="fp16")
 
-    for n_inference_steps in [100]:
+    for n_inference_steps in [1000]:
         cfg.diffusion.n_inference_steps = n_inference_steps
         cfg.diffusion.n_discretization_steps = n_inference_steps
         main(cfg)
