@@ -213,7 +213,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
             x = x_mean
 
         if (t > 0).all():
-            x, _ = self.corrector.update_fn(x, t, padding_mask)
+            x, _ = self.corrector.update_fn(x, t - 1, padding_mask)
 
         return {
             "x": x,

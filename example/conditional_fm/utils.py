@@ -43,7 +43,7 @@ def get_collate_fn(cfg: DictConfig):
         # Extract the "images" from each example and stack them
         batch = examples
         x_1 = torch.stack(batch)
-        return {"x_1": Tensor(make_moons(256, noise=0.15)[0]), "padding_mask": torch.ones_like(x_1)}
+        return {"clean_data": Tensor(make_moons(256, noise=0.15)[0]), "padding_mask": torch.ones_like(x_1)}
 
     return collate_fn
 
@@ -206,12 +206,9 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             loss = F.cross_entropy(logits, c)
             return loss
 
-    from ls_mlkit.flow_matching.euclidean_ot_fm import get_condition_pre_update_in_step_fn_hook
-    from ls_mlkit.flow_matching.euclidean_ot_fm import get_condition_post_compute_loss_hook
-
     classifier_conditioner = ClassifierConditioner(classifier_model=classifier_model, guidance_scale=7.0)
-    samling_hook = get_condition_pre_update_in_step_fn_hook([classifier_conditioner])
+    samling_hook = flow.get_condition_pre_update_in_step_fn_hook([classifier_conditioner])
     sampling_hook_handlers = flow.register_hooks([samling_hook])
-    train_hook = get_condition_post_compute_loss_hook([classifier_conditioner])
+    train_hook = flow.get_condition_post_compute_loss_hook([classifier_conditioner])
     train_hook_handlers = flow.register_hooks([train_hook])
     return {"model": flow, "train_hook_handlers": train_hook_handlers, "sampling_hook_handlers": sampling_hook_handlers}
