@@ -9,17 +9,19 @@ from torch import Tensor
 from torch.nn import Module
 
 from ..decorators import inherit_docstrings
-from .base_shape_class import BaseShapeClass, BaseShapeConfig
+from ..shape_class import ShapeConfig, Shape
+from .base_config_class import DeviceConfig
 
 
 @inherit_docstrings
-class BaseLossConfig(BaseShapeConfig):
+class BaseLossConfig(DeviceConfig):
     def __init__(self, ndim_micro_shape: int, *args: list[Any], **kwargs: dict[Any, Any]):
-        super().__init__(ndim_micro_shape, *args, **kwargs)
+        super().__init__(*args, **kwargs)
+        self.ndim_micro_shape: int = ndim_micro_shape
 
 
 @inherit_docstrings
-class BaseLossClass(Module, BaseShapeClass, abc.ABC):
+class BaseLoss(Module, abc.ABC):
     r"""
     abstract method: compute_loss
     """
@@ -28,15 +30,12 @@ class BaseLossClass(Module, BaseShapeClass, abc.ABC):
         self,
         config: BaseLossConfig,
     ):
-        r"""Initialize the BaseLossClass
-
-        Args:
-            config (``BaseLossConfig``): the config
-        """
         Module.__init__(self)
-        BaseShapeClass.__init__(self, config)
         abc.ABC.__init__(self)
         self.config: BaseLossConfig = config
+        self.shape_util = Shape(
+            config=ShapeConfig(ndim_micro_shape=config.ndim_micro_shape),
+        )
 
     @abc.abstractmethod
     def compute_loss(self, batch: dict[str, Any], *args: list[Any], **kwargs: dict[Any, Any]) -> dict | Tensor:
@@ -48,3 +47,12 @@ class BaseLossClass(Module, BaseShapeClass, abc.ABC):
         Returns:
             ``dict``|``Tensor``: a dictionary that must contain the key "loss" or a tensor of loss
         """
+
+    def get_macro_shape(self, x: Tensor) -> tuple[int, ...]:
+        return self.shape_util.get_macro_shape(x)
+
+    def complete_micro_shape(self, x: Tensor) -> Tensor:
+        return self.shape_util.complete_micro_shape(x)
+
+    def get_macro_and_micro_shape(self, x: Tensor) -> tuple[tuple[int, ...], tuple[int, ...]]:
+        return self.shape_util.get_macro_and_micro_shape(x)

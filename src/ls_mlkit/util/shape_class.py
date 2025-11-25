@@ -2,39 +2,26 @@ from typing import Any
 
 from torch import Tensor
 
-from ..decorators import inherit_docstrings
-from .base_config_class import BaseConfig
+from .decorators import inherit_docstrings
 
 
 @inherit_docstrings
-class BaseShapeConfig(BaseConfig):
+class ShapeConfig:
     def __init__(
         self,
         ndim_micro_shape: int,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
     ):
-        r"""
-        Args:
-            ndim_micro_shape (``int``): number of dimensions of a sample
-        """
-        super().__init__(*args, **kwargs)
         self.ndim_micro_shape: int = ndim_micro_shape
 
 
 @inherit_docstrings
-class BaseShapeClass(object):
+class Shape(object):
     def __init__(
         self,
-        config: BaseShapeConfig,
+        config: ShapeConfig,
     ):
-        r"""Initialize the BaseClass4Pipeline
-
-        Args:
-            config (``BaseShapeConfig``): the config of the shape
-        """
         super().__init__()
-        self.config: BaseShapeConfig = config
+        self.config: ShapeConfig = config
 
     def get_macro_and_micro_shape(self, x: Tensor) -> tuple[tuple[int, ...], tuple[int, ...]]:
         r"""Get the macro and micro shape of :math:`x`

@@ -6,7 +6,7 @@ from torch import Tensor
 
 from ..decorators import inherit_docstrings
 from .base_hook import Hook, HookManager, HookHandler
-from .base_loss_class import BaseLossClass, BaseLossConfig
+from .base_loss_class import BaseLoss, BaseLossConfig
 
 
 class GMHookStageType(Enum):
@@ -53,7 +53,7 @@ class BaseGenerativeModelConfig(BaseLossConfig):
 
 
 @inherit_docstrings
-class BaseGenerativeModel(BaseLossClass):
+class BaseGenerativeModel(BaseLoss):
     """
     abstract method: compute_loss, step, sampling, inpainting
     """

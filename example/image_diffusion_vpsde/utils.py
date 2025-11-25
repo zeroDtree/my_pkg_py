@@ -107,8 +107,8 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     time_scheduler = DiffusionTimeScheduler(
         continuous_time_start=0.0,
         continuous_time_end=1.0,
-        num_train_timesteps=cfg.diffuser.n_discretization_steps,
-        num_inference_steps=cfg.diffuser.get("n_inference_steps", None),
+        num_train_timesteps=cfg.diffusion.n_discretization_steps,
+        num_inference_steps=cfg.diffusion.get("n_inference_steps", None),
     )
 
     def mse(predicted: Tensor, ground_truth: Tensor, mask: Tensor):
@@ -117,9 +117,11 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         return mse_loss(predicted, ground_truth)
 
     diffusion_config = EuclideanVPSDEConfig(
-        n_discretization_steps=cfg.diffuser.n_discretization_steps,
+        n_discretization_steps=cfg.diffusion.n_discretization_steps,
         ndim_micro_shape=3,
-        n_inference_steps=cfg.diffuser.get("n_inference_steps", None),
+        n_inference_steps=cfg.diffusion.get("n_inference_steps", None),
+        n_correct_steps=cfg.diffusion.get("n_correct_steps", 0),
+        snr=cfg.diffusion.get("snr", 1.0),
     )
     diffuser = EuclideanVPSDEDiffuser(
         config=diffusion_config,

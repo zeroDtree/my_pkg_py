@@ -8,11 +8,11 @@ from ..decorators import inherit_docstrings
 
 
 @inherit_docstrings
-class BaseConfig(object):
+class DeviceConfig(object):
     def __init__(self, *args: list[Any], **kwargs: dict[Any, Any]) -> None:
         pass
 
-    def to(self, device: torch.device | str | Tensor, inplace: bool = True) -> "BaseConfig":
+    def to(self, device: torch.device | str | Tensor, inplace: bool = True) -> "DeviceConfig":
         """Move the config to the given device
 
         Args:

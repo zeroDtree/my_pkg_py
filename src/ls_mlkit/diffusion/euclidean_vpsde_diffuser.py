@@ -14,6 +14,7 @@ from .model_interface import Model4DiffuserInterface
 from .time_scheduler import DiffusionTimeScheduler
 
 from ..util.sde.lib.vpsde import VPSDE
+from ..util.sde.corrector import LangevinCorrector
 
 
 @inherit_docstrings
@@ -25,24 +26,11 @@ class EuclideanVPSDEConfig(EuclideanDiffuserConfig):
         use_probability_flow=False,
         beta_min: float = 0.1,
         beta_max: float = 20,
+        n_correct_steps: int = 1,
+        snr: float = 1.0,
         *args,
         **kwargs,
     ):
-        r"""
-        Args:
-            n_discretization_steps: the number of discretization steps
-            ndim_micro_shape: the number of dimensions of the micro shape
-            use_probability_flow: whether to use probability flow
-            use_clip: whether to use clip
-            clip_sample_range: the range of the clip
-            use_dyn_thresholding: whether to use dynamic thresholding
-            dynamic_thresholding_ratio: the ratio of the dynamic thresholding
-            sample_max_value: the maximum value of the sample used in thresholding
-            beta_min: the minimum value of beta
-            beta_max: the maximum value of beta
-        Returns:
-            None
-        """
         super().__init__(
             n_discretization_steps=n_discretization_steps,
             ndim_micro_shape=ndim_micro_shape,
@@ -56,6 +44,8 @@ class EuclideanVPSDEConfig(EuclideanDiffuserConfig):
             ndim_micro_shape=ndim_micro_shape,
         )
         self.use_probability_flow = use_probability_flow
+        self.n_correct_steps = n_correct_steps
+        self.snr = snr
 
 
 @inherit_docstrings
@@ -85,6 +75,17 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         self.sde = config.sde
         self.model = model
         self.loss_fn = loss_fn
+
+        def score_fn(x: Tensor, t: Tensor, mask: Tensor) -> Tensor:
+            return self.model(x, t.long(), mask)["x"]
+
+        self.corrector = LangevinCorrector(
+            sde=self.sde,
+            score_fn=score_fn,
+            snr=self.config.snr,
+            n_steps=self.config.n_correct_steps,
+            ndim_micro_shape=self.config.ndim_micro_shape,
+        )
 
     def prior_sampling(self, shape: Tuple[int, ...]) -> Tensor:
         return self.sde.prior_sampling(shape)
@@ -206,7 +207,13 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         g = self.complete_micro_shape(g)
         z = torch.randn_like(x_t)
         x_mean = x_t + f * delta_t
-        x = x_mean + g * z * torch.sqrt(delta_t.abs())
+        if (t > 0).all():
+            x = x_mean + g * z * torch.sqrt(delta_t.abs())
+        else:
+            x = x_mean
+
+        if (t > 0).all():
+            x, _ = self.corrector.update_fn(x, t, padding_mask)
 
         return {
             "x": x,
