@@ -104,7 +104,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         mode: Literal["epsilon", "x_0", "score"] = batch.get("mode", "epsilon")
         batch = self.model.prepare_batch_data_for_input(batch)
         assert isinstance(batch, dict), "batch must be a dictionary"
-        x_0 = batch["x_0"]
+        x_0 = batch["clean_data"]
         padding_mask = batch["padding_mask"]
         device = x_0.device
         macro_shape = self.get_macro_shape(x_0)
@@ -122,7 +122,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         x_t, noise = (forward_result["x_t"], forward_result["noise"])
 
         model_input_dict = batch
-        model_input_dict.pop("x_0")
+        model_input_dict.pop("clean_data")
         model_input_dict.pop("padding_mask")
         model_input_dict.pop("t", None)
         model_output = self.model(x_t, t, padding_mask, **model_input_dict)
@@ -447,7 +447,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
                                 "tgt_mask": tgt_mask,
                                 "clean_data": x_0,
                                 "padding_mask": padding_mask,
-                                "posterior_mean_fn": get_posterior_mean_fn(score=p_uc_score, score_fn=None),
+                                "posterior_mean_fn": self.get_posterior_mean_fn(score=p_uc_score, score_fn=None),
                             },
                         ),
                     }
@@ -495,7 +495,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
                                 "tgt_mask": tgt_mask,
                                 "sampling_condition": sampling_condition,
                                 "padding_mask": padding_mask,
-                                "posterior_mean_fn": get_posterior_mean_fn(score=p_uc_score, score_fn=None),
+                                "posterior_mean_fn": self.get_posterior_mean_fn(score=p_uc_score, score_fn=None),
                             },
                         ),
                     }

@@ -55,7 +55,7 @@ class EuclideanOTFlow(BaseFlow):
 
     def compute_loss(self, batch, *args, **kwargs):
         batch = self.model.prepare_batch_data_for_input(batch)
-        x_1 = batch["x_1"]
+        x_1 = batch["clean_data"]
         device = x_1.device
         macro_shape: tuple[int, ...] = self.get_macro_shape(x_1)
         t = batch.get("t", torch.rand(macro_shape, device=device))
@@ -66,7 +66,7 @@ class EuclideanOTFlow(BaseFlow):
         x_t = x_0 * (1 - t) + x_1 * t
         dx_t = x_1 - x_0
         model_input_dict = batch
-        model_input_dict.pop("x_1")
+        model_input_dict.pop("clean_data")
         model_input_dict.pop("padding_mask")
         model_input_dict.pop("t", None)
         p_dx_t = self.model(x_t, copied_t, padding_mask, **model_input_dict)["x"]
