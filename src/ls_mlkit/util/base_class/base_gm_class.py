@@ -5,7 +5,7 @@ from typing import Any, Callable
 from torch import Tensor
 
 from ..decorators import inherit_docstrings
-from .base_hook import Hook, HookManager, HookHandler
+from .base_hook import Hook, HookHandler, HookManager
 from .base_loss_class import BaseLoss, BaseLossConfig
 
 

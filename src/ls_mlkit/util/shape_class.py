@@ -1,5 +1,3 @@
-from typing import Any
-
 from torch import Tensor
 
 from .decorators import inherit_docstrings

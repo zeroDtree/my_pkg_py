@@ -1,6 +1,6 @@
 import math
-from typing import Any, Callable
 from enum import Enum
+from typing import Any, Callable
 
 
 def cosine_decay_with_warmup(value, current, total, warmup_steps=0):

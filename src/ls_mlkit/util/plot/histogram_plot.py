@@ -1,5 +1,5 @@
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 
 
@@ -107,8 +107,8 @@ def plot_histogram_and_kde(
 
 
 if __name__ == "__main__":
-    import pandas as pd
     import numpy as np
+    import pandas as pd
 
     # 假设有三组数据
     data1 = np.random.randn(1000)

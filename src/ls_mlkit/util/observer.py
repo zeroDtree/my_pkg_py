@@ -2,13 +2,14 @@ from typing import Callable, Dict, List, Literal
 
 import numpy as np
 import torch
-import wandb
 from datasets import Dataset as HFDataset
 from torch import Tensor
 from torch.nn import Module
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils.data import Dataset
+
+import wandb
 
 
 def weight_norm_fn(module: Module):
