@@ -5,14 +5,14 @@ from torch import Tensor
 from torch.nn import Module
 from tqdm.auto import tqdm
 
+from ..diffusion.conditioner.conditioner import Conditioner
+from ..diffusion.conditioner.utils import get_accumulated_conditional_score
 from ..util.base_class.base_gm_class import GMHook, GMHookStageType
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .base_fm import BaseFlow, BaseFlowConfig
 from .model_interface import Model4FMInterface
 from .time_scheduler import FlowMatchingTimeScheduler
-from ..diffusion.conditioner.conditioner import Conditioner
-from ..diffusion.conditioner.utils import get_accumulated_conditional_score
 
 EPS = 1e-5
 

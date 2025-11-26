@@ -59,7 +59,7 @@ class LangevinCorrector(Corrector):
 
     @override
     def update_fn(self, x: Tensor, t: Tensor, mask=None):
-        sde = self.sde
+        self.sde
         score_fn = self.score_fn
         n_steps = self.n_steps
         target_snr = self.snr

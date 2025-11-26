@@ -8,11 +8,10 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 import datasets
 import torch
 from torch import Tensor
+from tqdm.auto import tqdm
 
 from ..util.observer import Observer
 from .callback import BaseCallback, CallbackEvent, CallbackManager
-
-from tqdm.auto import tqdm
 
 
 class TrainingConfig:

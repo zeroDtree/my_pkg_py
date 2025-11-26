@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch import Tensor
 
-from ..util.base_class.base_gm_class import GMHook, GMHookHandler, GMHookStageType
+from ..util.base_class.base_gm_class import GMHook, GMHookStageType
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .conditioner import Conditioner
@@ -125,6 +125,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         model_input_dict.pop("clean_data")
         model_input_dict.pop("padding_mask")
         model_input_dict.pop("t", None)
+
         model_output = self.model(x_t, t, padding_mask, **model_input_dict)
 
         # Simplified loss calculation following standard DDPM
@@ -461,6 +462,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             gt_score = b * gt_score
             total_loss = loss_fn(p_uc_score, gt_score, padding_mask)
             kwargs["loss"] = total_loss
+            print("get_condition_post_compute_loss_hook")
             return kwargs
 
         return GMHook(

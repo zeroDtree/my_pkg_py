@@ -9,7 +9,7 @@ from torch import Tensor
 from torch.nn import Module
 
 from ..decorators import inherit_docstrings
-from ..shape_class import ShapeConfig, Shape
+from ..shape_class import Shape, ShapeConfig
 from .base_config_class import DeviceConfig
 
 

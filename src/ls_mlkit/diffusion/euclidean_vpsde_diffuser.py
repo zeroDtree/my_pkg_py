@@ -1,20 +1,18 @@
-from typing import Any, Callable, Literal, Tuple, cast
+from typing import Any, Callable, Tuple, cast
 
-import numpy as np
 import torch
 from torch import Tensor
 
-from ..util.base_class.base_gm_class import GMHook, GMHookHandler, GMHookStageType
+from ..util.base_class.base_gm_class import GMHook, GMHookStageType
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
+from ..util.sde.corrector import LangevinCorrector
+from ..util.sde.lib.vpsde import VPSDE
 from .conditioner import Conditioner
 from .conditioner.utils import get_accumulated_conditional_score
 from .euclidean_diffuser import EuclideanDiffuser, EuclideanDiffuserConfig
 from .model_interface import Model4DiffuserInterface
 from .time_scheduler import DiffusionTimeScheduler
-
-from ..util.sde.lib.vpsde import VPSDE
-from ..util.sde.corrector import LangevinCorrector
 
 
 @inherit_docstrings
@@ -106,7 +104,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
     def compute_loss(self, batch: dict[str, Any], *args: Any, **kwargs: Any) -> dict:
         batch = self.model.prepare_batch_data_for_input(batch)
         assert isinstance(batch, dict), "batch must be a dictionary"
-        x_0 = batch["x_0"]
+        x_0 = batch["clean_data"]
         padding_mask = batch["padding_mask"]
         device = x_0.device
         macro_shape = self.get_macro_shape(x_0)
@@ -125,7 +123,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         gt_uc_score = self.sde.get_score(x_t=x_t, mean=mean, std=std)
 
         model_input_dict = batch
-        model_input_dict.pop("x_0")
+        model_input_dict.pop("clean_data")
         model_input_dict.pop("padding_mask")
         model_input_dict.pop("t", None)
         model_output = self.model(x_t, t, padding_mask, **model_input_dict)
