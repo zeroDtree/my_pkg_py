@@ -12,10 +12,22 @@ def plot_boxplot(
     x: ArrayLike | Sequence[ArrayLike],
     colors: list[str] | None = None,
     legend: bool = False,
+    legend_labels: list[str] | None = None,
     legend_title: str | None = None,
+    legend_bbox_to_anchor: tuple | None = None,
+    legend_loc: str = "best",
+    legend_fontsize: int | str = "medium",
+    legend_ncol: int = 1,
+    xlabel: str | None = None,
+    xticklabel_rotation: float = 45,
+    xticklabel_ha: str = "right",
+    grid: bool = True,
+    grid_alpha: float = 0.3,
+    dpi: int = 300,
     show: bool = False,
     save: bool = True,
     save_path: str = "plot_boxplot.png",
+    return_fig_ax: bool = False,
     # ============================================
     notch: bool | None = None,
     sym: str | None = None,
@@ -47,10 +59,14 @@ def plot_boxplot(
     label: Sequence[str] | None = None,
     *,
     data=None,
-) -> None:
-    plt.figure(figsize=figsize)
+) -> tuple[plt.Figure, plt.Axes] | None:
+    fig, ax = plt.subplots(figsize=figsize)
 
-    box = plt.boxplot(
+    # Set default patch_artist to True if colors are provided
+    if colors and patch_artist is None:
+        patch_artist = True
+
+    box = ax.boxplot(
         x=x,
         notch=notch,
         sym=sym,
@@ -83,21 +99,70 @@ def plot_boxplot(
         data=None,
     )
 
-    plt.xticks(list(range(1, len(labels) + 1)), labels=labels)
-    plt.ylabel(ylabel)
-    plt.title(title)
-    if colors:
+    # Set tick labels
+    ax.set_xticks(list(range(1, len(labels) + 1)))
+    ax.set_xticklabels(labels, rotation=xticklabel_rotation, ha=xticklabel_ha)
+
+    # Set labels and title
+    ax.set_ylabel(ylabel)
+    if xlabel:
+        ax.set_xlabel(xlabel)
+    ax.set_title(title)
+
+    # Add grid if requested
+    if grid:
+        ax.grid(True, alpha=grid_alpha, axis="y")
+
+    # Handle colors and legend
+    legend_handles = None
+    if colors and patch_artist:
+        # Apply colors to boxes
         for patch, color in zip(box["boxes"], colors):
             patch.set_facecolor(color)
+
+        # Create legend if requested
         if legend:
             from matplotlib.patches import Patch
 
-            legend_handles = [Patch(facecolor=color, label=label) for color, label in zip(colors, labels)]
-            plt.legend(handles=legend_handles, title=legend_title)
+            # Use legend_labels if provided, otherwise use labels
+            legend_text = legend_labels if legend_labels is not None else labels
+            legend_handles = [Patch(facecolor=color, label=label) for color, label in zip(colors, legend_text)]
+
+            # Set up legend parameters
+            legend_kwargs = {
+                "handles": legend_handles,
+                "title": legend_title,
+                "fontsize": legend_fontsize,
+                "ncol": legend_ncol,
+                "loc": legend_loc,
+            }
+
+            if legend_bbox_to_anchor:
+                legend_kwargs["bbox_to_anchor"] = legend_bbox_to_anchor
+
+            legend_obj = ax.legend(**legend_kwargs)
+
+    # Save the plot
     if save:
-        plt.savefig(save_path, bbox_inches="tight")
+        save_kwargs = {"bbox_inches": "tight", "dpi": dpi}
+        if legend and legend_handles and legend_bbox_to_anchor:
+            # Include legend in the saved area
+            legend_obj = ax.get_legend()
+            if legend_obj:
+                save_kwargs["bbox_extra_artists"] = [legend_obj]
+        plt.savefig(save_path, **save_kwargs)
+
+    # Show the plot
     if show:
         plt.show()
+
+    # Return figure and axes if requested
+    if return_fig_ax:
+        return fig, ax
+
+    # Close the figure if not returning it
+    if not return_fig_ax:
+        plt.close(fig)
 
 
 if __name__ == "__main__":
@@ -116,11 +181,16 @@ if __name__ == "__main__":
         figsize=(8, 6),
         x=data,
         labels=labels,
-        title="box-plot Comparison",
+        title="Box-plot Comparison",
         ylabel="Performance Metric",
-        patch_artist=True,
         colors=["lightblue", "lightgreen", "lightcoral"],
         legend=True,
         legend_title="Models",
+        legend_bbox_to_anchor=(1.05, 1),
+        legend_loc="upper left",
         whis=1.5,
+        show=False,
+        save=True,
+        save_path="plot_boxplot.png",
+        medianprops={"color": "black", "linewidth": 1, "linestyle": "-"},
     )
