@@ -193,6 +193,7 @@ class DistributedPipeline(BasePipeline):
         result["loss"] = loss.item()
         result["weight_norm"] = self.observer.get_weight_norm()
         result["lr"] = scheduler.get_last_lr()[0]
+        result["global_step"] = self.training_state.current_global_step
 
         # Only log on main process
         if self._can_log(flag="steps") and self.accelerator.is_local_main_process:
