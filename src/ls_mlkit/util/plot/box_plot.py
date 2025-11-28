@@ -13,6 +13,9 @@ def plot_boxplot(
     colors: list[str] | None = None,
     legend: bool = False,
     legend_title: str | None = None,
+    show: bool = False,
+    save: bool = True,
+    save_path: str = "plot_boxplot.png",
     # ============================================
     notch: bool | None = None,
     sym: str | None = None,
@@ -91,7 +94,10 @@ def plot_boxplot(
 
             legend_handles = [Patch(facecolor=color, label=label) for color, label in zip(colors, labels)]
             plt.legend(handles=legend_handles, title=legend_title)
-    plt.show()
+    if save:
+        plt.savefig(save_path, bbox_inches="tight")
+    if show:
+        plt.show()
 
 
 if __name__ == "__main__":
