@@ -1,7 +1,8 @@
+from typing import Any, Sequence
+
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-from typing import Any, Sequence, Literal
 
 
 def plot_histogram_and_kde(
@@ -75,13 +76,13 @@ def plot_histogram_and_kde(
     # Set seaborn style and context
     sns.set_style(style)
     sns.set_context(context, font_scale=font_scale)
-    
+
     # Create figure and axes if not provided
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
     else:
         fig = ax.get_figure()
-    
+
     # Create histogram plot
     # Note: seaborn's histplot legend parameter controls automatic legend creation
     sns.histplot(
@@ -128,16 +129,16 @@ def plot_histogram_and_kde(
         # Other appearance keywords
         **kwargs,
     )
-    
+
     # Set labels and title
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    
+
     # Add grid if requested
     if grid:
         ax.grid(True, alpha=grid_alpha, axis="y")
-    
+
     # Handle legend customization
     if legend and hue is not None:
         # Get the existing legend created by seaborn
@@ -146,18 +147,18 @@ def plot_histogram_and_kde(
             # Get handles and labels from the existing legend
             handles = existing_legend.legend_handles  # Use correct attribute name
             labels = [t.get_text() for t in existing_legend.get_texts()]
-            
+
             # Set up legend parameters
             legend_kwargs = {
-                'title': legend_title if legend_title is not None else hue,
-                'fontsize': legend_fontsize,
-                'ncol': legend_ncol,
-                'loc': legend_loc
+                "title": legend_title if legend_title is not None else hue,
+                "fontsize": legend_fontsize,
+                "ncol": legend_ncol,
+                "loc": legend_loc,
             }
-            
+
             if legend_bbox_to_anchor:
-                legend_kwargs['bbox_to_anchor'] = legend_bbox_to_anchor
-            
+                legend_kwargs["bbox_to_anchor"] = legend_bbox_to_anchor
+
             # Remove the old legend and create a new one with custom parameters
             existing_legend.remove()
             ax.legend(handles=handles, labels=labels, **legend_kwargs)
@@ -166,25 +167,25 @@ def plot_histogram_and_kde(
         existing_legend = ax.get_legend()
         if existing_legend:
             existing_legend.remove()
-    
+
     # Save the plot
     if save:
-        save_kwargs = {'bbox_inches': 'tight', 'dpi': dpi}
+        save_kwargs = {"bbox_inches": "tight", "dpi": dpi}
         if legend and legend_bbox_to_anchor:
             # Include legend in the saved area
             legend_obj = ax.get_legend()
             if legend_obj:
-                save_kwargs['bbox_extra_artists'] = [legend_obj]
+                save_kwargs["bbox_extra_artists"] = [legend_obj]
         plt.savefig(save_path, **save_kwargs)
-    
+
     # Show the plot
     if show:
         plt.show()
-    
+
     # Return figure and axes if requested
     if return_fig_ax:
         return fig, ax
-    
+
     # Close the figure if not returning it
     if not return_fig_ax:
         plt.close(fig)

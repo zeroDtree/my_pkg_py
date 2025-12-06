@@ -4,7 +4,6 @@ import torch
 from omegaconf import DictConfig
 from torch import Tensor
 from torch.nn import Module
-from tqdm import gui
 from transformers.trainer import Accelerator
 
 from ls_mlkit.util.utils_for_main import get_learing_rate_scheduler  # type: ignore
@@ -112,9 +111,9 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     if final_model_ckpt_path is not None and final_model_ckpt_path != "":
         flow = load_checkpoint(flow, final_model_ckpt_path)
 
-    from torch.optim import AdamW
-    from sklearn.datasets import make_moons
     import torch.nn.functional as F
+    from sklearn.datasets import make_moons
+    from torch.optim import AdamW
 
     class MoonsClassifier(Module):
         def __init__(self, dim: int = 2, h=64, n_labels=2):

@@ -1,11 +1,13 @@
 """
 简化测试：演示为什么必须先 prepare 再 load
 """
-import torch
-from accelerate import Accelerator
-import tempfile
+
 import os
 import shutil
+import tempfile
+
+import torch
+from accelerate import Accelerator
 
 print("=" * 70)
 print("为什么必须先 prepare 再 load？")
@@ -103,7 +105,8 @@ shutil.rmtree(temp_dir)
 print("\n" + "=" * 70)
 print("总结")
 print("=" * 70)
-print("""
+print(
+    """
 使用 accelerator.save_state() 和 load_state() 时：
 
 1. save_state() 保存的是 PREPARED 模型的状态
@@ -116,5 +119,5 @@ print("""
 错误顺序：
   accelerator.load_state(checkpoint_dir)                     # ❌ 会失败
   model, optimizer = accelerator.prepare(model, optimizer)  
-""")
-
+"""
+)

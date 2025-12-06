@@ -6,8 +6,6 @@ from datetime import datetime
 from functools import wraps
 from typing import Callable, Dict, List
 
-import wandb
-
 # decorator（arg）（func）
 
 

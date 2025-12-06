@@ -1,9 +1,10 @@
-from ls_mlkit.pipeline.callback import BaseCallback, CallbackEvent
-from ls_mlkit.pipeline.pipeline import TrainingState
-from ls_mlkit.util.base_class.base_gm_class import BaseGenerativeModel, GMHook, GMHookHandler
+import torch
 from accelerate import Accelerator
 from torch.nn.parallel import DistributedDataParallel
-import torch
+
+from ls_mlkit.pipeline.callback import BaseCallback, CallbackEvent
+from ls_mlkit.pipeline.pipeline import TrainingState
+from ls_mlkit.util.base_class.base_gm_class import BaseGenerativeModel, GMHookHandler
 
 
 class TrainingStepCallback(BaseCallback):
@@ -23,7 +24,7 @@ class TrainingStepCallback(BaseCallback):
             diffuser = diffuser.module
         assert training_state is not None
         assert diffuser is not None
-        global_step = training_state.current_global_step
+        training_state.current_global_step
         prob_drop = torch.rand(1)
         if prob_drop < 5.0:
             for handler in self.training_handlers:

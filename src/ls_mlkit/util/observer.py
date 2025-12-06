@@ -1,6 +1,5 @@
 from typing import Callable, Dict, List, Literal
 
-import numpy as np
 import torch
 from datasets import Dataset as HFDataset
 from torch import Tensor

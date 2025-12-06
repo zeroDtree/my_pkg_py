@@ -2,7 +2,6 @@
 
 import os
 
-import wandb
 from accelerate import Accelerator
 from omegaconf import DictConfig, OmegaConf
 from utils import (
@@ -16,6 +15,7 @@ from utils import (
     get_train_class,
 )
 
+import wandb
 from ls_mlkit.pipeline.pipeline import LogConfig
 from ls_mlkit.util.log import get_and_create_new_log_dir, get_logger
 from ls_mlkit.util.seed import seed_everything
@@ -62,7 +62,7 @@ def main(cfg: DictConfig):
     # model
     result_get_model = get_model(cfg)
     model = result_get_model["model"]
-    train_hook_handlers = result_get_model["train_hook_handlers"]
+    result_get_model["train_hook_handlers"]
     sampling_hook_handlers = result_get_model["sampling_hook_handlers"]
 
     # for handler in train_hook_handlers:
@@ -105,7 +105,6 @@ def main(cfg: DictConfig):
 
     if accelerator.is_local_main_process and True:
         import torch
-        from ls_mlkit.flow_matching.euclidean_ot_fm import EuclideanOTFlow
 
         result_get_model = get_model(
             cfg,
@@ -114,7 +113,7 @@ def main(cfg: DictConfig):
         )
 
         model = result_get_model["model"]
-        train_hook_handlers = result_get_model["train_hook_handlers"]
+        result_get_model["train_hook_handlers"]
         sampling_hook_handlers = result_get_model["sampling_hook_handlers"]
 
         model = model.to(accelerator.device)

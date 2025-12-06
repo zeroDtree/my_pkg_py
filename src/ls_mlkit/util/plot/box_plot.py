@@ -1,6 +1,7 @@
+from typing import Any, Literal, Sequence
+
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import Any, Sequence, Literal
 from numpy.typing import ArrayLike
 
 

@@ -3,7 +3,7 @@ Comparison plotting utilities for multi-model analysis
 """
 
 import os
-from typing import Any, Dict, List, Callable, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np

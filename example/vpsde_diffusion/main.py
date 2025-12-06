@@ -1,8 +1,6 @@
 # official packages
 
-import os
 
-import wandb
 from accelerate import Accelerator
 from omegaconf import DictConfig, OmegaConf
 from utils import (
@@ -16,6 +14,7 @@ from utils import (
     get_train_class,
 )
 
+import wandb
 from ls_mlkit.pipeline.pipeline import LogConfig
 from ls_mlkit.util.log import get_and_create_new_log_dir, get_logger
 from ls_mlkit.util.seed import seed_everything
@@ -114,8 +113,8 @@ def main(cfg: DictConfig):
         wandb.finish()
 
     if accelerator.is_local_main_process and True:
-        import torch
         import matplotlib.pyplot as plt
+        import torch
 
         print(f"latest checkpoint dir = {pipeline.get_latest_checkpoint_dir()}")
 
@@ -131,7 +130,7 @@ def main(cfg: DictConfig):
 
         model = model.to(accelerator.device)
         n_samples = 256
-        n_discretization_steps = cfg.diffusion.n_discretization_steps
+        cfg.diffusion.n_discretization_steps
         n_inference_steps = cfg.diffusion.n_inference_steps
 
         for handler in sampling_hook_handlers:
@@ -158,7 +157,7 @@ def main(cfg: DictConfig):
         x_list = result["x_list"]
         print(f"total length of x_list={len(x_list)}")
         x_list = [x.detach().cpu() for x in x_list]
-        total_len = len(x_list)
+        len(x_list)
 
         n_steps = 8
         indexes = torch.linspace(0, n_inference_steps - 1, steps=n_steps + 1).round().long().numpy().tolist()
@@ -332,7 +331,6 @@ if __name__ == "__main__":
             },
         }
     )
-    import shutil
 
     # if os.path.exists("checkpoints"):
     #     shutil.rmtree("checkpoints")

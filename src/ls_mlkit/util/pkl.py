@@ -1,5 +1,5 @@
-import pickle
 import os
+import pickle
 
 
 def load_pickle_file(pickle_path: str):

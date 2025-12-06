@@ -2,11 +2,9 @@
 
 import os
 
-import wandb
 from accelerate import Accelerator
 from diffusers.utils.pil_utils import make_image_grid, numpy_to_pil
 from omegaconf import DictConfig, OmegaConf
-from torch import Tensor
 from utils import (
     get_collate_fn,
     get_dataset,
@@ -18,6 +16,7 @@ from utils import (
     get_train_class,
 )
 
+import wandb
 from ls_mlkit.pipeline.pipeline import LogConfig
 from ls_mlkit.util.log import get_and_create_new_log_dir, get_logger
 from ls_mlkit.util.seed import seed_everything
