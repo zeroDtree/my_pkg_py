@@ -200,7 +200,7 @@ class DistributedPipeline(BasePipeline):
             logger.info(
                 f"[Training] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {loss.item()}"
             )
-            wandb.log(result)
+            wandb.log(result, step=self.training_state.current_global_step)
 
         self.trigger_callbacks(event=CallbackEvent.STEP_END, batch=batch)
         return result

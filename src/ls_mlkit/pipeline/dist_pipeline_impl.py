@@ -245,7 +245,7 @@ class MyDistributedPipeline(DistributedPipeline):
         }
         if self.accelerator.is_local_main_process:
             self.logger.info(f"[Testing] {result}")
-            wandb.log(result)
+            wandb.log(result, step=self.training_state.current_global_step)
 
         self.model.train()
         self.trigger_callbacks(event=CallbackEvent.AFTER_EVAL, eval_dataloader=self.eval_dataloader)

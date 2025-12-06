@@ -189,4 +189,4 @@ if __name__ == "__main__":
     )
     for i in range(total):
         scheduler.step()
-        wandb.log(scheduler.get())
+        wandb.log(scheduler.get(), step=i)

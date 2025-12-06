@@ -84,21 +84,6 @@ def timer(format="ms"):
     return decorator
 
 
-def wandb_logger():
-    """Log the result of a function to wandb"""
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            result = func(*args, **kwargs)
-            wandb.log(result)
-            return result
-
-        return wrapper
-
-    return decorator
-
-
 def register_class_to_dict(cls=None, *, key_name=None, global_dict=None):
     """Register a class to a global dictionary
 

@@ -9,6 +9,7 @@ import datasets
 import torch
 from torch import Tensor
 from tqdm.auto import tqdm
+import wandb
 
 from ..util.observer import Observer
 from .callback import BaseCallback, CallbackEvent, CallbackManager
@@ -233,6 +234,7 @@ class BasePipeline(metaclass=ABCMeta):
             self.logger.info(
                 f"[Training] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {result['loss']}"
             )
+            wandb.log(result, step=self.training_state.current_epoch)
         self.training_state.current_step_in_epoch = 0
         self.trigger_callbacks(event=CallbackEvent.EPOCH_END)
 
@@ -255,7 +257,7 @@ class BasePipeline(metaclass=ABCMeta):
         for key, value in batch.items():
             if type(value) == torch.Tensor:
                 batch[key] = value.to(device)
-        model.to(device)
+        model = model.to(device)
 
         loss = self.compute_loss(model, batch)
         loss = loss / self.training_config.gradient_accumulation_steps
