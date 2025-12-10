@@ -149,7 +149,7 @@ class ANM:
         indexes: Tensor = torch.tensor(indexes, device=self.device, dtype=torch.long)  # (k)
         indexes = indexes.expand_as(skips)  # (..., k)
 
-        skips = indexes + skips  # (..., k)
+        indexes = indexes + skips  # (..., k)
 
         _, eig_vectors = self.eigen()  # (..., 3n),(..., 3n, 3n)
 

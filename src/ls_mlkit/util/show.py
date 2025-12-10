@@ -58,7 +58,7 @@ def show_info(
         print("model info:")
         print(type(model))
         print(
-            f"the total number of parameters = {sum(p.numel() for p in model.parameters())},{get_model_size(model)['total_size_gb']} GB"
+            f"the total number of parameters = {sum(p.numel() for p in model.parameters())},{get_model_size(model)['total_size_gb']:.2f} GB"
         )
     if dataset is not None:
         print("dataset info:")
