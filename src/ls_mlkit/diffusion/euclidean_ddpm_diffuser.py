@@ -5,6 +5,7 @@ import torch
 from torch import Tensor
 
 from ..util.base_class.base_gm_class import GMHook, GMHookStageType
+from ..util.context.temp_remove import TemporaryKeyRemover
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .conditioner import Conditioner
@@ -103,15 +104,12 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
     def compute_loss(self, batch: dict[str, Any], *args: Any, **kwargs: Any) -> dict:
         mode: Literal["epsilon", "x_0", "score"] = batch.get("mode", "epsilon")
         batch = self.model.prepare_batch_data_for_input(batch)
-        assert isinstance(batch, dict), "batch must be a dictionary"
         x_0 = batch["clean_data"]
         padding_mask = batch["padding_mask"]
         device = x_0.device
         macro_shape = self.get_macro_shape(x_0)
 
-        t = batch.get("t", None)
-        if t is None:
-            t = self.time_scheduler.sample_a_discrete_time_step_uniformly(macro_shape).to(device)
+        t = self.time_scheduler.sample_a_discrete_time_step_uniformly(macro_shape).to(device)
         self.config = self.config.to(t)
         sqrt_1m_alphas_cumprod = self.complete_micro_shape(self.config.sqrt_1m_alphas_cumprod[t])
         sqrt_alphas_cumprod = self.complete_micro_shape(self.config.sqrt_alphas_cumprod[t])
@@ -121,12 +119,8 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         forward_result = self.forward_process(x_0, t, padding_mask)
         x_t, noise = (forward_result["x_t"], forward_result["noise"])
 
-        model_input_dict = batch
-        model_input_dict.pop("clean_data")
-        model_input_dict.pop("padding_mask")
-        model_input_dict.pop("t", None)
-
-        model_output = self.model(x_t, t, padding_mask, **model_input_dict)
+        with TemporaryKeyRemover(mapping=batch, keys=["padding_mask"]):
+            model_output = self.model(x_t, t, padding_mask, **batch)
 
         # Simplified loss calculation following standard DDPM
         if mode == "epsilon":
@@ -145,6 +139,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
         return {
             "loss": loss,
+            # ======================================
             "clean_data": x_0,
             "t": t,
             "x_t": x_t,
@@ -156,6 +151,10 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             "loss_fn": self.loss_fn,
             "mode": mode,
             "config": self.config,
+            # ======================================
+            "batch": batch,
+            "model": self.model,
+            "model_output": model_output,
         }
 
     def q_xt_x_0(self, x_0: Tensor, t: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
@@ -431,7 +430,6 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             b = kwargs.get("b")
             loss_fn = kwargs.get("loss_fn")
             mode = kwargs.get("mode")
-            config = kwargs.get("config")
 
             p_uc_score = -predicted_noise / b
             gt_uc_score = -noise / b
@@ -481,7 +479,6 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             predicted_noise = kwargs.get("predicted_noise")
             padding_mask = kwargs.get("padding_mask")
             b = kwargs.get("b")
-            config = kwargs.get("config")
             sampling_condition = kwargs.get("sampling_condition")
             p_uc_score = -predicted_noise / b
 

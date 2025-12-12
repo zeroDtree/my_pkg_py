@@ -195,7 +195,7 @@ class DistributedPipeline(BasePipeline):
         result["lr"] = scheduler.get_last_lr()[0]
         result["global_step"] = self.training_state.current_global_step
 
-        # Only log on main process
+        # Only log on local main process
         if self._can_log(flag="steps") and self.accelerator.is_local_main_process:
             logger.info(
                 f"[Training] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {loss.item()}"
