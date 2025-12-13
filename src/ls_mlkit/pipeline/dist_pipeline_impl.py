@@ -208,13 +208,13 @@ class MyDistributedPipeline(DistributedPipeline):
                 continue
             batch = next(self.training_set_iterator)
             result = self.train_a_step(batch)
-            self.training_state.current_step_in_epoch += 1
-            self.training_state.current_global_step += 1
 
             if self._can_eval(flag="steps"):
                 self.eval()
             if self._can_save(flag="steps"):
                 self.save()
+            self.training_state.current_step_in_epoch += 1
+            self.training_state.current_global_step += 1
             i += 1
         self.save()
         self.trigger_callbacks(event=CallbackEvent.TRAINING_END)
