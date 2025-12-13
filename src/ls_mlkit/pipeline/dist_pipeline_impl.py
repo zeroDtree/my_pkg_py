@@ -43,6 +43,7 @@ class MyTrainingConfig(DistributedTrainingConfig):
         max_grad_value: float = 1.0,
         gradient_accumulation_steps: int = 1,
         mixed_precision: str = "fp16",
+        find_unused_parameters: bool = False,
         *args,
         **kwargs,
     ):
@@ -93,6 +94,7 @@ class MyTrainingConfig(DistributedTrainingConfig):
             max_grad_value=max_grad_value,
             gradient_accumulation_steps=gradient_accumulation_steps,
             mixed_precision=mixed_precision,
+            find_unused_parameters=find_unused_parameters,
         )
         self.n_steps: int | None = n_steps
         skip_keys = ["real_batch_size"]

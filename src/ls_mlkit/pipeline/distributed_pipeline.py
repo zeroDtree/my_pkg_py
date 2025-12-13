@@ -7,6 +7,7 @@ import accelerate
 import datasets
 import torch
 from accelerate import Accelerator
+from accelerate.utils import DistributedDataParallelKwargs
 
 import wandb
 
@@ -37,6 +38,7 @@ class DistributedTrainingConfig(TrainingConfig):
         max_grad_value: float = 1.0,
         gradient_accumulation_steps: int = 1,
         mixed_precision: str = "fp16",
+        find_unused_parameters: bool = False,
         *args,
         **kwargs,
     ):
@@ -85,6 +87,7 @@ class DistributedTrainingConfig(TrainingConfig):
             **kwargs,
         )
         self.mixed_precision = mixed_precision
+        self.find_unused_parameters = find_unused_parameters
 
 
 @inherit_docstrings
@@ -119,6 +122,9 @@ class DistributedPipeline(BasePipeline):
         self.accelerator = Accelerator(
             gradient_accumulation_steps=training_config.gradient_accumulation_steps,
             mixed_precision=training_config.mixed_precision,
+            kwargs_handlers=[
+                DistributedDataParallelKwargs(find_unused_parameters=training_config.find_unused_parameters),
+            ],
         )
 
         super().__init__(
