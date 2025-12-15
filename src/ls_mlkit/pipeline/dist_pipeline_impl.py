@@ -74,6 +74,7 @@ class MyTrainingConfig(DistributedTrainingConfig):
         self.train_strategy = train_strategy
         real_batch_size = kwargs.get("real_batch_size", None)
         if real_batch_size is not None:
+            print("real_batch_size is provided, so gradient_accumulation_steps is overridden")
             gradient_accumulation_steps = self.get_gradient_accumulation_steps(real_batch_size, batch_size)
         super().__init__(
             n_epochs=n_epochs,

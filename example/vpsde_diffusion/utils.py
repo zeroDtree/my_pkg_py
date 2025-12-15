@@ -21,7 +21,7 @@ def get_dataset(cfg: DictConfig):
     class MyDataset(Dataset):
         def __init__(self):
             super().__init__()
-            self.data = Tensor(make_moons(256, noise=0.15)[0])
+            self.data = Tensor(make_moons(1024, noise=0.15)[0])
 
         def __getitem__(self, index):
             return self.data[index]
@@ -35,14 +35,14 @@ def get_dataset(cfg: DictConfig):
 
 
 def get_collate_fn(cfg: DictConfig):
-    from sklearn.datasets import make_moons
+    pass
 
     def collate_fn(examples):
         # examples is a list of dictionaries: [{"images": tensor1}, {"images": tensor2}, ...]
         # Extract the "images" from each example and stack them
         batch = examples
         x_1 = torch.stack(batch)
-        return {"x_0": Tensor(make_moons(256, noise=0.15)[0]), "padding_mask": torch.ones_like(x_1)}
+        return {"clean_data": x_1, "padding_mask": torch.ones_like(x_1)}
 
     return collate_fn
 

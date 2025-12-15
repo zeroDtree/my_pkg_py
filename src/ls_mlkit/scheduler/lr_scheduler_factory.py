@@ -2,6 +2,7 @@ import math
 
 import torch
 from diffusers.optimization import get_cosine_schedule_with_warmup
+from pulp import Literal
 from torch.optim.lr_scheduler import LambdaLR
 
 
@@ -42,7 +43,12 @@ def get_lambda_lr_scheduler(optimizer, num_warmup_steps, num_training_steps, lr_
     return LambdaLR(optimizer, lr_lambda)
 
 
-def get_lr_scheduler(optimizer, n_warmup_steps, n_training_steps, lr_scheduler_type="linear"):
+def get_lr_scheduler(
+    optimizer,
+    n_warmup_steps,
+    n_training_steps,
+    lr_scheduler_type: Literal["cosine", "linear", "constant", "cosine_annealing", "cosine_with_warmup"] = "linear",
+):
     if lr_scheduler_type in ["cosine", "linear", "constant"]:
         return get_lambda_lr_scheduler(optimizer, n_warmup_steps, n_training_steps, lr_scheduler_type)
     elif lr_scheduler_type in ["cosine_annealing"]:

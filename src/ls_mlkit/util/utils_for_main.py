@@ -2,6 +2,7 @@ import math
 import os
 
 import torch
+from accelerate import Accelerator
 from omegaconf import DictConfig
 from torch.nn import Module
 
@@ -25,27 +26,34 @@ def get_optimizer(model, cfg: DictConfig):
     return optimizer
 
 
-def get_correct_n_training_steps(accelerator, train_set, cfg: DictConfig, inplace: bool = True):
+def get_learing_rate_scheduler(optimizer, accelerator: Accelerator, train_set, cfg: DictConfig, inplace: bool = True):
+    from ls_mlkit.scheduler.lr_scheduler_factory import get_lr_scheduler
+
+    per_device_batch_size = cfg.train.batch_size
+    real_batch_size = cfg.train.get(
+        "real_batch_size", cfg.train.batch_size * cfg.train.gradient_accumulation_steps * accelerator.num_processes
+    )
+    effective_batch_size = accelerator.num_processes * cfg.train.batch_size
+    assert real_batch_size % effective_batch_size == 0, "real_batch_size must be divisible by effective_batch_size"
+    gradient_accumulation_steps = real_batch_size // effective_batch_size
+
     if cfg.train.train_strategy in ["epochs"]:
-        effective_batch_size = accelerator.num_processes * cfg.train.batch_size
-        n_training_steps = math.ceil(1.0 * len(train_set) * cfg.train.n_epochs / effective_batch_size)
+        n_training_steps = math.ceil(1.0 * len(train_set) * cfg.train.n_epochs / per_device_batch_size)
     elif cfg.train.train_strategy in ["steps"]:
         n_training_steps = cfg.train.n_steps
     else:
         raise ValueError(f"Train Strategy {cfg.train.train_strategy} is not supported")
     if inplace:
         cfg.train.n_steps = n_training_steps
-    return n_training_steps
+        cfg.train.real_batch_size = real_batch_size
+        cfg.train.gradient_accumulation_steps = gradient_accumulation_steps
 
-
-def get_learing_rate_scheduler(optimizer, accelerator, train_set, cfg: DictConfig, inplace: bool = True):
-    from ls_mlkit.scheduler.lr_scheduler_factory import get_lr_scheduler
-
-    n_training_steps = get_correct_n_training_steps(accelerator, train_set, cfg, inplace=inplace)
     lr_scheduler = get_lr_scheduler(
         optimizer=optimizer,
         n_warmup_steps=cfg.train.n_warmup_steps,
-        n_training_steps=n_training_steps,
+        n_training_steps=(
+            n_training_steps * accelerator.num_processes if cfg.train.train_strategy == "steps" else n_training_steps
+        ),
         lr_scheduler_type=cfg.train.lr_scheduler_type,
     )
     return lr_scheduler

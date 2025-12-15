@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+from contextlib import nullcontext
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import accelerate
@@ -176,20 +177,18 @@ class DistributedPipeline(BasePipeline):
 
         result = {}
 
-        if (self.training_state.current_global_step % self.training_config.gradient_accumulation_steps) < (
-            self.training_config.gradient_accumulation_steps - 1
-        ):
-            with self.accelerator.no_sync(model=model):
-                loss = self.compute_loss(model, batch)
-                self.accelerator.backward(loss)
-        else:
+        should_sync = (
+            self.training_state.current_global_step + 1
+        ) % self.training_config.gradient_accumulation_steps == 0
+        ctx = self.accelerator.no_sync(model=model) if not should_sync else nullcontext()
+        with ctx:
             loss = self.compute_loss(model, batch)
             self.accelerator.backward(loss)
+        if should_sync:
             result["grad_norm_pre_clip"] = self.observer.get_gradient_norm()
             self.gradient_clip()
             result["grad_norm_post_clip"] = self.observer.get_gradient_norm()
             # print(f"grad_norm_pre_clip = {result['grad_norm_pre_clip']}, grad_norm_post_clip = {result['grad_norm_post_clip']}")
-
             optimizer.step()
             optimizer.zero_grad()
 

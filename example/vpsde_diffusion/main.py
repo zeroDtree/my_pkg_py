@@ -287,19 +287,19 @@ if __name__ == "__main__":
             "train": {
                 "seed": 97,
                 "train_strategy": "steps",
-                "n_epochs": 400,
-                "n_steps": 2000,
+                "n_epochs": 200,
+                "n_steps": 1000,
                 "num_workers": 1,
                 "train_shuffle": True,
                 "n_warmup_steps": 100,
                 "lr_scheduler_type": "cosine_with_warmup",
-                "batch_size": 512,
+                "batch_size": 16,
                 "device": "cuda",
                 "grad_clip_strategy": None,
                 "max_grad_norm": 1.0,
                 "max_grad_value": 1.0,
-                "gradient_accumulation_steps": 1,
-                "real_batch_size": 512,
+                "gradient_accumulation_steps": 4,
+                "real_batch_size": 256,
                 "save_strategy": "steps",  # can be "epochs", "steps", or null
                 "save_dir": "checkpoints",
                 "save_steps": 1000,
@@ -331,9 +331,11 @@ if __name__ == "__main__":
             },
         }
     )
+    import os
+    import shutil
 
-    # if os.path.exists("checkpoints"):
-    #     shutil.rmtree("checkpoints")
+    if os.path.exists("checkpoints"):
+        shutil.rmtree("checkpoints")
     # Accelerator(cpu=True, mixed_precision="fp16")
 
     for n_inference_steps in [1000]:

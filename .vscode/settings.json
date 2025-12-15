@@ -20,5 +20,7 @@
             "icon": "terminal-powershell"
         }
     },
-    "terminal.integrated.defaultProfile.linux": "fish"
+    "terminal.integrated.defaultProfile.linux": "fish",
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true
 }
