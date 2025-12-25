@@ -262,17 +262,17 @@ class BasePipeline(metaclass=ABCMeta):
 
         loss = self.compute_loss(model, batch)
         loss = loss / self.training_config.gradient_accumulation_steps
-        self.trigger_callbacks(event=CallbackEvent.BEFORE_BACKWARD, loss=loss)
+        self.trigger_callbacks(event=CallbackEvent.PRE_BACKWARD, loss=loss)
         loss.backward()
-        self.trigger_callbacks(event=CallbackEvent.AFTER_BACKWARD, loss=loss)
+        self.trigger_callbacks(event=CallbackEvent.POST_BACKWARD, loss=loss)
 
         if (self.training_state.current_global_step % self.training_config.gradient_accumulation_steps) == (
             self.training_config.gradient_accumulation_steps - 1
         ):
             self.gradient_clip()
-            self.trigger_callbacks(event=CallbackEvent.BEFORE_OPTIMIZER_STEP)
+            self.trigger_callbacks(event=CallbackEvent.PRE_OPTIMIZER_STEP)
             optimizer.step()
-            self.trigger_callbacks(event=CallbackEvent.AFTER_OPTIMIZER_STEP)
+            self.trigger_callbacks(event=CallbackEvent.POST_OPTIMIZER_STEP)
             optimizer.zero_grad()
 
         if scheduler is not None:
@@ -362,7 +362,7 @@ class BasePipeline(metaclass=ABCMeta):
         Returns:
             None
         """
-        self.trigger_callbacks(event=CallbackEvent.BEFORE_SAVE)
+        self.trigger_callbacks(event=CallbackEvent.PRE_SAVE)
         save_dir = self.training_config.save_dir
         if save_dir is None or save_dir == "":
             return
@@ -392,7 +392,7 @@ class BasePipeline(metaclass=ABCMeta):
                 self.logger.error(f"Failed to save checkpoint: {e}")
             shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
             raise
-        self.trigger_callbacks(event=CallbackEvent.AFTER_SAVE)
+        self.trigger_callbacks(event=CallbackEvent.POST_SAVE)
 
     def load(self) -> None:
         """Load the checkpoint
@@ -400,7 +400,7 @@ class BasePipeline(metaclass=ABCMeta):
         Returns:
             None
         """
-        self.trigger_callbacks(event=CallbackEvent.BEFORE_LOAD)
+        self.trigger_callbacks(event=CallbackEvent.PRE_LOAD)
         # check load condition ============================================================================
         checkpoint_dir = self.get_latest_checkpoint_dir()
         if checkpoint_dir is None or len(os.listdir(checkpoint_dir)) <= 0:
@@ -418,7 +418,7 @@ class BasePipeline(metaclass=ABCMeta):
 
         if self.logger is not None:
             self.logger.info(f"Model loaded from {checkpoint_dir}")
-        self.trigger_callbacks(event=CallbackEvent.AFTER_LOAD)
+        self.trigger_callbacks(event=CallbackEvent.POST_LOAD)
 
     def get_latest_checkpoint_dir(self) -> str:
         save_dir = self.training_config.save_dir

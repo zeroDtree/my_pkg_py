@@ -211,7 +211,7 @@ class DistributedPipeline(BasePipeline):
         return result
 
     def save(self) -> None:
-        self.trigger_callbacks(event=CallbackEvent.BEFORE_SAVE)
+        self.trigger_callbacks(event=CallbackEvent.PRE_SAVE)
         if not self.accelerator.is_main_process:
             return
 
@@ -249,10 +249,10 @@ class DistributedPipeline(BasePipeline):
                 self.logger.error(f"Failed to save checkpoint: {e}")
             shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
             raise
-        self.trigger_callbacks(event=CallbackEvent.AFTER_SAVE)
+        self.trigger_callbacks(event=CallbackEvent.POST_SAVE)
 
     def load(self) -> None:
-        self.trigger_callbacks(event=CallbackEvent.BEFORE_LOAD)
+        self.trigger_callbacks(event=CallbackEvent.PRE_LOAD)
         # check load condition ============================================================================
         checkpoint_dir = self.get_latest_checkpoint_dir()
         if checkpoint_dir is None or len(os.listdir(checkpoint_dir)) <= 0:
@@ -272,7 +272,7 @@ class DistributedPipeline(BasePipeline):
 
         if self.accelerator.is_main_process:
             self.logger.info(f"Model loaded from {checkpoint_dir}")
-        self.trigger_callbacks(event=CallbackEvent.AFTER_LOAD)
+        self.trigger_callbacks(event=CallbackEvent.POST_LOAD)
 
     def trigger_callbacks(self, event: CallbackEvent, *args, **kwargs):
         """Trigger all callbacks for a given event

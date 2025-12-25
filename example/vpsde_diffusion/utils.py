@@ -52,7 +52,6 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
     from ls_mlkit.diffusion.conditioner.conditioner import LGDConditioner
     from ls_mlkit.diffusion.euclidean_vpsde_diffuser import EuclideanVPSDEConfig, EuclideanVPSDEDiffuser
-    from ls_mlkit.diffusion.model_interface import Model4DiffuserInterface
     from ls_mlkit.diffusion.time_scheduler import DiffusionTimeScheduler
     from ls_mlkit.util.mask.onedim_masker import OneDimMasker
 
@@ -68,13 +67,13 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
     base_model = BaseModel()
 
-    class MyModel(Module, Model4DiffuserInterface):
+    class MyModel(Module):
         def __init__(self, model: Module):
             print(f"MyModel initialized&&&&&&&&&&&&&&&&&&&&&")
             super().__init__()
             self.model = model
 
-        def __call__(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
+        def forward(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
             t = t.unsqueeze(-1)
             return {"x": self.model(x_t, t, return_dict=False)}
 

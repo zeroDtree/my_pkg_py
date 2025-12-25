@@ -169,7 +169,7 @@ class MyDistributedPipeline(DistributedPipeline):
 
     @override
     def compute_loss(self, model, batch: dict) -> Tensor:
-        self.trigger_callbacks(event=CallbackEvent.BEFORE_COMPUTE_LOSS, batch=batch)
+        self.trigger_callbacks(event=CallbackEvent.PRE_COMPUTE_LOSS, batch=batch)
         loss = None
         model_output = model(batch)
         if isinstance(model_output, dict):
@@ -177,7 +177,7 @@ class MyDistributedPipeline(DistributedPipeline):
             loss = model_output["loss"]
         else:
             loss = model_output
-        self.trigger_callbacks(event=CallbackEvent.AFTER_COMPUTE_LOSS, atch=batch, loss=loss)
+        self.trigger_callbacks(event=CallbackEvent.POST_COMPUTE_LOSS, atch=batch, loss=loss)
         return loss
 
     def eval_a_step(self, batch: dict) -> dict:
@@ -189,9 +189,9 @@ class MyDistributedPipeline(DistributedPipeline):
         Returns:
             dict: a dictionary containing the evaluation loss
         """
-        self.trigger_callbacks(event=CallbackEvent.BEFORE_EVAL_STEP, batch=batch)
+        self.trigger_callbacks(event=CallbackEvent.PRE_EVAL_STEP, batch=batch)
         loss = self.compute_loss(self.model, batch).item()
-        self.trigger_callbacks(event=CallbackEvent.AFTER_EVAL_STEP, batch=batch, loss=loss)
+        self.trigger_callbacks(event=CallbackEvent.POST_EVAL_STEP, batch=batch, loss=loss)
         return {"eval_loss": loss}
 
     @override
@@ -225,7 +225,7 @@ class MyDistributedPipeline(DistributedPipeline):
 
     @torch.no_grad()
     def eval(self, disable_grad: bool = False):
-        self.trigger_callbacks(event=CallbackEvent.BEFORE_EVAL, eval_dataloader=self.eval_dataloader)
+        self.trigger_callbacks(event=CallbackEvent.PRE_EVAL, eval_dataloader=self.eval_dataloader)
         self.model.eval()
         eval_results = []
         for batch in self.eval_dataloader:
@@ -251,5 +251,5 @@ class MyDistributedPipeline(DistributedPipeline):
             wandb.log(result, step=self.training_state.current_global_step)
 
         self.model.train()
-        self.trigger_callbacks(event=CallbackEvent.AFTER_EVAL, eval_dataloader=self.eval_dataloader)
+        self.trigger_callbacks(event=CallbackEvent.POST_EVAL, eval_dataloader=self.eval_dataloader)
         return eval_results

@@ -12,22 +12,22 @@ class CallbackEvent(Enum):
     STEP_START = "step_start"
     STEP_END = "step_end"
     # save, load
-    BEFORE_SAVE = "before_save"
-    AFTER_SAVE = "after_save"
-    BEFORE_LOAD = "before_load"
-    AFTER_LOAD = "after_load"
+    PRE_SAVE = "pre_save"
+    POST_SAVE = "post_save"
+    PRE_LOAD = "pre_load"
+    POST_LOAD = "post_load"
     # optimize
-    BEFORE_COMPUTE_LOSS = "before_compute_loss"
-    AFTER_COMPUTE_LOSS = "after_compute_loss"
-    BEFORE_BACKWARD = "before_backward"
-    AFTER_BACKWARD = "after_backward"
-    BEFORE_OPTIMIZER_STEP = "before_optimizer_step"
-    AFTER_OPTIMIZER_STEP = "after_optimizer_step"
+    PRE_COMPUTE_LOSS = "pre_compute_loss"
+    POST_COMPUTE_LOSS = "post_compute_loss"
+    PRE_BACKWARD = "pre_backward"
+    POST_BACKWARD = "post_backward"
+    PRE_OPTIMIZER_STEP = "pre_optimizer_step"
+    POST_OPTIMIZER_STEP = "post_optimizer_step"
     # eval
-    BEFORE_EVAL = "before_eval"
-    AFTER_EVAL = "after_eval"
-    BEFORE_EVAL_STEP = "before_eval_step"
-    AFTER_EVAL_STEP = "after_eval_step"
+    PRE_EVAL = "pre_eval"
+    POST_EVAL = "post_eval"
+    PRE_EVAL_STEP = "pre_eval_step"
+    POST_EVAL_STEP = "post_eval_step"
 
 
 class BaseCallback(metaclass=ABCMeta):

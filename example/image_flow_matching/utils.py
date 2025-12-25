@@ -88,7 +88,7 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             super().__init__()
             self.model = model
 
-        def __call__(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
+        def forward(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
             return {"x": self.model(x_t, t, return_dict=False)[0]}
 
         def get_model_device(self):

@@ -2,11 +2,11 @@ from typing import Any, Callable, Literal, cast
 
 import torch
 from torch import Tensor
+from torch.nn import Module
 
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .euclidean_ddpm_diffuser import EuclideanDDPMConfig, EuclideanDDPMDiffuser
-from .model_interface import Model4DiffuserInterface
 from .time_scheduler import DiffusionTimeScheduler
 
 
@@ -68,7 +68,7 @@ class EuclideanDDIMDiffuser(EuclideanDDPMDiffuser):
         config: EuclideanDDPMConfig,
         time_scheduler: DiffusionTimeScheduler,
         masker: MaskerInterface,
-        model: Model4DiffuserInterface,
+        model: Module,
         loss_fn: Callable[[Tensor, Tensor, Tensor], Tensor],  # (predicted, ground_true, padding_mask)
     ):
         super().__init__(

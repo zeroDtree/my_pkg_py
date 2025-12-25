@@ -3,6 +3,7 @@ from typing import Any, Callable, Literal, Tuple, cast
 import numpy as np
 import torch
 from torch import Tensor
+from torch.nn import Module
 
 from ..util.base_class.base_gm_class import GMHook, GMHookStageType
 from ..util.context.temp_remove import TemporaryKeyRemover
@@ -11,7 +12,6 @@ from ..util.mask.masker_interface import MaskerInterface
 from .conditioner import Conditioner
 from .conditioner.utils import get_accumulated_conditional_score
 from .euclidean_diffuser import EuclideanDiffuser, EuclideanDiffuserConfig
-from .model_interface import Model4DiffuserInterface
 from .time_scheduler import DiffusionTimeScheduler
 
 
@@ -78,7 +78,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         config: EuclideanDDPMConfig,
         time_scheduler: DiffusionTimeScheduler,
         masker: MaskerInterface,
-        model: Model4DiffuserInterface,
+        model: Module,
         loss_fn: Callable[[Tensor, Tensor, Tensor], Tensor],  # (predicted, ground_true, padding_mask)
     ):
         """Initialize the EuclideanDDPMDiffuser
@@ -87,7 +87,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             config (EuclideanDDPMConfig): the config of the diffuser
             time_scheduler (DiffusionTimeScheduler): the time scheduler of the diffuser
             masker (MaskerInterface): the masker of the diffuser
-            model (Model4DiffuserInterface): the model of the diffuser
+            model (Module): the model of the diffuser
             loss_fn (Callable[[Tensor, Tensor, Tensor], Tensor]): the loss function of the diffuser
 
         Returns:
@@ -103,7 +103,6 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
     def compute_loss(self, batch: dict[str, Any], *args: Any, **kwargs: Any) -> dict:
         mode: Literal["epsilon", "x_0", "score"] = batch.get("mode", "epsilon")
-        batch = self.model.prepare_batch_data_for_input(batch)
         x_0 = batch["clean_data"]
         padding_mask = batch["padding_mask"]
         device = x_0.device
@@ -119,8 +118,8 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         forward_result = self.forward_process(x_0, t, padding_mask)
         x_t, noise = (forward_result["x_t"], forward_result["noise"])
 
-        with TemporaryKeyRemover(mapping=batch, keys=["padding_mask"]):
-            model_output = self.model(x_t, t, padding_mask, **batch)
+        with TemporaryKeyRemover(mapping=batch, keys=[]):
+            model_output = self.model(**batch)
 
         # Simplified loss calculation following standard DDPM
         if mode == "epsilon":
@@ -154,7 +153,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             # ======================================
             "batch": batch,
             "model": self.model,
-            "model_output": model_output,
+            "base_model_output": model_output,
         }
 
     def q_xt_x_0(self, x_0: Tensor, t: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:

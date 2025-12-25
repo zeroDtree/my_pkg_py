@@ -2,6 +2,7 @@ from typing import Any, Callable, Tuple, cast
 
 import torch
 from torch import Tensor
+from torch.nn import Module
 
 from ..util.base_class.base_gm_class import GMHook, GMHookStageType
 from ..util.decorators import inherit_docstrings
@@ -11,7 +12,6 @@ from ..util.sde.lib.vpsde import VPSDE
 from .conditioner import Conditioner
 from .conditioner.utils import get_accumulated_conditional_score
 from .euclidean_diffuser import EuclideanDiffuser, EuclideanDiffuserConfig
-from .model_interface import Model4DiffuserInterface
 from .time_scheduler import DiffusionTimeScheduler
 
 
@@ -53,7 +53,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         config: EuclideanVPSDEConfig,
         time_scheduler: DiffusionTimeScheduler,
         masker: MaskerInterface,
-        model: Model4DiffuserInterface,
+        model: Module,
         loss_fn: Callable[[Tensor, Tensor, Tensor], Tensor],  # (predicted, ground_true, padding_mask)
     ):
         """Initialize the EuclideanVPSDEDiffuser
@@ -62,7 +62,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
             config (EuclideanVPSDEConfig): the config of the diffuser
             time_scheduler (DiffusionTimeScheduler): the time scheduler of the diffuser
             masker (MaskerInterface): the masker of the diffuser
-            model (Model4DiffuserInterface): the model of the diffuser
+            model (Module): the model of the diffuser
             loss_fn (Callable[[Tensor, Tensor, Tensor], Tensor]): the loss function of the diffuser
 
         Returns:

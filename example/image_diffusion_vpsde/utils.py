@@ -99,7 +99,7 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         def get_model_device(self) -> torch.device:
             return next(self.model.parameters()).device
 
-        def __call__(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:
+        def forward(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:
             p_noise: Tensor = self.model.forward(x_t, t, return_dict=False)[0]
             return {"x": p_noise}
 

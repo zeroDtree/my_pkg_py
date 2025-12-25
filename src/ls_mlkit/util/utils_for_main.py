@@ -60,7 +60,7 @@ def get_learing_rate_scheduler(optimizer, accelerator: Accelerator, train_set, c
 
 
 def get_train_class():
-    from ls_mlkit.pipeline import MyDistributedPipeline, MyTrainingConfig
+    from ls_mlkit.pipeline.dist_pipeline_impl import MyDistributedPipeline, MyTrainingConfig
 
     return MyDistributedPipeline, MyTrainingConfig
 
