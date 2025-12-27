@@ -5,7 +5,7 @@ from typing import Any, Callable
 from torch import Tensor
 
 from ..decorators import inherit_docstrings
-from .base_hook import Hook, HookHandler, HookManager
+from ..hook.base_hook import Hook, HookHandler, HookManager
 from .base_loss_class import BaseLoss, BaseLossConfig
 
 
@@ -152,7 +152,7 @@ class BaseGenerativeModel(BaseLoss):
             ``dict``: _description_
         """
 
-    def forward(self, batch: dict[str, Any], *args: list[Any], **kwargs: dict[Any, Any]) -> dict | Tensor:
+    def forward(self, **batch) -> dict | Tensor:
         r"""Forward function, input batch of data and return the dictionary containing the loss
 
         Args:
@@ -161,7 +161,7 @@ class BaseGenerativeModel(BaseLoss):
         Returns:
             ``dict`` | ``Tensor``: a dictionary that must contain the key "loss" or a tensor of loss
         """
-        result = self.compute_loss(batch, *args, **kwargs)
+        result = self.compute_loss(**batch)
         hook_result = self.hook_manager.run_hooks(stage=GMHookStageType.POST_COMPUTE_LOSS, **result)
         if hook_result is not None:
             assert isinstance(hook_result, (dict, Tensor))

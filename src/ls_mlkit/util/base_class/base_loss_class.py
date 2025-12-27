@@ -38,7 +38,7 @@ class BaseLoss(Module, abc.ABC):
         )
 
     @abc.abstractmethod
-    def compute_loss(self, batch: dict[str, Any], *args: list[Any], **kwargs: dict[Any, Any]) -> dict | Tensor:
+    def compute_loss(self, **batch) -> dict | Tensor:
         r"""Compute loss
 
         Args:

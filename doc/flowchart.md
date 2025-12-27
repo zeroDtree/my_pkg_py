@@ -33,3 +33,10 @@ BaseGenerativeModel: register_hooks()
 EuclideanDDPMDiffuser: get_condition_post_compute_loss_hook() LGD training
 EuclideanDDPMDiffuser: get_condition_pre_update_in_step_fn_hook() LGD sampling
 ```
+
+---
+
+```mermaid
+graph TD
+Data --> collate_fn --> ModelForPipeline.forward --> generative_model.forward --> diffuser.compute_loss --> base_model.forward
+```

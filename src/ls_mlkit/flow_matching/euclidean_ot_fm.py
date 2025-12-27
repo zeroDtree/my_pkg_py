@@ -11,7 +11,6 @@ from ..util.base_class.base_gm_class import GMHook, GMHookStageType
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from .base_fm import BaseFlow, BaseFlowConfig
-from .model_interface import Model4FMInterface
 from .time_scheduler import FlowMatchingTimeScheduler
 
 EPS = 1e-5
@@ -44,13 +43,13 @@ class EuclideanOTFlow(BaseFlow):
         config: EuclideanOTFlowConfig,
         time_scheduler: FlowMatchingTimeScheduler,
         masker: MaskerInterface,
-        model: Module | Model4FMInterface,
+        model: Module,
         loss_fn: Callable,
     ) -> None:
         super().__init__(config=config, time_scheduler=time_scheduler)
         self.config: EuclideanOTFlowConfig = config
         self.masker: MaskerInterface = masker
-        self.model: Module | Model4FMInterface = model
+        self.model: Module = model
         self.loss_fn = loss_fn
 
     def compute_loss(self, batch, *args, **kwargs):

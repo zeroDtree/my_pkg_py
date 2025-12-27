@@ -94,8 +94,6 @@ class HookManager(Generic[HookStageType]):
             output = hook(**kwargs)
             if output is not None:
                 result = output
-        if result is None:
-            result = kwargs
         return result
 
     def list_hooks(self) -> None:

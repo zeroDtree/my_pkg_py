@@ -29,7 +29,7 @@ def get_optimizer(model, cfg: DictConfig):
 def get_learing_rate_scheduler(optimizer, accelerator: Accelerator, train_set, cfg: DictConfig, inplace: bool = True):
     from ls_mlkit.scheduler.lr_scheduler_factory import get_lr_scheduler
 
-    per_device_batch_size = cfg.train.batch_size
+    cfg.train.batch_size
     real_batch_size = cfg.train.get(
         "real_batch_size", cfg.train.batch_size * cfg.train.gradient_accumulation_steps * accelerator.num_processes
     )
@@ -38,7 +38,7 @@ def get_learing_rate_scheduler(optimizer, accelerator: Accelerator, train_set, c
     gradient_accumulation_steps = real_batch_size // effective_batch_size
 
     if cfg.train.train_strategy in ["epochs"]:
-        n_training_steps = math.ceil(1.0 * len(train_set) * cfg.train.n_epochs / per_device_batch_size)
+        n_training_steps = math.ceil(1.0 * len(train_set) * cfg.train.n_epochs / effective_batch_size)
     elif cfg.train.train_strategy in ["steps"]:
         n_training_steps = cfg.train.n_steps
     else:
@@ -51,9 +51,7 @@ def get_learing_rate_scheduler(optimizer, accelerator: Accelerator, train_set, c
     lr_scheduler = get_lr_scheduler(
         optimizer=optimizer,
         n_warmup_steps=cfg.train.n_warmup_steps,
-        n_training_steps=(
-            n_training_steps * accelerator.num_processes if cfg.train.train_strategy == "steps" else n_training_steps
-        ),
+        n_training_steps=(n_training_steps * accelerator.num_processes),
         lr_scheduler_type=cfg.train.lr_scheduler_type,
     )
     return lr_scheduler

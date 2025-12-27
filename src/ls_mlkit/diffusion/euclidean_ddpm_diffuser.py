@@ -101,7 +101,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
     def prior_sampling(self, shape: Tuple[int, ...]) -> Tensor:
         return torch.randn(shape)
 
-    def compute_loss(self, batch: dict[str, Any], *args: Any, **kwargs: Any) -> dict:
+    def compute_loss(self, **batch) -> dict:
         mode: Literal["epsilon", "x_0", "score"] = batch.get("mode", "epsilon")
         x_0 = batch["clean_data"]
         padding_mask = batch["padding_mask"]
@@ -117,20 +117,22 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
         forward_result = self.forward_process(x_0, t, padding_mask)
         x_t, noise = (forward_result["x_t"], forward_result["noise"])
-
-        with TemporaryKeyRemover(mapping=batch, keys=[]):
+        batch["t"] = t
+        batch["x_t"] = x_t
+        with TemporaryKeyRemover(mapping=batch, keys=["clean_data"]):
             model_output = self.model(**batch)
 
         # Simplified loss calculation following standard DDPM
         if mode == "epsilon":
-            predicted_noise = model_output["x"]
+            p_noise = model_output["x"]
             # Standard DDPM loss: MSE between predicted and actual noise
-            loss = self.loss_fn(predicted_noise, noise, padding_mask)
+            loss = self.loss_fn(p_noise, noise, padding_mask)
+            p_x_0 = (x_t - b * p_noise) / a
         elif mode == "x_0":
-            predicted_x0 = model_output["x"]
+            p_x_0 = model_output["x"]
             # Convert to noise prediction for consistent loss calculation
-            predicted_noise = (x_t - a * predicted_x0) / b
-            loss = self.loss_fn(predicted_noise, noise, padding_mask)
+            p_noise = (x_t - a * p_x_0) / b
+            loss = self.loss_fn(p_noise, noise, padding_mask)
         elif mode == "score":
             raise ValueError(f"Currently not supported mode: {mode}")
         else:
@@ -142,17 +144,16 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             "clean_data": x_0,
             "t": t,
             "x_t": x_t,
-            "padding_mask": padding_mask,
             "noise": noise,
-            "predicted_noise": predicted_noise,
+            "p_noise": p_noise,
+            "p_x_0": p_x_0,
+            "padding_mask": padding_mask,
             "a": a,
             "b": b,
             "loss_fn": self.loss_fn,
             "mode": mode,
             "config": self.config,
             # ======================================
-            "batch": batch,
-            "model": self.model,
             "base_model_output": model_output,
         }
 
@@ -241,7 +242,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             hook_input = {
                 "x_t": x_t,
                 "t": t,
-                "predicted_noise": model_pred,
+                "p_noise": model_pred,
                 "padding_mask": padding_mask,
                 "config": self.config,
                 "sampling_condition": kwargs.get("sampling_condition"),
@@ -417,20 +418,16 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
         def _hook_fn(**kwargs):
             nonlocal conditioner_list
-
-            loss = kwargs.get("loss")
             x_0 = kwargs.get("clean_data")
             x_t = kwargs.get("x_t")
             t = kwargs.get("t", None)
             noise = kwargs.get("noise", None)
-            predicted_noise = kwargs.get("predicted_noise")
+            p_noise = kwargs.get("p_noise")
             padding_mask = kwargs.get("padding_mask")
-            a = kwargs.get("a")
             b = kwargs.get("b")
             loss_fn = kwargs.get("loss_fn")
-            mode = kwargs.get("mode")
 
-            p_uc_score = -predicted_noise / b
+            p_uc_score = -p_noise / b
             gt_uc_score = -noise / b
 
             tgt_mask = padding_mask
@@ -457,9 +454,8 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             # Scale and compute conditioned loss
             p_uc_score = b * p_uc_score
             gt_score = b * gt_score
-            total_loss = loss_fn(p_uc_score, gt_score, padding_mask)
-            kwargs["loss"] = total_loss
-            print("get_condition_post_compute_loss_hook")
+            new_loss = loss_fn(p_uc_score, gt_score, padding_mask)
+            kwargs["loss"] = new_loss
             return kwargs
 
         return GMHook(
@@ -475,11 +471,11 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             nonlocal conditioner_list
             x_t = kwargs.get("x_t")
             t = kwargs.get("t", None)
-            predicted_noise = kwargs.get("predicted_noise")
+            p_noise = kwargs.get("p_noise")
             padding_mask = kwargs.get("padding_mask")
             b = kwargs.get("b")
             sampling_condition = kwargs.get("sampling_condition")
-            p_uc_score = -predicted_noise / b
+            p_uc_score = -p_noise / b
 
             tgt_mask = padding_mask
             for conditioner in conditioner_list:

@@ -171,7 +171,7 @@ class MyDistributedPipeline(DistributedPipeline):
     def compute_loss(self, model, batch: dict) -> Tensor:
         self.trigger_callbacks(event=CallbackEvent.PRE_COMPUTE_LOSS, batch=batch)
         loss = None
-        model_output = model(batch)
+        model_output = model(**batch)
         if isinstance(model_output, dict):
             assert "loss" in model_output, "model_output must contain 'loss' key if model_output is a dict"
             loss = model_output["loss"]
