@@ -15,6 +15,7 @@ class BaseDiffuserConfig(BaseGenerativeModelConfig):
         ndim_micro_shape: int,
         n_discretization_steps: int,
         n_inference_steps: int = None,
+        use_batch_flattening: bool = False,
         *args: list[Any],
         **kwargs: dict[Any, Any],
     ) -> None:
@@ -22,6 +23,7 @@ class BaseDiffuserConfig(BaseGenerativeModelConfig):
             ndim_micro_shape=ndim_micro_shape,
             n_discretization_steps=n_discretization_steps,
             n_inference_steps=n_inference_steps,
+            use_batch_flattening=use_batch_flattening,
             *args,
             **kwargs,
         )

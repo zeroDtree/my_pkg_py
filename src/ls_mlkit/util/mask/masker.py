@@ -6,7 +6,7 @@ from torch import Tensor
 from .masker_interface import MaskerInterface
 
 
-class OneDimMasker(MaskerInterface):
+class Masker(MaskerInterface):
 
     def __init__(self, ndim_mini_micro_shape: int = 0, **kwargs: dict[Any, Any]):
         super().__init__(**kwargs)

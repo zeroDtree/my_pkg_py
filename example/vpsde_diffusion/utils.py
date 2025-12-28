@@ -53,7 +53,7 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from ls_mlkit.diffusion.conditioner.conditioner import LGDConditioner
     from ls_mlkit.diffusion.euclidean_vpsde_diffuser import EuclideanVPSDEConfig, EuclideanVPSDEDiffuser
     from ls_mlkit.diffusion.time_scheduler import DiffusionTimeScheduler
-    from ls_mlkit.util.mask.onedim_masker import OneDimMasker
+    from ls_mlkit.util.mask.masker import Masker as OneDimMasker
 
     class BaseModel(Module):
         def __init__(self, dim: int = 2, h: int = 64):

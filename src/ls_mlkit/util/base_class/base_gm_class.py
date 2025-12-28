@@ -14,6 +14,8 @@ class GMHookStageType(Enum):
     POST_UPDATE_IN_STEP_FN = "post_update_in_step_fn"
     PRE_COMPUTE_LOSS = "pre_compute_loss"
     POST_COMPUTE_LOSS = "post_compute_loss"
+    POST_SAMPLING_TIME_STEP = "post_sampling_time_step"
+    POST_GET_MACRO_SHAPE = "get_macro_shape"
 
 
 class GMHookHandler(HookHandler[GMHookStageType]):
@@ -34,6 +36,7 @@ class BaseGenerativeModelConfig(BaseLossConfig):
         self,
         ndim_micro_shape: int,
         n_discretization_steps: int,
+        use_batch_flattening: bool = False,
         n_inference_steps: int = None,
         *args: list[Any],
         **kwargs: dict[Any, Any],
@@ -44,7 +47,7 @@ class BaseGenerativeModelConfig(BaseLossConfig):
             n_discretization_steps (``int``): number of discretization steps
             n_inference_steps (``int``, *optional*): number of inference steps
         """
-        super().__init__(ndim_micro_shape=ndim_micro_shape, *args, **kwargs)
+        super().__init__(ndim_micro_shape=ndim_micro_shape, use_batch_flattening=use_batch_flattening, *args, **kwargs)
         self.n_discretization_steps: int = n_discretization_steps
         if n_inference_steps is not None:
             self.n_inference_steps: int = n_inference_steps
@@ -162,7 +165,7 @@ class BaseGenerativeModel(BaseLoss):
             ``dict`` | ``Tensor``: a dictionary that must contain the key "loss" or a tensor of loss
         """
         result = self.compute_loss(**batch)
-        hook_result = self.hook_manager.run_hooks(stage=GMHookStageType.POST_COMPUTE_LOSS, **result)
+        hook_result = self.hook_manager.run_hooks(stage=GMHookStageType.POST_COMPUTE_LOSS, tgt_key_name=None, **result)
         if hook_result is not None:
             assert isinstance(hook_result, (dict, Tensor))
             result = hook_result

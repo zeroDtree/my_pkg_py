@@ -32,6 +32,7 @@ class EuclideanDDPMConfig(EuclideanDiffuserConfig):
         dynamic_thresholding_ratio=0.995,
         sample_max_value: float = 1.0,
         betas=None,
+        use_batch_flattening=False,
         *args,
         **kwargs,
     ):
@@ -52,6 +53,7 @@ class EuclideanDDPMConfig(EuclideanDiffuserConfig):
         super().__init__(
             n_discretization_steps=n_discretization_steps,
             ndim_micro_shape=ndim_micro_shape,
+            use_batch_flattening=use_batch_flattening,
         )
         self.betas: Tensor
         if betas is None:
@@ -106,9 +108,17 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         x_0 = batch["clean_data"]
         padding_mask = batch["padding_mask"]
         device = x_0.device
-        macro_shape = self.get_macro_shape(x_0)
 
-        t = self.time_scheduler.sample_a_discrete_time_step_uniformly(macro_shape).to(device)
+        macro_shape = self.get_macro_shape(x_0)  # (b, )
+        macro_shape = self.hook_manager.run_hooks(
+            stage=GMHookStageType.POST_GET_MACRO_SHAPE, tgt_key_name="macro_shape", macro_shape=macro_shape, batch=batch
+        )
+
+        t = self.time_scheduler.sample_a_discrete_time_step_uniformly(macro_shape).to(device)  # (b, )
+        t = self.hook_manager.run_hooks(
+            stage=GMHookStageType.POST_SAMPLING_TIME_STEP, tgt_key_name="t", t=t, batch=batch
+        )
+
         self.config = self.config.to(t)
         sqrt_1m_alphas_cumprod = self.complete_micro_shape(self.config.sqrt_1m_alphas_cumprod[t])
         sqrt_alphas_cumprod = self.complete_micro_shape(self.config.sqrt_alphas_cumprod[t])
@@ -119,7 +129,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         x_t, noise = (forward_result["x_t"], forward_result["noise"])
         batch["t"] = t
         batch["x_t"] = x_t
-        with TemporaryKeyRemover(mapping=batch, keys=["clean_data"]):
+        with TemporaryKeyRemover(mapping=batch, keys=["clean_data", "mode"]):
             model_output = self.model(**batch)
 
         # Simplified loss calculation following standard DDPM
@@ -248,7 +258,9 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
                 "sampling_condition": kwargs.get("sampling_condition"),
                 "b": self.complete_micro_shape(self.config.sqrt_1m_alphas_cumprod[t]),
             }
-            hook_output = self.hook_manager.run_hooks(GMHookStageType.PRE_UPDATE_IN_STEP_FN, **hook_input)
+            hook_output = self.hook_manager.run_hooks(
+                GMHookStageType.PRE_UPDATE_IN_STEP_FN, tgt_key_name="p_noise", **hook_input
+            )
             if hook_output is not None:
                 model_pred = hook_output
         elif mode == "x_0":

@@ -84,17 +84,30 @@ class HookManager(Generic[HookStageType]):
     def disable_hook(self, name: str = None, stage: HookStageType = None) -> None:
         self.enable_hook(name=name, stage=stage, enabled=False)
 
-    def run_hooks(self, stage: HookStageType, **kwargs) -> Optional[Any]:
-        if stage not in self._hooks:
-            return None
-        result = None
-        for hook in self._hooks[stage]:
-            if not hook.enabled:
-                continue
-            output = hook(**kwargs)
-            if output is not None:
-                result = output
-        return result
+    def run_hooks(self, stage: HookStageType, tgt_key_name=None, **kwargs) -> Optional[Any]:
+        """Executes all enabled hooks for a given stage, optionally updating or collecting results in kwargs,
+        and returns either the final modified kwargs or a specific key's value.
+
+        Args:
+            stage (``HookStageType``): _description_
+            tgt_key_name (``_type_``, *optional*): target key name. Defaults to None.
+        """
+        hook_output = None
+
+        if stage is not None and stage in self._hooks:
+            for hook in self._hooks[stage]:
+                if not hook.enabled:
+                    continue
+                hook_output = hook(**kwargs)
+                if tgt_key_name is not None:
+                    kwargs[tgt_key_name] = hook_output
+                else:
+                    kwargs = hook_output
+
+        if tgt_key_name is not None:
+            return kwargs[tgt_key_name]
+        elif tgt_key_name is None:
+            return kwargs
 
     def list_hooks(self) -> None:
         for stage, hooks in self._hooks.items():

@@ -21,18 +21,6 @@ class Shape(object):
         super().__init__()
         self.config: ShapeConfig = config
 
-    def get_macro_and_micro_shape(self, x: Tensor) -> tuple[tuple[int, ...], tuple[int, ...]]:
-        r"""Get the macro and micro shape of :math:`x`
-
-        Args:
-            x (``Tensor``): :math:`x`
-
-        Returns:
-            ``tuple[tuple[int, ...], tuple[int, ...]]``: the macro and micro shape of :math:`x`
-        """
-        ndim_micro_shape = self.config.ndim_micro_shape
-        return x.shape[:-ndim_micro_shape], x.shape[-ndim_micro_shape:]
-
     def get_macro_shape(self, x: Tensor) -> tuple[int, ...]:
         r"""Get the macro shape of :math:`x`
 

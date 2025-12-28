@@ -15,9 +15,12 @@ from .base_config_class import DeviceConfig
 
 @inherit_docstrings
 class BaseLossConfig(DeviceConfig):
-    def __init__(self, ndim_micro_shape: int, *args: list[Any], **kwargs: dict[Any, Any]):
+    def __init__(
+        self, ndim_micro_shape: int, use_batch_flattening: bool = False, *args: list[Any], **kwargs: dict[Any, Any]
+    ):
         super().__init__(*args, **kwargs)
         self.ndim_micro_shape: int = ndim_micro_shape
+        self.use_batch_flattening = use_batch_flattening
 
 
 @inherit_docstrings
@@ -53,6 +56,3 @@ class BaseLoss(Module, abc.ABC):
 
     def complete_micro_shape(self, x: Tensor) -> Tensor:
         return self.shape_util.complete_micro_shape(x)
-
-    def get_macro_and_micro_shape(self, x: Tensor) -> tuple[tuple[int, ...], tuple[int, ...]]:
-        return self.shape_util.get_macro_and_micro_shape(x)

@@ -17,6 +17,7 @@ class EuclideanDiffuserConfig(BaseDiffuserConfig):
         n_discretization_steps: int = 1000,
         ndim_micro_shape: int = 2,
         n_inference_steps: int = None,
+        use_batch_flattening: bool = False,
         *args,
         **kwargs,
     ):
@@ -24,6 +25,7 @@ class EuclideanDiffuserConfig(BaseDiffuserConfig):
             n_discretization_steps=n_discretization_steps,
             ndim_micro_shape=ndim_micro_shape,
             n_inference_steps=n_inference_steps,
+            use_batch_flattening=use_batch_flattening,
             *args,
             **kwargs,
         )
