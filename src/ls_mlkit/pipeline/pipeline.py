@@ -266,9 +266,7 @@ class BasePipeline(metaclass=ABCMeta):
         loss.backward()
         self.trigger_callbacks(event=CallbackEvent.POST_BACKWARD, loss=loss)
 
-        if (self.training_state.current_global_step % self.training_config.gradient_accumulation_steps) == (
-            self.training_config.gradient_accumulation_steps - 1
-        ):
+        if ((self.training_state.current_global_step + 1) % self.training_config.gradient_accumulation_steps) == 0:
             self.gradient_clip()
             self.trigger_callbacks(event=CallbackEvent.PRE_OPTIMIZER_STEP)
             optimizer.step()
@@ -328,9 +326,9 @@ class BasePipeline(metaclass=ABCMeta):
         ):
             return False
         if flag == "epochs":
-            return self.training_state.current_epoch % self.training_config.save_epochs == 0
+            return (self.training_state.current_epoch + 1) % self.training_config.save_epochs == 0
         elif flag == "steps":
-            return self.training_state.current_global_step % self.training_config.save_steps == 0
+            return (self.training_state.current_global_step + 1) % self.training_config.save_steps == 0
         else:
             return False
 
@@ -340,9 +338,9 @@ class BasePipeline(metaclass=ABCMeta):
         if self.log_config.log_strategy is None or self.log_config.log_dir is None or self.log_config.log_dir == "":
             return False
         if flag == "epochs":
-            return self.training_state.current_epoch % self.log_config.log_epochs == 0
+            return (self.training_state.current_epoch + 1) % self.log_config.log_epochs == 0
         elif flag == "steps":
-            return self.training_state.current_global_step % self.log_config.log_steps == 0
+            return (self.training_state.current_global_step + 1) % self.log_config.log_steps == 0
         else:
             return False
 
@@ -350,9 +348,9 @@ class BasePipeline(metaclass=ABCMeta):
         if self.training_config.eval_strategy is None:
             return False
         if flag == "epochs":
-            return self.training_state.current_epoch % self.training_config.eval_epochs == 0
+            return (self.training_state.current_epoch + 1) % self.training_config.eval_epochs == 0
         elif flag == "steps":
-            return self.training_state.current_global_step % self.training_config.eval_steps == 0
+            return (self.training_state.current_global_step + 1) % self.training_config.eval_steps == 0
         else:
             return False
 

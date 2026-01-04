@@ -3,9 +3,14 @@ from tabulate import tabulate
 from torch.nn import Module
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, Dataset
+from torch.nn import Module
+from torch.optim import Optimizer
+from torch.utils.data import Dataset
+from tabulate import tabulate
+import torch
 
 
-def table_print_dict(sample, prefix_priority_list=["pocket_", "ligand_"], show_value=False):
+def table_print_dict(sample, prefix_priority_list=[], show_value=False):
     table_data = []
     # Collect and sort keys first
     keys = list(sample.keys())
@@ -13,8 +18,8 @@ def table_print_dict(sample, prefix_priority_list=["pocket_", "ligand_"], show_v
     def key_priority(k):
         for i, prefix in enumerate(prefix_priority_list):
             if k.startswith(prefix):
-                return (i, k.split("_")[-1])
-        return (len(prefix_priority_list), k)
+                return (i,)
+        return (len(prefix_priority_list),)
 
     keys.sort(key=key_priority)
 
@@ -36,43 +41,61 @@ def show_info(
     optimizer: Optimizer | None = None,
     batch_size: int = 7,
 ) -> None:
-    def get_model_size(model: Module) -> dict[str, float]:
-        # each parameter occupies 4 bytes (32-bit float)
-        param_size = 4
-        total_params = sum(p.numel() for p in model.parameters())
-        total_size_bytes = total_params * param_size
+    def print_kv_table(info: dict, title: str) -> None:
+        table_data = []
+        for k, v in info.items():
+            if isinstance(v, float):
+                v = f"{v:.6g}"
+            table_data.append([k, v])
+        print("\n" + title)
+        print(tabulate(table_data, headers=["Key", "Value"], tablefmt="github"))
 
-        # convert to KB, MB and GB
-        total_size_kb = total_size_bytes / 1024
-        total_size_mb = total_size_bytes / (1024 * 1024)  # bytes to MB
-        total_size_gb = total_size_bytes / (1024 * 1024 * 1024)  # MB to GB
+    def get_model_info(model: Module) -> dict:
+        param_size = 4  # float32
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        total_bytes = total_params * param_size
 
         return {
-            "total_params": total_params,
-            "total_size_kb": total_size_kb,
-            "total_size_mb": total_size_mb,
-            "total_size_gb": total_size_gb,
+            "class": model.__class__.__name__,
+            "total_params": f"{total_params:,}",
+            "trainable_params": f"{trainable_params:,}",
+            "size_mb": total_bytes / (1024**2),
+            "size_gb": total_bytes / (1024**3),
         }
 
     if model is not None:
-        print("model info:")
-        print(type(model))
-        print(
-            f"the total number of parameters = {sum(p.numel() for p in model.parameters())},{get_model_size(model)['total_size_gb']:.2f} GB"
-        )
+        model_info = get_model_info(model)
+        print_kv_table(model_info, title="Model Information")
+
     if dataset is not None:
-        print("dataset info:")
-        print(type(dataset))
-        eval_set_loader = DataLoader(dataset=dataset, batch_size=batch_size, drop_last=True)
-        for X, y in eval_set_loader:
-            print(f"Shape of X: {X.shape} {X.dtype}")
-            print(f"Shape of y: {y.shape} {y.dtype}")
-            break
-        del eval_set_loader
+        dataset_info = {
+            "class": dataset.__class__.__name__,
+            "batch_size": batch_size,
+        }
+
+        try:
+            dataset_info["dataset_size"] = len(dataset)
+        except TypeError:
+            dataset_info["dataset_size"] = "unknown"
+
+        print_kv_table(dataset_info, title="Dataset Information")
+
     if optimizer is not None:
-        print("optimizer info:")
-        print(type(optimizer))
-        print(optimizer)
+        opt_info = {
+            "class": optimizer.__class__.__name__,
+            "num_param_groups": len(optimizer.param_groups),
+        }
+
+        print_kv_table(opt_info, title="Optimizer Information")
+
+        for i, group in enumerate(optimizer.param_groups):
+            group_info = {
+                "lr": group.get("lr", "unknown"),
+                "weight_decay": group.get("weight_decay", 0.0),
+                "num_params": sum(p.numel() for p in group["params"]),
+            }
+            print_kv_table(group_info, title=f"Optimizer Param Group {i}")
 
 
 def find_tensor_devices(obj, visited=None, path=""):

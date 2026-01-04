@@ -55,9 +55,9 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
     from ls_mlkit.diffusion.euclidean_ddim_diffuser import EuclideanDDIMConfig, EuclideanDDIMDiffuser
     from ls_mlkit.diffusion.euclidean_ddpm_diffuser import EuclideanDDPMConfig, EuclideanDDPMDiffuser
-    from ls_mlkit.diffusion.model_interface import Model4DiffuserInterface
     from ls_mlkit.diffusion.time_scheduler import DiffusionTimeScheduler
     from ls_mlkit.util.mask.image_masker import ImageMasker
+    from ls_mlkit.model.model_for_pipeline import ModelForPipeline
 
     if model is None:
         model = UNet2DModel(
@@ -84,21 +84,10 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             ),
         )
 
-    class MyModel(Model4DiffuserInterface, Module):
+    class MyModel(Module):
         def __init__(self, model: torch.nn.Module):
             Module.__init__(self)
-            Model4DiffuserInterface.__init__(self)
             self.model: UNet2DModel = model
-
-        def prepare_batch_data_for_input(self, batch: dict[str, Any]) -> dict[str, Any]:
-            new_batch = {
-                "clean_data": batch["clean_data"],
-                "padding_mask": torch.ones_like(batch["clean_data"], dtype=torch.bool),
-            }
-            return new_batch
-
-        def get_model_device(self) -> torch.device:
-            return next(self.model.parameters()).device
 
         def forward(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:
             p_noise: Tensor = self.model.forward(x_t, t, return_dict=False)[0]
@@ -141,11 +130,12 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         masker=ImageMasker(),
         model=model,
     )
+    model = ModelForPipeline(model=diffuser)
 
     if final_model_ckpt_path is not None and final_model_ckpt_path != "":
-        diffuser = load_checkpoint(diffuser, final_model_ckpt_path)
+        model = load_checkpoint(model, final_model_ckpt_path)
 
-    return diffuser
+    return model
 
 
 def get_collate_fn(cfg: DictConfig):
@@ -155,8 +145,10 @@ def get_collate_fn(cfg: DictConfig):
         batch = []
         for example in examples:
             batch.append(example["images"])
+        clean_data = torch.stack(batch)
         return {
             "clean_data": torch.stack(batch),
+            "padding_mask": torch.ones_like(clean_data),
             "mode": cfg.diffuser.mode,  # Use the mode from config
         }
 
