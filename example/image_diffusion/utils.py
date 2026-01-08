@@ -145,10 +145,10 @@ def get_collate_fn(cfg: DictConfig):
         batch = []
         for example in examples:
             batch.append(example["images"])
-        clean_data = torch.stack(batch)
+        gt_data = torch.stack(batch)
         return {
-            "clean_data": torch.stack(batch),
-            "padding_mask": torch.ones_like(clean_data),
+            "gt_data": torch.stack(batch),
+            "padding_mask": torch.ones_like(gt_data),
             "mode": cfg.diffuser.mode,  # Use the mode from config
         }
 

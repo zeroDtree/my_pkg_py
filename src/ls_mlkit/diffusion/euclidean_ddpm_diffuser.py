@@ -105,7 +105,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
     def compute_loss(self, **batch) -> dict:
         mode: Literal["epsilon", "x_0", "score"] = batch.get("mode", "epsilon")
-        x_0 = batch["clean_data"]
+        x_0 = batch["gt_data"]
         padding_mask = batch["padding_mask"]
         device = x_0.device
 
@@ -129,7 +129,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         x_t, noise = (forward_result["x_t"], forward_result["noise"])
         batch["t"] = t
         batch["x_t"] = x_t
-        with TemporaryKeyRemover(mapping=batch, keys=["clean_data", "mode"]):
+        with TemporaryKeyRemover(mapping=batch, keys=["gt_data", "mode"]):
             model_output = self.model(**batch)
 
         # Simplified loss calculation following standard DDPM
@@ -151,7 +151,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         return {
             "loss": loss,
             # ======================================
-            "clean_data": x_0,
+            "gt_data": x_0,
             "t": t,
             "x_t": x_t,
             "noise": noise,
@@ -430,7 +430,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
         def _hook_fn(**kwargs):
             nonlocal conditioner_list
-            x_0 = kwargs.get("clean_data")
+            x_0 = kwargs.get("gt_data")
             x_t = kwargs.get("x_t")
             t = kwargs.get("t", None)
             noise = kwargs.get("noise", None)
@@ -452,7 +452,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
                             train=True,
                             **{
                                 "tgt_mask": tgt_mask,
-                                "clean_data": x_0,
+                                "gt_data": x_0,
                                 "padding_mask": padding_mask,
                                 "posterior_mean_fn": self.get_posterior_mean_fn(score=p_uc_score, score_fn=None),
                             },

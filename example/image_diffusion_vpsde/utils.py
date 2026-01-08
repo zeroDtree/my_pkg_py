@@ -91,8 +91,8 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
         def prepare_batch_data_for_input(self, batch: dict[str, Any]) -> dict[str, Any]:
             new_batch = {
-                "clean_data": batch["clean_data"],
-                "padding_mask": torch.ones_like(batch["clean_data"], dtype=torch.bool),
+                "gt_data": batch["gt_data"],
+                "padding_mask": torch.ones_like(batch["gt_data"], dtype=torch.bool),
             }
             return new_batch
 
@@ -145,7 +145,7 @@ def get_collate_fn(cfg: DictConfig):
         for example in examples:
             batch.append(example["images"])
         return {
-            "clean_data": torch.stack(batch),
+            "gt_data": torch.stack(batch),
         }
 
     return collate_fn

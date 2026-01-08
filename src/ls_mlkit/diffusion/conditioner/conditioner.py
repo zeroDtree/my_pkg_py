@@ -79,11 +79,11 @@ class LGDConditioner(Conditioner):
         self.posterior_mean_fn = None
 
     @abc.abstractmethod
-    def compute_conditional_loss(self, p_clean_data: Tensor, padding_mask: Tensor) -> Tensor:
+    def compute_conditional_loss(self, p_gt_data: Tensor, padding_mask: Tensor) -> Tensor:
         r"""Compute the conditional loss
 
         Args:
-            p_clean_data (``Tensor``): predicted clean data.
+            p_gt_data (``Tensor``): predicted clean data.
             padding_mask (``Tensor``): the padding mask
 
         Returns:
@@ -107,8 +107,8 @@ class LGDConditioner(Conditioner):
         with torch.autograd.set_detect_anomaly(True, check_nan=True):
             with torch.enable_grad():
                 x_t = x_t.detach().clone().requires_grad_(True)
-                p_clean_data = self.posterior_mean_fn(x_t, t, padding_mask)
-                conditional_loss = self.compute_conditional_loss(p_clean_data, padding_mask)
+                p_gt_data = self.posterior_mean_fn(x_t, t, padding_mask)
+                conditional_loss = self.compute_conditional_loss(p_gt_data, padding_mask)
                 grad = torch.autograd.grad(conditional_loss, x_t)[0]
         score = -grad
         return score * self.guidance_scale

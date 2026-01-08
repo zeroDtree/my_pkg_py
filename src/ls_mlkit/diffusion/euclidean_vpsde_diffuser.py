@@ -104,7 +104,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
     def compute_loss(self, batch: dict[str, Any], *args: Any, **kwargs: Any) -> dict:
         batch = self.model.prepare_batch_data_for_input(batch)
         assert isinstance(batch, dict), "batch must be a dictionary"
-        x_0 = batch["clean_data"]
+        x_0 = batch["gt_data"]
         padding_mask = batch["padding_mask"]
         device = x_0.device
         macro_shape = self.get_macro_shape(x_0)
@@ -123,7 +123,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         gt_uc_score = self.sde.get_score(x_t=x_t, mean=mean, std=std)
 
         model_input_dict = batch
-        model_input_dict.pop("clean_data")
+        model_input_dict.pop("gt_data")
         model_input_dict.pop("padding_mask")
         model_input_dict.pop("t", None)
         model_output = self.model(x_t, t, padding_mask, **model_input_dict)
@@ -136,7 +136,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
 
         return {
             "loss": loss,
-            "clean_data": x_0,
+            "gt_data": x_0,
             "t": t,
             "x_t": x_t,
             "padding_mask": padding_mask,
@@ -263,7 +263,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
             nonlocal conditioner_list
 
             loss = kwargs.get("loss")
-            x_0 = kwargs.get("clean_data")
+            x_0 = kwargs.get("gt_data")
             x_t = kwargs.get("x_t")
             t = kwargs.get("t", None)
             padding_mask = kwargs.get("padding_mask")
@@ -284,7 +284,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
                             train=True,
                             **{
                                 "tgt_mask": tgt_mask,
-                                "clean_data": x_0,
+                                "gt_data": x_0,
                                 "padding_mask": padding_mask,
                                 "posterior_mean_fn": self.get_posterior_mean_fn(score=p_uc_score, score_fn=None),
                             },

@@ -42,7 +42,7 @@ def get_collate_fn(cfg: DictConfig):
         # Extract the "images" from each example and stack them
         batch = examples
         x_1 = torch.stack(batch)
-        return {"clean_data": x_1, "padding_mask": torch.ones_like(x_1)}
+        return {"gt_data": x_1, "padding_mask": torch.ones_like(x_1)}
 
     return collate_fn
 
@@ -163,15 +163,15 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             """
             Get something that is needed to compute the conditional loss and that not in (x, t, padding_mask, posterior_mean_fn)
 
-            Required: tgt_mask, label (or clean_data and padding_mask)
+            Required: tgt_mask, label (or gt_data and padding_mask)
             """
             tgt_mask = kwargs.get("tgt_mask", None)
             assert tgt_mask is not None, "tgt_mask is required"
             posterior_mean_fn = kwargs.get("posterior_mean_fn", None)
             assert posterior_mean_fn is not None, "posterior_mean_fn is required"
             if train:
-                clean_data = kwargs.get("clean_data")
-                logits = classifier_model(clean_data)
+                gt_data = kwargs.get("gt_data")
+                logits = classifier_model(gt_data)
                 p_l = torch.argmax(logits, dim=-1)
                 return {
                     "tgt_mask": tgt_mask,
@@ -193,10 +193,10 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             self.posterior_mean_fn = kwargs.get("posterior_mean_fn")
             self.ready = True
 
-        def compute_conditional_loss(self, p_clean_data, padding_mask):
+        def compute_conditional_loss(self, p_gt_data, padding_mask):
             c = self.label
             c = c.squeeze(-1).long()
-            logits = self.classifier_model(p_clean_data)
+            logits = self.classifier_model(p_gt_data)
             loss = F.cross_entropy(logits, c)
             return loss
 
