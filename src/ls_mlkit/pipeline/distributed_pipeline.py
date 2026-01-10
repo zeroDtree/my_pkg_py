@@ -183,10 +183,14 @@ class DistributedPipeline(BasePipeline):
         ctx = self.accelerator.no_sync(model=model) if not should_sync else nullcontext()
         with ctx:
             loss = self.compute_loss(model, batch)
+            self.trigger_callbacks(event=CallbackEvent.PRE_BACKWARD)
             self.accelerator.backward(loss)
+            self.trigger_callbacks(event=CallbackEvent.POST_BACKWARD)
         if should_sync:
             self.gradient_clip()
+            self.trigger_callbacks(event=CallbackEvent.PRE_OPTIMIZER_STEP)
             optimizer.step()
+            self.trigger_callbacks(event=CallbackEvent.POST_OPTIMIZER_STEP)
             optimizer.zero_grad()
 
         if scheduler is not None:
