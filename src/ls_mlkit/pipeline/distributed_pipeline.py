@@ -185,10 +185,7 @@ class DistributedPipeline(BasePipeline):
             loss = self.compute_loss(model, batch)
             self.accelerator.backward(loss)
         if should_sync:
-            result["grad_norm_pre_clip"] = self.observer.get_gradient_norm()
             self.gradient_clip()
-            result["grad_norm_post_clip"] = self.observer.get_gradient_norm()
-            # print(f"grad_norm_pre_clip = {result['grad_norm_pre_clip']}, grad_norm_post_clip = {result['grad_norm_post_clip']}")
             optimizer.step()
             optimizer.zero_grad()
 
@@ -196,7 +193,6 @@ class DistributedPipeline(BasePipeline):
             scheduler.step()
 
         result["loss"] = loss.item()
-        result["weight_norm"] = self.observer.get_weight_norm()
         result["lr"] = scheduler.get_last_lr()[0]
         result["global_step"] = self.training_state.current_global_step
 

@@ -2,12 +2,7 @@ import torch
 from tabulate import tabulate
 from torch.nn import Module
 from torch.optim import Optimizer
-from torch.utils.data import DataLoader, Dataset
-from torch.nn import Module
-from torch.optim import Optimizer
 from torch.utils.data import Dataset
-from tabulate import tabulate
-import torch
 
 
 def table_print_dict(sample, prefix_priority_list=[], show_value=False):

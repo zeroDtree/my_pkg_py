@@ -12,7 +12,6 @@ from tqdm.auto import tqdm
 
 import wandb
 
-from ..util.observer import Observer
 from .callback import BaseCallback, CallbackEvent, CallbackManager
 
 
@@ -172,7 +171,6 @@ class BasePipeline(metaclass=ABCMeta):
             collate_fn=collate_fn,
             num_workers=self.training_config.num_workers,
         )
-        self.observer = Observer(model=self.model)
 
         if load_checkpoint and self.training_config.save_dir is not None and self.training_config.save_dir != "":
             self.load()

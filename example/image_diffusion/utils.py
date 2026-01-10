@@ -56,8 +56,8 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from ls_mlkit.diffusion.euclidean_ddim_diffuser import EuclideanDDIMConfig, EuclideanDDIMDiffuser
     from ls_mlkit.diffusion.euclidean_ddpm_diffuser import EuclideanDDPMConfig, EuclideanDDPMDiffuser
     from ls_mlkit.diffusion.time_scheduler import DiffusionTimeScheduler
-    from ls_mlkit.util.mask.image_masker import ImageMasker
     from ls_mlkit.model.model_for_pipeline import ModelForPipeline
+    from ls_mlkit.util.mask.image_masker import ImageMasker
 
     if model is None:
         model = UNet2DModel(
