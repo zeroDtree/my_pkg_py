@@ -158,7 +158,6 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         continuous_t1 = self.time_scheduler.discrete_time_to_continuous_time(t)
         continuous_t2 = self.time_scheduler.discrete_time_to_continuous_time(next_t)
         x_t2 = self.sde.forward_from_t1_to_t2(x, continuous_t1, continuous_t2)
-        x_t2 = self.masker.apply_mask(x_t2, padding_mask)
         return x_t2
 
     def step(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:

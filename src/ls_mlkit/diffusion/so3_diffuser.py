@@ -179,7 +179,6 @@ class SO3Diffuser(LieGroupDiffuser):
         rotation_skew_symmetric = vector_to_skew_symmetric(rotation_vector)  # (*macro_shape,n 3, 3)
         rotation_matrix = self.so3.exp(v=rotation_skew_symmetric)  # (*macro_shape,n, 3, 3)
         x_t = self.so3.multiply(rotation_matrix, x_0)  # (*macro_shape, n, 3, 3)
-        self.masker.apply_mask(x_t, mask)
         return {"x_t": x_t}
 
     def get_ground_truth_score(self, x_0: Tensor, x_t: Tensor, discrete_t: Tensor, padding_mask: Tensor) -> Tensor:

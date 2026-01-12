@@ -201,7 +201,6 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         b = self.complete_micro_shape(b)
         noise = torch.randn_like(x)
         x_next = a * x + b * noise
-        x_next = self.masker.apply_mask(x_next, padding_mask)
         return x_next
 
     def forward_process(
@@ -211,7 +210,6 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         expectation, standard_deviation = self.q_xt_x_0(x_0, discrete_t, mask)
         noise = torch.randn_like(expectation, device=device)
         x_t = expectation + standard_deviation * noise
-        x_t = self.masker.apply_mask(x_t, mask)
         return {"x_t": x_t, "noise": noise, "expectation": expectation, "standard_deviation": standard_deviation}
 
     def step(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:
