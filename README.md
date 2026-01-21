@@ -15,11 +15,18 @@
 ```bash
 uv add git+https://git@github.com/zeroDtree/my_pkg_py
 ```
-or
 
+or
 ```bash
 uv add git+ssh://git@github.com/zeroDtree/my_pkg_py
 ```
+
+or
+```bash
+git clone git@github.com:zeroDtree/my_pkg_py.git
+uv add --editable my_pkg_py
+```
+
 
 #### 1.1.1. With optional dependencies
 
