@@ -1,8 +1,8 @@
 import math
+from typing import Literal
 
 import torch
 from diffusers.optimization import get_cosine_schedule_with_warmup
-from typing import Literal
 from torch.optim.lr_scheduler import LambdaLR
 
 

@@ -7,10 +7,9 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 import accelerate
 import datasets
 import torch
+import wandb
 from accelerate import Accelerator
 from accelerate.utils import DistributedDataParallelKwargs
-
-import wandb
 
 from ..util.decorators import inherit_docstrings
 from .callback import BaseCallback, CallbackEvent

@@ -21,3 +21,22 @@ def get_macroscopic_shape(obj: Union[Tensor, tuple], ndim_microscopic: int) -> T
         raise ValueError(f"Invalid type: {type(obj)}")
 
     return result
+
+
+def show_shape(x, prefix=""):
+    import numpy as np
+    import torch
+
+    if torch.is_tensor(x):
+        print(prefix, "Tensor", tuple(x.shape), x.dtype, x.device)
+    elif isinstance(x, dict):
+        for k, v in x.items():
+            show_shape(v, prefix + f"{k}: ")
+    elif isinstance(x, (list, tuple)):
+        print(prefix, type(x), len(x))
+        for i, v in enumerate(x[:3]):
+            show_shape(v, prefix + f"[{i}] ")
+    elif isinstance(x, np.ndarray):
+        print(prefix, "ndarray", x.shape, x.dtype)
+    else:
+        print(prefix, type(x))

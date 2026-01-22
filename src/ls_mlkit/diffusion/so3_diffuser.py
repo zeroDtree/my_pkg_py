@@ -3,8 +3,6 @@ from typing import Any, Callable, Tuple
 import torch
 from torch import Tensor
 
-from ..util.sde.sde_lib import VESDE
-
 from ..util.decorators import inherit_docstrings
 from ..util.interp import interp
 from ..util.manifold.so3 import SO3
@@ -15,8 +13,9 @@ from ..util.manifold.so3_utils import (
     vector_to_skew_symmetric,
 )
 from ..util.mask.masker import Masker as BioSO3Masker
-from .lie_group_diffuser import LieGroupDiffuser, LieGroupDiffuserConfig
 from ..util.sde.base_sde import SDE
+from ..util.sde.sde_lib import VESDE
+from .lie_group_diffuser import LieGroupDiffuser, LieGroupDiffuserConfig
 from .time_scheduler import DiffusionTimeScheduler
 
 EPS = 1e-6

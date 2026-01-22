@@ -7,10 +7,9 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import datasets
 import torch
+import wandb
 from torch import Tensor
 from tqdm.auto import tqdm
-
-import wandb
 
 from .callback import BaseCallback, CallbackEvent, CallbackManager
 
