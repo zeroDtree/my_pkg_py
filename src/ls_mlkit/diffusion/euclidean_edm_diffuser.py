@@ -215,7 +215,6 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
         sqrt_weight = weight.sqrt()
         loss = self.loss_fn(sqrt_weight * D_yn, sqrt_weight * x_0, padding_mask)
         p_x_0 = D_yn
-        print("loss:", loss)
 
         return {
             "loss": loss,
