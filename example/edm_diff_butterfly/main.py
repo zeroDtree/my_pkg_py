@@ -1,10 +1,11 @@
-# official packages
 from ls_mlkit.util.huggingface import HF_MIRROR
+
 HF_MIRROR.set_hf_mirror()
+import os
+
 from accelerate import Accelerator
-from diffusers.utils.pil_utils import make_image_grid, numpy_to_pil
 from omegaconf import DictConfig, OmegaConf
-from utils import (
+from utils_for_main import (
     get_collate_fn,
     get_dataset,
     get_learing_rate_scheduler,
@@ -20,7 +21,6 @@ from ls_mlkit.pipeline.pipeline import LogConfig
 from ls_mlkit.util.log import get_and_create_new_log_dir, get_logger
 from ls_mlkit.util.seed import seed_everything
 from ls_mlkit.util.show import show_info
-
 
 
 def main(cfg: DictConfig):
@@ -56,12 +56,18 @@ def main(cfg: DictConfig):
                 **cfg.optimizer,
                 **cfg.train,
                 **cfg.log,
-                **cfg.diffuser,
+                **cfg.gm,
             },
         )
 
     # model
-    model = get_model(cfg)["model"]
+    result_get_model = get_model(cfg)
+    model = result_get_model["model"]
+    # result_get_model["train_hook_handlers"]
+    # sampling_hook_handlers = result_get_model["sampling_hook_handlers"]
+
+    # for handler in train_hook_handlers:
+    #     handler.disable()
 
     # dataset
     train_set, val_set, test_set = get_dataset(cfg)
@@ -78,9 +84,7 @@ def main(cfg: DictConfig):
     PipelineClass, TrainingConfigClass = get_train_class()
     training_config = TrainingConfigClass(**cfg.train)
     if accelerator.is_local_main_process:
-        training_config.save_dir = get_new_save_dir(
-            training_config.save_dir, cfg, suffix=f"-{cfg.optimizer.name}-{cfg.diffuser.mode}"
-        )
+        training_config.save_dir = get_new_save_dir(training_config.save_dir, cfg)
 
     print(training_config.__dict__)
 
@@ -102,57 +106,88 @@ def main(cfg: DictConfig):
 
     if accelerator.is_local_main_process:
 
-        model = get_model(
+        from diffusers.utils.pil_utils import make_image_grid, numpy_to_pil
+        from ls_mlkit.diffusion.euclidean_edm_diffuser import EuclideanEDMDiffuser
+
+        model: EuclideanEDMDiffuser = get_model(
             cfg,
-            # model=unet_model,
             final_model_ckpt_path=f"{pipeline.get_latest_checkpoint_dir()}/model.safetensors",
         )["model"].model
         model = model.to(accelerator.device)
+        print(type(model))
 
-        result: dict = model.sampling(
-            shape=(16, 3, cfg.dataset.image_size, cfg.dataset.image_size),
-            device=accelerator.device,
-            mode=cfg.diffuser.mode,
-        )
-        image = result["x"]
-        print(f"Generated tensor shape: {image.shape}")
-        image = (image / 2 + 0.5).clamp(0, 1)
-        image = image.cpu().permute(0, 2, 3, 1).numpy()  # (batch_size, height, width, channels)
-
-        image = numpy_to_pil(image)
-        image_grid = make_image_grid(image, rows=4, cols=4)
-        image_grid.save(f"generated_sample_{cfg.optimizer.name}_{cfg.diffuser.mode}_{cfg.diffuser.name}.png")
-
-        E_x0_xt_list = result["E_x0_xt_list"]
-
-        # Visualize E_x0_xt_list by uniformly sampling
-        if E_x0_xt_list is not None and len(E_x0_xt_list) > 0:
-            num_samples = min(8, len(E_x0_xt_list))  # Sample up to 8 timesteps
-            indices = (
-                [int(i * (len(E_x0_xt_list) - 1) / (num_samples - 1)) for i in range(num_samples)]
-                if num_samples > 1
-                else [0]
+        if cfg.sampling:
+            result: dict = model.sampling(
+                shape=(16, 3, cfg.dataset.image_size, cfg.dataset.image_size),
+                device=accelerator.device,
             )
+            image = result["x"]
+            print(f"Generated tensor shape: {image.shape}")
+            image = (image / 2 + 0.5).clamp(0, 1)
+            image = image.cpu().permute(0, 2, 3, 1).numpy()  # (batch_size, height, width, channels)
 
-            sampled_images = []
-            for idx in indices:
-                img_tensor = E_x0_xt_list[idx]
-                # Take only the first image from the batch
-                img_tensor = img_tensor[0:1]  # Shape: (1, 3, H, W)
-                # Normalize to [0, 1]
-                img_tensor = (img_tensor / 2 + 0.5).clamp(0, 1)
-                img_tensor = img_tensor.cpu().permute(0, 2, 3, 1).numpy()
-                sampled_images.extend(numpy_to_pil(img_tensor))
+            image = numpy_to_pil(image)
+            image_grid = make_image_grid(image, rows=4, cols=4)
+            image_grid.save(f"samping_uc.png")
 
-            # Create grid and save
-            grid_rows = 2 if num_samples > 4 else 1
-            grid_cols = (num_samples + grid_rows - 1) // grid_rows
-            denoising_grid = make_image_grid(sampled_images, rows=grid_rows, cols=grid_cols)
-            denoising_grid.save(f"denoising_process_{cfg.optimizer.name}_{cfg.diffuser.mode}_{cfg.diffuser.name}.png")
-            print(
-                f"Saved denoising process visualization with {num_samples} timesteps from {len(E_x0_xt_list)} total steps"
-            )
+            E_x0_xt_list = result["E_x0_xt_list"]
 
+            # Visualize E_x0_xt_list by uniformly sampling
+            if E_x0_xt_list is not None and len(E_x0_xt_list) > 0:
+                num_samples = min(8, len(E_x0_xt_list))  # Sample up to 8 timesteps
+                indices = (
+                    [int(i * (len(E_x0_xt_list) - 1) / (num_samples - 1)) for i in range(num_samples)]
+                    if num_samples > 1
+                    else [0]
+                )
+
+                sampled_images = []
+                for idx in indices:
+                    img_tensor = E_x0_xt_list[idx]
+                    # Take only the first image from the batch
+                    img_tensor = img_tensor[0:1]  # Shape: (1, 3, H, W)
+                    # Normalize to [0, 1]
+                    img_tensor = (img_tensor / 2 + 0.5).clamp(0, 1)
+                    img_tensor = img_tensor.cpu().permute(0, 2, 3, 1).numpy()
+                    sampled_images.extend(numpy_to_pil(img_tensor))
+
+                # Create grid and save
+                grid_rows = 2 if num_samples > 4 else 1
+                grid_cols = (num_samples + grid_rows - 1) // grid_rows
+                denoising_grid = make_image_grid(sampled_images, rows=grid_rows, cols=grid_cols)
+                denoising_grid.save(f"denoising_process.png")
+                print(
+                    f"Saved denoising process visualization with {num_samples} timesteps from {len(E_x0_xt_list)} total steps"
+                )
+
+        if cfg.inpainting:
+            import torch
+            from torch import Tensor
+
+            x_0 = torch.stack(train_set[0:16]["images"]).to(accelerator.device)
+            print(f"x_0 shape: {x_0.shape}")
+
+            # Create inpainting mask to remove right half of the image
+            # inpainting_mask: 1 = inpaint (remove), 0 = keep original
+            batch_size, channels, height, width = x_0.shape
+            inpainting_mask = torch.zeros(batch_size, channels, height, width, device=accelerator.device)
+            # Set right half to 1 (will be inpainted/removed)
+            inpainting_mask[:, :, :, width // 2 :] = 1.0
+
+            result: Tensor = model.inpainting(
+                x=x_0,
+                padding_mask=torch.ones(*x_0.shape, device=accelerator.device),
+                inpainting_mask=inpainting_mask,
+                device=accelerator.device,
+                n_repaint_steps=cfg.gm.n_repaint_steps,
+            )["x"]
+            print(f"Inpainted tensor shape: {result.shape}")
+            image = result
+            image = (image / 2 + 0.5).clamp(0, 1)
+            image = image.cpu().permute(0, 2, 3, 1).numpy()  # (batch_size, height, width, channels)
+            image = numpy_to_pil(image)
+            image_grid = make_image_grid(image, rows=4, cols=4)
+            image_grid.save(f"inpainted_sample_{cfg.gm.n_repaint_steps}.png")
     return
 
 
@@ -219,15 +254,34 @@ if __name__ == "__main__":
                 "group": "default",
                 "entity": "superposed-tree",
             },
-            "diffuser": {
-                "name": "DDPM",
-                "n_discretization_steps": 1000,
-                "mode": "epsilon",  # Add mode field to config
+            "gm": {
+                "name": "EuclideanEDMDiffuser",
+                "n_discretization_steps": 256,
+                "ndim_micro_shape": 3,
+                "P_mean": -1.2,
+                "P_std": 1.2,
+                "sigma_data": 0.5,
+                "sigma_min": 0.002,
+                "sigma_max": 80.0,
+                "rho": 7.0,
+                "gs": 15.0,
+                "n_repaint_steps": 3,
+                "use_2nd_order_correction": True,
+                "use_ode_flow": False,
+                "use_clip": False,
+                "clip_sample_range": 1.0,
+                "use_dyn_thresholding": False,
+                "dynamic_thresholding_ratio": 0.995,
+                "sample_max_value": 1.0,
             },
+            "sampling": False,
+            "inpainting": True,
         }
     )
-    for optimizer_name in ["AdamW"]:
-        for diffusion_mode in ["epsilon"]:
-            cfg.optimizer.name = optimizer_name
-            cfg.diffuser.mode = diffusion_mode
-            main(cfg)
+    import shutil
+
+    # if os.path.exists("checkpoints"):
+    #     shutil.rmtree("checkpoints")
+    # Accelerator(cpu=True, mixed_precision="fp16")
+
+    main(cfg)

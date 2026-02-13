@@ -38,7 +38,7 @@ if __name__ == "__main__":
         continuous_time_start=0.0,
         continuous_time_end=1.0,
         num_train_timesteps=1000,
-        idx_start=0,
+        idx_start=1,
     )
     print(scheduler.get_timestep_indices_schedule())
     print(scheduler.get_continuous_timesteps_schedule())

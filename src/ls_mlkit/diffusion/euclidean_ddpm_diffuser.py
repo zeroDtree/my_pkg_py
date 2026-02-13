@@ -112,7 +112,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             stage=GMHookStageType.POST_GET_MACRO_SHAPE, tgt_key_name="macro_shape", macro_shape=macro_shape, batch=batch
         )
 
-        t = self.time_scheduler.sample_a_discrete_time_step_uniformly(macro_shape).to(device)  # (b, )
+        t = self.time_scheduler.sample_timestep_index_uniformly(macro_shape).to(device)  # (b, )
         t = self.hook_manager.run_hooks(
             stage=GMHookStageType.POST_SAMPLING_TIME_STEP, tgt_key_name="t", t=t, batch=batch
         )

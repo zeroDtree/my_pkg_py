@@ -80,10 +80,23 @@ class BaseTimeScheduler(ABC):
             num_inference_steps if num_inference_steps is not None else num_train_timesteps
         )
         self.idx_start: int = idx_start  # Starting value for timestep indices
+        self.idx_end: int = idx_start + num_train_timesteps - 1  # Last value for timestep indices
         self._timesteps_idx: Tensor = None  # Stores timestep indices
         self._continuous_timesteps: Tensor = None  # Stores continuous times
         self.T: float = continuous_time_end - continuous_time_start
         self.initialize_timesteps_schedule()
+
+    def get_timestep_index_start(self) -> int:
+        return self.idx_start
+
+    def get_timestep_index_end(self) -> int:
+        return self.idx_end
+
+    def get_continuous_time_start(self) -> float:
+        return self.continuous_time_start
+
+    def get_coutinuous_time_end(self) -> float:
+        return self.continuous_time_end
 
     @abstractmethod
     def initialize_timesteps_schedule(self) -> None:
@@ -259,7 +272,7 @@ if __name__ == "__main__":
         continuous_time_start=0.0,
         continuous_time_end=1.0,
         num_train_timesteps=num_train_timesteps,
-        idx_start=0,
+        idx_start=1,
     )
 
     # Sample timestep indices and continuous times
@@ -351,5 +364,3 @@ if __name__ == "__main__":
     output_path = output_dir / "time_distribution_test.png"
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"Figure saved to: {output_path}")
-
-    plt.show()

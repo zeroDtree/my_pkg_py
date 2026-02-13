@@ -62,11 +62,12 @@ def main(cfg: DictConfig):
     # model
     result_get_model = get_model(cfg)
     model = result_get_model["model"]
-    result_get_model["train_hook_handlers"]
+
     sampling_hook_handlers = result_get_model["sampling_hook_handlers"]
 
-    # for handler in train_hook_handlers:
-    #     handler.disable()
+    train_hook_handlers = result_get_model["train_hook_handlers"]
+    for handler in train_hook_handlers:
+        handler.disable()
 
     # dataset
     train_set, val_set, test_set = get_dataset(cfg)
@@ -261,11 +262,18 @@ if __name__ == "__main__":
                 "n_discretization_steps": 20,
                 "P_mean": -1.2,
                 "P_std": 1.5,
-                "sigma_data": 0.72,
+                "sigma_data": 0.74,
                 "sigma_min": 4e-4,
                 "sigma_max": 160.0,
                 "rho": 7.0,
-                "gs": 15.0,
+                "gs": 10.0,
+                "use_2nd_order_correction": False,
+                "use_ode_flow": True,
+                "use_clip": False,
+                "clip_sample_range": 1.0,
+                "use_dyn_thresholding": False,
+                "dynamic_thresholding_ratio": 0.995,
+                "sample_max_value": 1.0,
             },
         }
     )
@@ -275,6 +283,6 @@ if __name__ == "__main__":
         shutil.rmtree("checkpoints")
     # Accelerator(cpu=True, mixed_precision="fp16")
 
-    for n_discretization_steps in [20]:
+    for n_discretization_steps in [200]:
         cfg.gm.n_discretization_steps = n_discretization_steps
         main(cfg)

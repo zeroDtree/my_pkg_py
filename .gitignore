@@ -172,4 +172,5 @@ checkpoint/
 .sync.ffs_db
 
 docs/uml/
+*.pdf
 # docs/source/api/

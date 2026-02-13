@@ -75,7 +75,7 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
         def forward(self, **batch: dict[str, Any]) -> Tensor:
             x_t: Tensor = batch["x_t"]
-            t: Tensor = batch["sigma"]
+            t: Tensor = batch["t"]
             # t = t.unsqueeze(-1)
             return {"x": self.model(x_t, t, return_dict=False)}
 

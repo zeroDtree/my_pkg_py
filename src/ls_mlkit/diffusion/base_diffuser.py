@@ -50,15 +50,13 @@ class BaseDiffuser(BaseGenerativeModel):
 
     @abstractmethod
     def forward_process(
-        self, x_0: Tensor, discrete_t: Tensor, mask: Tensor, *args: list[Any], **kwargs: dict[Any, Any]
+        self,
+        x_0: Tensor,
+        t_a: Tensor,
+        t_b: Tensor,
+        mask: Tensor,
+        is_continuous_time: bool = True,
+        *args: list[Any],
+        **kwargs: dict[Any, Any],
     ) -> dict:
-        r"""Forward process, from :math:`x_0` to :math:`x_t`
-
-        Args:
-            x_0 (``Tensor``): :math:`x_0`
-            discrete_t (``Tensor``): the discrete time steps :math:`t`
-            mask (``Tensor``): the mask of the sample
-
-        Returns:
-            ``dict``: a dictionary that must contain the key "x_t"
-        """
+        assert (t_b >= t_a).all()

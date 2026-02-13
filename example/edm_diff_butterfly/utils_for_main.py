@@ -52,12 +52,15 @@ def get_dataset(cfg: DictConfig):
 
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from diffusers import UNet2DModel
-
-    from ls_mlkit.diffusion.euclidean_ddim_diffuser import EuclideanDDIMConfig, EuclideanDDIMDiffuser
-    from ls_mlkit.diffusion.euclidean_ddpm_diffuser import EuclideanDDPMConfig, EuclideanDDPMDiffuser
+    from torch import nn
+    from ls_mlkit.diffusion.euclidean_edm_diffuser import EuclideanEDMConfig, EuclideanEDMDiffuser
     from ls_mlkit.diffusion.time_scheduler import DiffusionTimeScheduler
     from ls_mlkit.model.model_for_pipeline import ModelForPipeline
-    from ls_mlkit.util.mask.image_masker import ImageMasker
+    from ls_mlkit.util.mask.masker import Masker
+    from ls_mlkit.util.context.temp_remove import TemporaryKeyRemover
+
+    GMConfigClass = EuclideanEDMConfig
+    GMClass = EuclideanEDMDiffuser
 
     if model is None:
         model = UNet2DModel(
@@ -84,21 +87,21 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             ),
         )
 
-    class MyModel(Module):
+    class BaseModel(Module):
         def __init__(self, model: torch.nn.Module):
             Module.__init__(self)
             self.model: UNet2DModel = model
 
         def forward(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:
-            p_noise: Tensor = self.model.forward(x_t, t, return_dict=False)[0]
+            p_noise: Tensor = self.model.forward(x_t, t.squeeze(), return_dict=False)[0]
             return {"x": p_noise}
 
-    model = MyModel(model=model)
+    base_model = BaseModel(model=model)
     time_scheduler = DiffusionTimeScheduler(
         continuous_time_start=0.0,
         continuous_time_end=1.0,
-        num_train_timesteps=cfg.diffuser.n_discretization_steps,
-        num_inference_steps=cfg.diffuser.get("n_inference_steps", None),
+        num_train_timesteps=cfg.gm.n_discretization_steps,
+        num_inference_steps=cfg.gm.get("n_inference_steps", None),
     )
 
     def mse(predicted: Tensor, ground_truth: Tensor, mask: Tensor):
@@ -106,38 +109,24 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
         return mse_loss(predicted, ground_truth)
 
-    DiffuserConfigClass = None
-    DiffuserClass = None
-    if cfg.diffuser.name == "DDPM":
-        DiffuserConfigClass = EuclideanDDPMConfig
-        DiffuserClass = EuclideanDDPMDiffuser
-    elif cfg.diffuser.name == "DDIM":
-        DiffuserConfigClass = EuclideanDDIMConfig
-        DiffuserClass = EuclideanDDIMDiffuser
-    else:
-        raise ValueError(f"Invalid diffuser name: {cfg.diffuser.name}")
-    diffusion_config = DiffuserConfigClass(
-        n_discretization_steps=cfg.diffuser.n_discretization_steps,
-        ndim_micro_shape=3,
-        n_inference_steps=cfg.diffuser.get("n_inference_steps", None),
-        eta=cfg.diffuser.get("eta", 0.0),
-        use_clip=True,
-    )
-    diffuser = DiffuserClass(
-        config=diffusion_config,
+    gm_cfg = cfg.gm
+    with TemporaryKeyRemover(gm_cfg, "name"):
+        gm_config = GMConfigClass(**dict(gm_cfg))
+
+    gm = GMClass(
+        config=gm_config,
         time_scheduler=time_scheduler,
         loss_fn=mse,
-        masker=ImageMasker(),
-        model=model,
+        masker=Masker(),
+        model=base_model,
     )
-    model = ModelForPipeline(model=diffuser)
+
+    model_for_pipeline = ModelForPipeline(model=gm)
 
     if final_model_ckpt_path is not None and final_model_ckpt_path != "":
-        model = load_checkpoint(model, final_model_ckpt_path)
+        model_for_pipeline = load_checkpoint(model_for_pipeline, final_model_ckpt_path)
 
-    return {
-        "model": model,
-    }
+    return {"model": model_for_pipeline}
 
 
 def get_collate_fn(cfg: DictConfig):
@@ -149,9 +138,8 @@ def get_collate_fn(cfg: DictConfig):
             batch.append(example["images"])
         gt_data = torch.stack(batch)
         return {
-            "gt_data": torch.stack(batch),
+            "gt_data": gt_data,
             "padding_mask": torch.ones_like(gt_data),
-            "mode": cfg.diffuser.mode,  # Use the mode from config
         }
 
     return collate_fn

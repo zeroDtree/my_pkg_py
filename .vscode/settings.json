@@ -1,5 +1,4 @@
 {
-    "python.languageServer": "Pylance",
     "terminal.integrated.profiles.linux": {
         "bash": {
             "path": "bash",
