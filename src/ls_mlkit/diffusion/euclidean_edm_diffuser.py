@@ -190,6 +190,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
         sigma = sigma_diff
         batch["t"] = t
         batch["x_t"] = self.config.c_in(sigma) * x_t
+        batch["gm_kwargs"] = {"c_in": self.config.c_in(sigma)}
 
         with TemporaryKeyRemover(mapping=batch, keys=["gt_data"]):
             model_output = self.model(**batch)
@@ -288,7 +289,13 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
         # p_x_0 prediction
         c_in_cur = config.c_in(sigma_cur)
         scaled_x_t = c_in_cur * x_t
-        batch_dict = {"x_t": scaled_x_t, "t": sigma_cur, "padding_mask": padding_mask, **kwargs}
+        batch_dict = {
+            "x_t": scaled_x_t,
+            "t": sigma_cur,
+            "padding_mask": padding_mask,
+            **kwargs,
+            "gm_kwargs": {"c_in": c_in_cur},
+        }
         F_x = self.model(**batch_dict)["x"]
         p_x_0 = self._compute_denoised(x_t, F_x, sigma_cur)
 
@@ -333,6 +340,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
                 "t": sigma_next,
                 "padding_mask": padding_mask,
                 **kwargs,
+                "gm_kwargs": {"c_in": c_in_next},
             }
             F_x_next = self.model(**batch_dict_next)["x"]
             p_x_0_next = self._compute_denoised(x_next, F_x_next, sigma_next)
@@ -385,10 +393,17 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
             For EDM, the posterior mean is the denoised prediction D_\theta(x_t, \sigma_t).
             """
+            # TODO: get x0 by score function
             nonlocal score, score_fn
             sigma = self.config.sigma(t, is_continuous_time=True)
             c_in = self.config.c_in(sigma)
-            batch_dict = {"x_t": c_in * x_t, "t": t, "sigma": sigma, "padding_mask": padding_mask}
+            batch_dict = {
+                "x_t": c_in * x_t,
+                "t": t,
+                "sigma": sigma,
+                "padding_mask": padding_mask,
+                "gm_kwargs": {"c_in": c_in},
+            }
             F_x = self.model(**batch_dict)["x"]
             return self._compute_denoised(x_t, F_x, sigma)
 
@@ -551,7 +566,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
             # Compute conditioned denoised prediction: x_0 = x_t + sigma² * score
             # From: score = -(x_t - x_0) / sigma² => x_0 = x_t + sigma² * score
-            sigma_squared = (sigma**2)
+            sigma_squared = sigma**2
             p_c_x_0 = x_t + sigma_squared * (p_uc_score + acc_c_score)
 
             # Return p_c_x_0 directly (hook manager expects target value when tgt_key_name is set)

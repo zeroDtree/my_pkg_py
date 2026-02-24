@@ -267,9 +267,6 @@ class ANM:
             # Include all possible interactions
             adj_matrix = torch.ones(adj_matrix_shape, dtype=bool, device=device)
         else:
-            """
-            TODO: check if this is correct
-            """
             dist_matrix = torch.cdist(coord, coord, p=2).reshape(adj_matrix_shape)
             sq_dist_matrix = dist_matrix**2
             adj_matrix = sq_dist_matrix <= cutoff_distance**2
