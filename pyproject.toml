@@ -13,9 +13,12 @@ license = "MIT"
 license-files = ["LICEN[CS]E*"]
 
 dependencies = [
-    "torch==2.6.0",
-    "torchvision==0.21.0",
-    "torchaudio==2.6.0",
+    "torch>=2.6.0 ; sys_platform == 'linux'",
+    "torch ; sys_platform != 'linux'",
+    "torchvision>=0.21.0 ; sys_platform == 'linux'",
+    "torchvision ; sys_platform != 'linux'",
+    "torchaudio>=2.6.0 ; sys_platform == 'linux'",
+    "torchaudio ; sys_platform != 'linux'",
     "torch-cluster",
     "torch-scatter",
     "torch_geometric",
@@ -70,7 +73,11 @@ hard = ["deepspeed", "flash-attn"]
 
 bio = ["biotite"]
 
-dev = [{ include-group = "lint" }, { include-group = "dl" }, { include-group = "bio" }]
+dev = [
+    { include-group = "lint" },
+    { include-group = "dl" },
+    { include-group = "bio" },
+]
 
 [project.optional-dependencies]
 bio = ["biotite"]
@@ -78,6 +85,8 @@ bio = ["biotite"]
 [tool.uv.extra-build-dependencies]
 deepspeed = [{ requirement = "torch", match-runtime = true }]
 flash-attn = [{ requirement = "torch", match-runtime = true }]
+torch-cluster = ["torch"]
+torch-scatter = ["torch"]
 cchardet = ["cython"]
 
 [tool.uv.extra-build-variables]
@@ -90,11 +99,15 @@ explicit = true
 
 
 [tool.uv.sources]
-torch = { index = "pytorch" }
-torchvision = { index = "pytorch" }
-torchaudio = { index = "pytorch" }
-torch-scatter = { url = "https://data.pyg.org/whl/torch-2.6.0%2Bcu124/torch_scatter-2.1.2%2Bpt26cu124-cp312-cp312-linux_x86_64.whl" }
-torch-cluster = { url = "https://data.pyg.org/whl/torch-2.6.0%2Bcu124/torch_cluster-1.6.3%2Bpt26cu124-cp312-cp312-linux_x86_64.whl" }
+torch = [{ index = "pytorch", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch", marker = "sys_platform == 'linux'" }]
+torchaudio = [{ index = "pytorch", marker = "sys_platform == 'linux'" }]
+torch-scatter = [
+    { url = "https://data.pyg.org/whl/torch-2.6.0%2Bcu124/torch_scatter-2.1.2%2Bpt26cu124-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'" },
+]
+torch-cluster = [
+    { url = "https://data.pyg.org/whl/torch-2.6.0%2Bcu124/torch_cluster-1.6.3%2Bpt26cu124-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'" },
+]
 
 
 [project.urls]
