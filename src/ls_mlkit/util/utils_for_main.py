@@ -30,9 +30,9 @@ def get_learing_rate_scheduler(optimizer, accelerator: Accelerator, train_set, c
     from ls_mlkit.scheduler.lr_scheduler_factory import get_lr_scheduler
 
     cfg.train.batch_size
-    real_batch_size = cfg.train.get(
-        "real_batch_size", cfg.train.batch_size * cfg.train.gradient_accumulation_steps * accelerator.num_processes
-    )
+    real_batch_size = cfg.train.get("real_batch_size", None)
+    if real_batch_size is None:
+        real_batch_size = cfg.train.batch_size * cfg.train.gradient_accumulation_steps * accelerator.num_processes
     effective_batch_size = accelerator.num_processes * cfg.train.batch_size
     assert real_batch_size % effective_batch_size == 0, "real_batch_size must be divisible by effective_batch_size"
     gradient_accumulation_steps = real_batch_size // effective_batch_size
