@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 
 class CallbackEvent(Enum):
@@ -55,11 +55,11 @@ class CallbackManager:
         if callback is not None:
             self.callbacks.append(callback)
 
-    def add_callbacks(self, callbacks: List[BaseCallback]):
+    def add_callbacks(self, callbacks: Optional[List[BaseCallback]]):
         """Add a list of callbacks
 
         Args:
-            callbacks (List[BaseCallback]): the callbacks to add
+            callbacks (Optional[List[BaseCallback]]): the callbacks to add
         """
         if callbacks is not None and len(callbacks) > 0:
             self.callbacks.extend(callbacks)

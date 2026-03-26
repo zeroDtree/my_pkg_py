@@ -133,18 +133,13 @@ class MyDistributedPipeline(DistributedPipeline):
         model: torch.nn.Module,
         train_dataset: torch.utils.data.Dataset | datasets.Dataset,
         eval_dataset: torch.utils.data.Dataset | datasets.Dataset,
-        optimizers: tuple[
-            torch.optim.Optimizer,
-            torch.optim.lr_scheduler.LambdaLR | torch.optim.lr_scheduler.CosineAnnealingLR,
-        ],
+        optimizers: tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler],
         training_config: MyTrainingConfig,
         log_config: LogConfig,
         logger: logging.Logger | None,
         collate_fn: Callable | None = None,
         seed: int = 42,
         callbacks: Optional[List[BaseCallback]] = None,
-        *args,
-        **kwargs,
     ):
         super().__init__(
             model=model,
@@ -156,12 +151,10 @@ class MyDistributedPipeline(DistributedPipeline):
             collate_fn=collate_fn,
             seed=seed,
             callbacks=callbacks,
-            *args,
-            **kwargs,
         )
         self.eval_dataset = eval_dataset
         self.eval_dataloader = DataLoader(
-            self.eval_dataset,
+            cast(torch.utils.data.Dataset, self.eval_dataset),
             batch_size=training_config.batch_size,
             shuffle=False,
             num_workers=training_config.num_workers,
@@ -180,7 +173,7 @@ class MyDistributedPipeline(DistributedPipeline):
             loss = model_output["loss"]
         else:
             loss = model_output
-        self.trigger_callbacks(event=CallbackEvent.POST_COMPUTE_LOSS, atch=batch, loss=loss)
+        self.trigger_callbacks(event=CallbackEvent.POST_COMPUTE_LOSS, batch=batch, loss=loss)
         return loss
 
     def eval_a_step(self, batch: dict) -> dict:
@@ -199,16 +192,17 @@ class MyDistributedPipeline(DistributedPipeline):
 
     @override
     def train(self):
-        if self.training_config.train_strategy in ["epochs"]:
+        training_config = cast(MyTrainingConfig, self.training_config)
+        if training_config.train_strategy in ["epochs"]:
             return super().train()
         self.trigger_callbacks(event=CallbackEvent.TRAINING_START)
-        if self.training_config.n_steps is not None:
+        if training_config.n_steps is not None:
             self.training_set_iterator = inf_iterator(self.dataloader)
         else:
             raise ValueError("n_steps must be specified")
         i = 0
         result = None
-        for _ in tqdm(range(self.training_config.n_steps), desc="training", mininterval=0):
+        for _ in tqdm(range(training_config.n_steps), desc="training", mininterval=0):
             if i < self.training_state.current_global_step:
                 i += 1
                 continue
@@ -249,7 +243,7 @@ class MyDistributedPipeline(DistributedPipeline):
             "min_eval_loss": min_eval_loss,
             "std_eval_loss": std_eval_loss,
         }
-        if self.accelerator.is_local_main_process:
+        if self.accelerator.is_local_main_process and self.logger is not None:
             self.logger.info(f"[Testing] {result}")
             wandb.log(result, step=self.training_state.current_global_step)
 

@@ -63,18 +63,22 @@ def diff_regions_by_lcs(s1, s2):
             continue
 
         # Right part first so left part is processed first (LIFO order).
-        stack.append((
-            t1[pos1 + lcs_len:],
-            t2[pos2 + lcs_len:],
-            off1 + pos1 + lcs_len,
-            off2 + pos2 + lcs_len,
-        ))
-        stack.append((
-            t1[:pos1],
-            t2[:pos2],
-            off1,
-            off2,
-        ))
+        stack.append(
+            (
+                t1[pos1 + lcs_len :],
+                t2[pos2 + lcs_len :],
+                off1 + pos1 + lcs_len,
+                off2 + pos2 + lcs_len,
+            )
+        )
+        stack.append(
+            (
+                t1[:pos1],
+                t2[:pos2],
+                off1,
+                off2,
+            )
+        )
 
     # Results come out in left-to-right order because of the LIFO push order.
     return results
@@ -113,8 +117,8 @@ def find_all_differences_with_context(s1, s2, context_size=2):
     merged_s1 = _merge_ranges(s1_ext)
     merged_s2 = _merge_ranges(s2_ext)
 
-    s1_parts = [s1[s: e + 1] for s, e in merged_s1]
-    s2_parts = [s2[s: e + 1] for s, e in merged_s2]
+    s1_parts = [s1[s : e + 1] for s, e in merged_s1]
+    s2_parts = [s2[s : e + 1] for s, e in merged_s2]
 
     return "".join(s1_parts), "".join(s2_parts)
 

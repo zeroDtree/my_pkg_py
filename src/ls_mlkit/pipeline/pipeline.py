@@ -3,7 +3,7 @@ import os
 import re
 import shutil
 from abc import ABCMeta, abstractmethod
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union, cast
 
 import datasets
 import torch
@@ -21,13 +21,13 @@ class TrainingConfig:
         batch_size: int = 4,
         device: str = "cuda",
         save_strategy: Literal["epochs", "steps", None] = "epochs",
-        save_dir: str = None,
+        save_dir: str | None = None,
         save_steps: int = 10,
         save_epochs: int = 1,
         save_total_limit: int = 5,
         num_workers: int = 4,
         train_shuffle: bool = True,
-        eval_strategy: Literal["epochs", "steps"] = None,
+        eval_strategy: Literal["epochs", "steps"] | None = None,
         eval_steps: int = 500,
         eval_epochs: int = 1,
         grad_clip_strategy: Literal["norm", "value", None] = "norm",
@@ -128,10 +128,10 @@ class BasePipeline(metaclass=ABCMeta):
         self,
         model: torch.nn.Module,
         dataset: Union[torch.utils.data.Dataset, datasets.Dataset],
-        optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR],
+        optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler],
         training_config: TrainingConfig,
         log_config: LogConfig,
-        logger: logging.Logger,
+        logger: logging.Logger | None,
         collate_fn: Optional[Callable] = None,
         callbacks: Optional[List[BaseCallback]] = None,
         load_checkpoint: bool = True,
@@ -143,16 +143,16 @@ class BasePipeline(metaclass=ABCMeta):
         Args:
             model (torch.nn.Module): the model to train
             dataset (Union[torch.utils.data.Dataset, datasets.Dataset]): the dataset to train on
-            optimizers (Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR]): the optimizers to use for training
+            optimizers (Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler]): the optimizers to use for training
             training_config (TrainingConfig): the training configuration
             log_config (LogConfig): the logging configuration
-            logger (logging.Logger): the logger to use for logging
+            logger (logging.Logger | None): the logger to use for logging
             collate_fn (Optional[Callable], optional): the collate function to use for the dataset. Defaults to None.
         """
         super().__init__()
         # callbacks
         self.callback_manager = CallbackManager()
-        self.callback_manager.add_callbacks(callbacks=callbacks)
+        self.callback_manager.add_callbacks(callbacks=callbacks or [])
 
         # model, dataset, optimizers, log, training,
         self.model = model
@@ -164,7 +164,7 @@ class BasePipeline(metaclass=ABCMeta):
         self.logger = logger
 
         self.dataloader = torch.utils.data.DataLoader(
-            self.dataset,
+            cast(torch.utils.data.Dataset, self.dataset),
             batch_size=self.training_config.batch_size,
             shuffle=self.training_config.train_shuffle,
             collate_fn=collate_fn,
@@ -228,7 +228,7 @@ class BasePipeline(metaclass=ABCMeta):
             self.training_state.current_step_in_epoch += 1
             self.training_state.current_global_step += 1
 
-        if self._can_log(flag="epochs"):
+        if self._can_log(flag="epochs") and self.logger is not None:
             self.logger.info(
                 f"[Training] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {result['loss']}"
             )
@@ -257,7 +257,11 @@ class BasePipeline(metaclass=ABCMeta):
                 batch[key] = value.to(device)
         model = model.to(device)
 
-        loss = self.compute_loss(model, batch)
+        raw_loss = self.compute_loss(model, batch)
+        if isinstance(raw_loss, Tensor):
+            loss = raw_loss
+        else:
+            loss = cast(Tensor, cast(Dict[str, Any], raw_loss)["loss"])
         loss = loss / self.training_config.gradient_accumulation_steps
         self.trigger_callbacks(event=CallbackEvent.PRE_BACKWARD, loss=loss)
         loss.backward()
@@ -273,7 +277,7 @@ class BasePipeline(metaclass=ABCMeta):
         if scheduler is not None:
             scheduler.step()
 
-        if self._can_log(flag="steps"):
+        if self._can_log(flag="steps") and logger is not None:
             logger.info(
                 f"[Training] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {loss.item()}"
             )
@@ -307,9 +311,12 @@ class BasePipeline(metaclass=ABCMeta):
 
     def _cleanup_old_checkpoints(self, save_dir):
         checkpoints = [d for d in os.listdir(save_dir) if d.startswith("checkpoint_")]
-        checkpoints.sort(
-            key=lambda x: int(re.search(r"global(\d+)", x).group(1)),
-        )
+
+        def _checkpoint_sort_key(name: str) -> int:
+            m = re.search(r"global(\d+)", name)
+            return int(m.group(1)) if m is not None else 0
+
+        checkpoints.sort(key=_checkpoint_sort_key)
 
         while len(checkpoints) > self.training_config.save_total_limit:
             oldest_checkpoint = checkpoints.pop(0)
@@ -435,35 +442,36 @@ class BasePipeline(metaclass=ABCMeta):
             self.logger.info(f"Model loaded from {checkpoint_dir}")
         self.trigger_callbacks(event=CallbackEvent.POST_LOAD)
 
-    def get_latest_checkpoint_dir(self) -> str:
+    def get_latest_checkpoint_dir(self) -> str | None:
         save_dir = self.training_config.save_dir
         if save_dir is None or save_dir == "" or not os.path.exists(save_dir) or len(os.listdir(save_dir)) <= 0:
-            return
+            return None
+
+        def _checkpoint_sort_key(name: str) -> int:
+            m = re.search(r"global(\d+)", name)
+            return int(m.group(1)) if m is not None else 0
+
         checkpoints = [d for d in os.listdir(save_dir) if d.startswith("checkpoint_")]
-        checkpoints.sort(
-            key=lambda x: int(re.search(r"global(\d+)", x).group(1)),
-            reverse=True,
-        )
+        checkpoints.sort(key=_checkpoint_sort_key, reverse=True)
         if len(checkpoints) <= 0:
-            return
+            return None
         checkpoint_dir = checkpoints.pop(0)
         checkpoint_dir = os.path.join(save_dir, checkpoint_dir)
         return checkpoint_dir
 
-    def add_callbacks(self, callbacks: List[BaseCallback]):
+    def add_callbacks(self, callbacks: List[BaseCallback] | None):
         """Add a list of callbacks
 
         Args:
-            callbacks (List[BaseCallback]): the callbacks to add
+            callbacks (List[BaseCallback] | None): the callbacks to add
         """
         self.callback_manager.add_callbacks(callbacks=callbacks)
 
-    def trigger_callbacks(self, event: CallbackEvent, *args, **kwargs):
+    def trigger_callbacks(self, event: CallbackEvent, **kwargs):
         """Trigger all callbacks for a given event
 
         Args:
             event (CallbackEvent): the event to trigger
-            *args: the arguments to pass to the callback
             **kwargs: the keyword arguments to pass to the callback
         """
         self.callback_manager.trigger(
@@ -476,6 +484,5 @@ class BasePipeline(metaclass=ABCMeta):
             dataloader=self.dataloader,
             optimizer=self.optimizer,
             scheduler=self.scheduler,
-            *args,
             **kwargs,
         )

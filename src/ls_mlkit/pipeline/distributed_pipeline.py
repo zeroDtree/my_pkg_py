@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 from contextlib import nullcontext
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union, cast
 
 import accelerate
 import datasets
@@ -24,13 +24,13 @@ class DistributedTrainingConfig(TrainingConfig):
         batch_size: int = 4,
         device: str = "cuda",
         save_strategy: Literal["epochs", "steps", None] = "epochs",
-        save_dir: str = None,
+        save_dir: str | None = None,
         save_steps: int = 10,
         save_epochs: int = 1,
         save_total_limit: int = 5,
         num_workers: int = 4,
         train_shuffle: bool = True,
-        eval_strategy: Literal["epochs", "steps"] = None,
+        eval_strategy: Literal["epochs", "steps"] | None = None,
         eval_steps: int = 500,
         eval_epochs: int = 1,
         grad_clip_strategy: Literal["norm", "value", None] = "norm",
@@ -39,7 +39,6 @@ class DistributedTrainingConfig(TrainingConfig):
         gradient_accumulation_steps: int = 1,
         mixed_precision: str = "fp16",
         find_unused_parameters: bool = False,
-        *args,
         **kwargs,
     ):
         """Initialize the DistributedTrainingConfig
@@ -83,7 +82,6 @@ class DistributedTrainingConfig(TrainingConfig):
             max_grad_norm=max_grad_norm,
             max_grad_value=max_grad_value,
             gradient_accumulation_steps=gradient_accumulation_steps,
-            *args,
             **kwargs,
         )
         self.mixed_precision = mixed_precision
@@ -96,14 +94,13 @@ class DistributedPipeline(BasePipeline):
         self,
         model: torch.nn.Module,
         dataset: Union[torch.utils.data.Dataset, datasets.Dataset],
-        optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR],
+        optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LRScheduler],
         training_config: DistributedTrainingConfig,
         log_config: LogConfig,
-        logger: logging.Logger,
+        logger: logging.Logger | None,
         collate_fn: Optional[Callable] = None,
         seed: int = 42,
         callbacks: Optional[List[BaseCallback]] = None,
-        *args,
         **kwargs,
     ):
         """Initialize the DistributedPipeline
@@ -137,7 +134,6 @@ class DistributedPipeline(BasePipeline):
             logger=logger,
             callbacks=callbacks,
             load_checkpoint=False,
-            *args,
             **kwargs,
         )
 
@@ -186,7 +182,11 @@ class DistributedPipeline(BasePipeline):
         ) % self.training_config.gradient_accumulation_steps == 0
         ctx = self.accelerator.no_sync(model=model) if not should_sync else nullcontext()
         with ctx:
-            loss = self.compute_loss(model, batch)
+            raw_loss = self.compute_loss(model, batch)
+            if isinstance(raw_loss, torch.Tensor):
+                loss = raw_loss
+            else:
+                loss = cast(torch.Tensor, cast(Dict[str, Any], raw_loss)["loss"])
             self.trigger_callbacks(event=CallbackEvent.PRE_BACKWARD)
             self.accelerator.backward(loss)
             self.trigger_callbacks(event=CallbackEvent.POST_BACKWARD)
@@ -205,7 +205,7 @@ class DistributedPipeline(BasePipeline):
         result["global_step"] = self.training_state.current_global_step
 
         # Only log on local main process
-        if self._can_log(flag="steps") and self.accelerator.is_local_main_process:
+        if self._can_log(flag="steps") and self.accelerator.is_local_main_process and logger is not None:
             logger.info(
                 f"[Training] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {loss.item()}"
             )
@@ -249,11 +249,11 @@ class DistributedPipeline(BasePipeline):
 
             os.rename(temp_checkpoint_dir, final_checkpoint_dir)
             self._cleanup_old_checkpoints(save_dir=save_dir)
-            if self.accelerator.is_local_main_process:
+            if self.accelerator.is_local_main_process and self.logger is not None:
                 self.logger.info(f"Model saved to {final_checkpoint_dir}")
 
         except Exception as e:
-            if self.accelerator.is_local_main_process:
+            if self.accelerator.is_local_main_process and self.logger is not None:
                 self.logger.error(f"Failed to save checkpoint: {e}")
             shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
             raise
@@ -273,26 +273,24 @@ class DistributedPipeline(BasePipeline):
         for base_name in ["training_state", "training_config", "log_config"]:
             file_path = os.path.join(checkpoint_dir, f"{base_name}.pth")
             if not os.path.exists(file_path):
-                if self.accelerator.is_main_process:
+                if self.accelerator.is_main_process and self.logger is not None:
                     self.logger.info(f"File {file_path} does not exist")
                 continue
             setattr(self, base_name, torch.load(file_path, weights_only=False))
 
-        if self.accelerator.is_main_process:
+        if self.accelerator.is_main_process and self.logger is not None:
             self.logger.info(f"Model loaded from {checkpoint_dir}")
         self.trigger_callbacks(event=CallbackEvent.POST_LOAD)
 
-    def trigger_callbacks(self, event: CallbackEvent, *args, **kwargs):
+    def trigger_callbacks(self, event: CallbackEvent, **kwargs):
         """Trigger all callbacks for a given event
 
         Args:
             event (CallbackEvent): the event to trigger
-            *args: the arguments to pass to the callback
             **kwargs: the keyword arguments to pass to the callback
         """
         super().trigger_callbacks(
             event=event,
             accelerator=self.accelerator,
-            *args,
             **kwargs,
         )
