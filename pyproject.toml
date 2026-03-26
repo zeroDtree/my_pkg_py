@@ -49,7 +49,7 @@ utils = [
     "multiprocess",
     "sphinx",
 ]
-lint = ["black", "pylint", "autoflake"]
+lint = ["ruff","ty"]
 dl = [
     "tensorboard",
     "opt_einsum",

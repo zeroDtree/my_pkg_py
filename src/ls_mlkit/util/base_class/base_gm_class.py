@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from enum import Enum
-from typing import Any, Callable
+from typing import Any, Callable, Optional, cast
 
 from torch import Tensor
 
@@ -36,17 +36,10 @@ class BaseGenerativeModelConfig(BaseLossConfig):
         self,
         ndim_micro_shape: int,
         n_discretization_steps: int,
-        n_inference_steps: int = None,
-        *args: list[Any],
+        n_inference_steps: Optional[int] = None,
         **kwargs: dict[Any, Any],
     ):
-        """
-        Args:
-            ndim_micro_shape (``int``): number of dimensions of a sample
-            n_discretization_steps (``int``): number of discretization steps
-            n_inference_steps (``int``, *optional*): number of inference steps
-        """
-        super().__init__(ndim_micro_shape=ndim_micro_shape, *args, **kwargs)
+        super().__init__(ndim_micro_shape=ndim_micro_shape, **kwargs)
         self.n_discretization_steps: int = n_discretization_steps
         if n_inference_steps is not None:
             self.n_inference_steps: int = n_inference_steps
@@ -66,23 +59,14 @@ class BaseGenerativeModel(BaseLoss):
         self.hook_manager = GMHookManager()
 
     @abstractmethod
-    def prior_sampling(self, shape: tuple[int, ...]) -> Tensor:
-        r"""prior sampling
-
-        Args:
-            shape (``tuple[int, ...]``): the shape of the sample
-
-        Returns:
-            ``Tensor``: data from prior distribution
-        """
+    def prior_sampling(self, shape: tuple[int, ...]) -> Tensor: ...
 
     @abstractmethod
     def step(
         self,
         x_t: Tensor,
         t: Tensor,
-        padding_mask: Tensor = None,
-        *args: list[Any],
+        padding_mask: Optional[Tensor] = None,
         **kwargs: dict[Any, Any],
     ) -> dict:
         """_summary_
@@ -105,22 +89,8 @@ class BaseGenerativeModel(BaseLoss):
         return_all=False,
         sampling_condition=None,
         sapmling_condition_key="sapmling_condition",
-        *args,
         **kwargs,
-    ) -> dict:
-        """_summary_
-
-        Args:
-            shape (``_type_``): _description_
-            device (``_type_``): _description_
-            x_init_posterior (``_type_``, *optional*): _description_. Defaults to None.
-            return_all (``bool``, *optional*): _description_. Defaults to False.
-            sampling_condition (``_type_``, *optional*): _description_. Defaults to None.
-            sapmling_condition_key (``str``, *optional*): _description_. Defaults to "sapmling_condition".
-
-        Returns:
-            ``dict``: _description_
-        """
+    ) -> dict: ...
 
     @abstractmethod
     def inpainting(
@@ -129,39 +99,22 @@ class BaseGenerativeModel(BaseLoss):
         padding_mask,
         inpainting_mask,
         device,
-        x_init_posterior=None,
-        inpainting_mask_key="inpainting_mask",
-        sapmling_condition_key="sapmling_condition",
-        return_all=False,
-        sampling_condition=None,
-        *args,
+        x_init_posterior: Optional[Tensor] = None,
+        inpainting_mask_key: str = "inpainting_mask",
+        sapmling_condition_key: Optional[str] = "sapmling_condition",
+        return_all: bool = False,
+        sampling_condition: Optional[Any] = None,
         **kwargs,
-    ) -> dict:
-        """_summary_
+    ) -> dict: ...
 
-        Args:
-            x (``_type_``): _description_
-            padding_mask (``_type_``): _description_
-            inpainting_mask (``_type_``): _description_
-            device (``_type_``): _description_
-            x_init_posterior (``_type_``, *optional*): _description_. Defaults to None.
-            inpainting_mask_key (``str``, *optional*): _description_. Defaults to "inpainting_mask".
-            sapmling_condition_key (``str``, *optional*): _description_. Defaults to "sapmling_condition".
-            return_all (``bool``, *optional*): _description_. Defaults to False.
-            sampling_condition (``_type_``, *optional*): _description_. Defaults to None.
-
-        Returns:
-            ``dict``: _description_
-        """
-
-    def forward(self, **batch) -> dict | Tensor:
+    def forward(self, **batch) -> dict:
         r"""Forward function, input batch of data and return the dictionary containing the loss
 
         Args:
             batch (``dict[str, Any]``): the batch of data
 
         Returns:
-            ``dict`` | ``Tensor``: a dictionary that must contain the key "loss" or a tensor of loss
+            ``dict``: a dictionary that must contain the key "loss"
         """
         result = self.compute_loss(**batch)
         hook_result = self.hook_manager.run_hooks(stage=GMHookStageType.POST_COMPUTE_LOSS, tgt_key_name=None, **result)
@@ -171,7 +124,11 @@ class BaseGenerativeModel(BaseLoss):
         return result
 
     def register_post_compute_loss_hook(
-        self, name: str, fn: Callable[..., Any], priority: int = 0, enabled: bool = True
+        self,
+        name: str,
+        fn: Callable[..., Any],
+        priority: int = 0,
+        enabled: bool = True,
     ) -> GMHookHandler:
         r"""Register a hook to be called after loss computation
 
@@ -181,16 +138,26 @@ class BaseGenerativeModel(BaseLoss):
             priority (``int``, optional): the priority of the hook. Defaults to 0.
             enabled (``bool``, optional): whether the hook is enabled. Defaults to True.
         """
-        hook = Hook(name=name, stage=GMHookStageType.POST_COMPUTE_LOSS, fn=fn, priority=priority, enabled=enabled)
+        hook = Hook(
+            name=name,
+            stage=GMHookStageType.POST_COMPUTE_LOSS,
+            fn=fn,
+            priority=priority,
+            enabled=enabled,
+        )
         handler = self.hook_manager.register_hook(hook)
+        handler = cast(GMHookHandler, handler)
         return handler
 
     def register_hooks(self, hooks: list[GMHook]) -> list[GMHookHandler]:
         handler_list = []
         for hook in hooks:
             handler = self.hook_manager.register_hook(hook)
+            handler = cast(GMHookHandler, handler)
             handler_list.append(handler)
         return handler_list
 
     def register_hook(self, hook: GMHook) -> GMHookHandler:
-        self.hook_manager.register_hook(hook)
+        handler = self.hook_manager.register_hook(hook)
+        handler = cast(GMHookHandler, handler)
+        return handler

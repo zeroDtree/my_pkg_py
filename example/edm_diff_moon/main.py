@@ -2,6 +2,7 @@
 
 import os
 
+import wandb
 from accelerate import Accelerator
 from omegaconf import DictConfig, OmegaConf
 from utils_for_main import (
@@ -15,7 +16,6 @@ from utils_for_main import (
     get_train_class,
 )
 
-import wandb
 from ls_mlkit.pipeline.pipeline import LogConfig
 from ls_mlkit.util.log import get_and_create_new_log_dir, get_logger
 from ls_mlkit.util.seed import seed_everything
@@ -41,7 +41,7 @@ def main(cfg: DictConfig):
     run_name = get_run_name(cfg)
 
     if accelerator.is_local_main_process:
-        logger.info("Config: \n" + OmegaConf.to_yaml(cfg))  # type: ignore
+        logger.info("Config: \n" + OmegaConf.to_yaml(cfg))  # noqa: F401
         wandb.init(
             reinit=cfg.wandb.reinit,
             mode=cfg.wandb.mode,
@@ -166,7 +166,10 @@ def main(cfg: DictConfig):
         # if you just want random labels –– otherwise load real labels here
         c_eval = torch.randint(0, 2, (n_samples, 1), dtype=torch.float32, device=accelerator.device)  # (n_samples, 1)
         result: dict = model.sampling(
-            shape=(256, 2), device=accelerator.device, return_all=True, sampling_condition=c_eval
+            shape=(256, 2),
+            device=accelerator.device,
+            return_all=True,
+            sampling_condition=c_eval,
         )
         x_list = result["x_list"]
         x_list = [x.detach().cpu() for x in x_list]

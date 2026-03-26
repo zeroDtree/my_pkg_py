@@ -23,7 +23,6 @@ EPS = 1e-6
 
 @inherit_docstrings
 class SO3DiffuserConfig(LieGroupDiffuserConfig):
-
     def __init__(
         self,
         ndim_micro_shape: int,
@@ -52,7 +51,6 @@ class SO3DiffuserConfig(LieGroupDiffuserConfig):
 
 @inherit_docstrings
 class SO3Diffuser(LieGroupDiffuser):
-
     def __init__(
         self,
         config: SO3DiffuserConfig,
@@ -136,7 +134,9 @@ class SO3Diffuser(LieGroupDiffuser):
         axis = torch.randn(macro_shape + (3,))
         axis_in_s2 = axis / torch.norm(axis, dim=-1, keepdim=True)
         angle = inverse_transform_sampling(
-            shape=macro_shape, cdf=self.igso3_cdf[discrete_t], discrete_omega=self.igso3_discrete_omega
+            shape=macro_shape,
+            cdf=self.igso3_cdf[discrete_t],
+            discrete_omega=self.igso3_discrete_omega,
         )
         rotation_vector = angle * axis_in_s2
         rotation_skew_symmetric = vector_to_skew_symmetric(rotation_vector)
@@ -144,7 +144,12 @@ class SO3Diffuser(LieGroupDiffuser):
         return rotation_matrix
 
     def forward_process(
-        self, x_0: Tensor, discrete_t: Tensor, mask: Tensor, *args: list[Any], **kwargs: dict[Any, Any]
+        self,
+        x_0: Tensor,
+        discrete_t: Tensor,
+        mask: Tensor,
+        *args: list[Any],
+        **kwargs: dict[Any, Any],
     ) -> dict:
         r"""Forward process
 
@@ -224,7 +229,12 @@ class SO3Diffuser(LieGroupDiffuser):
         return loss
 
     def step(
-        self, x_t: Tensor, discrete_t: Tensor, padding_mask: Tensor, *args: list[Any], **kwargs: dict[Any, Any]
+        self,
+        x_t: Tensor,
+        discrete_t: Tensor,
+        padding_mask: Tensor,
+        *args: list[Any],
+        **kwargs: dict[Any, Any],
     ) -> dict:
         r"""
         .. math::

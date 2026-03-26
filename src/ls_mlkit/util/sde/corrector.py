@@ -1,5 +1,6 @@
 import abc
 import functools
+from typing import Callable
 
 import torch
 from overrides import override
@@ -17,7 +18,7 @@ register_corrector = functools.partial(register_class_to_dict, global_dict=_CORR
 class Corrector(abc.ABC):
     """The abstract class for a corrector algorithm."""
 
-    def __init__(self, sde: SDE, score_fn: object, snr: float, n_steps: int):
+    def __init__(self, sde: SDE, score_fn: Callable[..., Tensor], snr: float, n_steps: int):
         super().__init__()
         self.sde = sde
         self.score_fn = score_fn
@@ -42,7 +43,7 @@ class Corrector(abc.ABC):
 class NoneCorrector(Corrector):
     """An empty corrector that does nothing."""
 
-    def __init__(self, sde, score_fn, snr, n_steps): ...
+    def __init__(self, sde: SDE, score_fn: Callable[..., Tensor], snr: float, n_steps: int): ...
 
     def update_fn(self, x, t, mask=None):
         return x, x
@@ -50,7 +51,14 @@ class NoneCorrector(Corrector):
 
 @register_corrector(key_name="langevin_corrector")
 class LangevinCorrector(Corrector):
-    def __init__(self, sde: SDE, score_fn: object, snr: float, n_steps: int, ndim_micro_shape: int = 3):
+    def __init__(
+        self,
+        sde: SDE,
+        score_fn: Callable[..., Tensor],
+        snr: float,
+        n_steps: int,
+        ndim_micro_shape: int = 3,
+    ):
         super().__init__(sde, score_fn, snr, n_steps)
         if not isinstance(sde, VPSDE):
             raise NotImplementedError(f"SDE class {sde.__class__.__name__} not yet supported.")
@@ -75,10 +83,21 @@ class LangevinCorrector(Corrector):
             noise_norm = torch.norm(noise.reshape(noise.shape[0], -1), dim=-1).mean()
             step_size = (target_snr * noise_norm / grad_norm) ** 2 * 2 * alpha
 
-            x_mean = x + step_size.view(step_size.shape[0], *[1 for _ in range(self.ndim_micro_shape)]) * grad
+            x_mean = (
+                x
+                + step_size.view(
+                    step_size.shape[0],
+                    *[1 for _ in range(self.ndim_micro_shape)],
+                )
+                * grad
+            )
             x = (
                 x_mean
-                + torch.sqrt(step_size * 2).view(step_size.shape[0], *[1 for _ in range(self.ndim_micro_shape)]) * noise
+                + torch.sqrt(step_size * 2).view(
+                    step_size.shape[0],
+                    *[1 for _ in range(self.ndim_micro_shape)],
+                )
+                * noise
             )
 
         return x, x_mean

@@ -12,7 +12,7 @@ def load_meta_math(max_tokens=666, num_samples=100000, eval_split_ratio=0.1, see
 
     def preprocess(data):
         return {
-            "x": f'Q: {data["query"]}\nA: ',
+            "x": f"Q: {data['query']}\nA: ",
             "y": data["response"].split("\nThe answer is:")[0],
         }
 
@@ -49,7 +49,7 @@ def load_gsm8k(**kwargs):
     dataset = datasets.load_dataset("gsm8k", "main")
     dataset = dataset.map(
         lambda e: {
-            "x": f'Q: {e["question"]}\nA: ',
+            "x": f"Q: {e['question']}\nA: ",
             "y": e["answer"],
         }
     )
@@ -65,7 +65,7 @@ def load_sst2(**kwargs):
     label_map = {0: "negative", 1: "positive", -1: "other"}
     dataset = dataset.map(
         lambda e: {
-            "x": f'{instruction}{e["sentence"]}\nresult: ',
+            "x": f"{instruction}{e['sentence']}\nresult: ",
             "y": label_map[e["label"]],
         }
     )

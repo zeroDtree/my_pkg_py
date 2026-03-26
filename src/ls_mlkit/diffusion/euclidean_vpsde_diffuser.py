@@ -89,7 +89,12 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         return self.sde.prior_sampling(shape)
 
     def forward_process(
-        self, x_0: Tensor, discrete_t: Tensor, mask: Tensor, *args: list[Any], **kwargs: dict[Any, Any]
+        self,
+        x_0: Tensor,
+        discrete_t: Tensor,
+        mask: Tensor,
+        *args: list[Any],
+        **kwargs: dict[Any, Any],
     ) -> dict:
         t = self.time_scheduler.discrete_time_to_continuous_time(discrete_t)
         forward_result = self.sde.forward_process(x_0, t, mask)
@@ -149,7 +154,13 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         }
 
     def forward_process_n_step(
-        self, x: Tensor, t: Tensor, next_t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any
+        self,
+        x: Tensor,
+        t: Tensor,
+        next_t: Tensor,
+        padding_mask: Tensor,
+        *args: Any,
+        **kwargs: Any,
     ) -> Tensor:
         assert (next_t > t).all()
         assert (t >= 0).all()
@@ -160,7 +171,14 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         x_t2 = self.sde.forward_from_t1_to_t2(x, continuous_t1, continuous_t2)
         return x_t2
 
-    def step(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:
+    def step(
+        self,
+        x_t: Tensor,
+        t: Tensor,
+        padding_mask: Tensor,
+        *args: Any,
+        **kwargs: Any,
+    ) -> dict:
         r"""
         Args:
             x_t (Tensor): the sample at timestep t
@@ -196,7 +214,9 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         # score hook start end =================================================================
 
         rsde = self.sde.get_reverse_sde(
-            score=p_uc_score, score_fn=None, use_probability_flow=self.config.use_probability_flow
+            score=p_uc_score,
+            score_fn=None,
+            use_probability_flow=self.config.use_probability_flow,
         )
         delta_t = t_end - t_start
         delta_t = self.complete_micro_shape(delta_t)
@@ -261,16 +281,16 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         def _hook_fn(**kwargs):
             nonlocal conditioner_list
 
-            loss = kwargs.get("loss")
+            kwargs.get("loss")
             x_0 = kwargs.get("gt_data")
             x_t = kwargs.get("x_t")
             t = kwargs.get("t", None)
             padding_mask = kwargs.get("padding_mask")
             loss_fn = kwargs.get("loss_fn")
-            config = kwargs.get("config")
+            kwargs.get("config")
             p_uc_score = kwargs.get("p_uc_score")
             gt_uc_score = kwargs.get("gt_uc_score")
-            a = kwargs.get("a")
+            kwargs.get("a")
             b = kwargs.get("b")
 
             tgt_mask = padding_mask
@@ -316,7 +336,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
             x_t = kwargs.get("x_t")
             t = kwargs.get("t", None)
             padding_mask = kwargs.get("padding_mask")
-            config = kwargs.get("config")
+            kwargs.get("config")
             sampling_condition = kwargs.get("sampling_condition")
 
             tgt_mask = padding_mask

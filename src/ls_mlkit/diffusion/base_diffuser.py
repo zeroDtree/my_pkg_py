@@ -1,9 +1,12 @@
 from abc import abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 from torch import Tensor
 
-from ..util.base_class.base_gm_class import BaseGenerativeModel, BaseGenerativeModelConfig
+from ..util.base_class.base_gm_class import (
+    BaseGenerativeModel,
+    BaseGenerativeModelConfig,
+)
 from ..util.decorators import inherit_docstrings
 from .time_scheduler import DiffusionTimeScheduler
 
@@ -14,7 +17,7 @@ class BaseDiffuserConfig(BaseGenerativeModelConfig):
         self,
         ndim_micro_shape: int,
         n_discretization_steps: int,
-        n_inference_steps: int = None,
+        n_inference_steps: Optional[int] = None,
         *args: list[Any],
         **kwargs: dict[Any, Any],
     ) -> None:
@@ -60,3 +63,4 @@ class BaseDiffuser(BaseGenerativeModel):
         **kwargs: dict[Any, Any],
     ) -> dict:
         assert (t_b >= t_a).all()
+        return {}

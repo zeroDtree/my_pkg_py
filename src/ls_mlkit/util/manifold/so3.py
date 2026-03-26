@@ -8,10 +8,14 @@ import torch
 from torch import Tensor
 
 from .lie_group import LieGroup
+from .so3_utils import (
+    exponential_map,
+    logarithmic_map,
+    trace,
+    vector_to_skew_symmetric,
+)
 
 EPS = 1e-8
-
-from .so3_utils import exponential_map, logarithmic_map, trace, vector_to_skew_symmetric
 
 
 class SO3(LieGroup):
@@ -20,7 +24,7 @@ class SO3(LieGroup):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def exp(self, p: Tensor = None, v: Tensor = None) -> Tensor:
+    def exp(self, p: Tensor | None = None, v: Tensor | None = None) -> Tensor:
         r"""Exponential map
         $$\exp_p(v)$$ map a point in tangent space $$T_p M$$ to a point on the manifold $$M$$
         $$\exp_p(v) = p \cdot \exp(p^{-1} v)$$
@@ -34,7 +38,7 @@ class SO3(LieGroup):
         result = p @ exponential_map(v_e)
         return result
 
-    def log(self, p: Tensor = None, q: Tensor = None) -> Tensor:
+    def log(self, p: Tensor | None = None, q: Tensor | None = None) -> Tensor:
         r"""Logarithm map
         $$\log_p(q)$$ map a point on the manifold $$M$$ to a point in tangent space $$T_p M$$
         $$\log_p(q)=p\log(p^{-1} q)$$

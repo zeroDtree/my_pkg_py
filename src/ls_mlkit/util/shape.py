@@ -1,9 +1,9 @@
-from typing import Tuple, Union
+from typing import Tuple, Union, cast
 
 from torch import Tensor
 
 
-def get_macroscopic_shape(obj: Union[Tensor, tuple], ndim_microscopic: int) -> Tuple[int]:
+def get_macroscopic_shape(obj: Union[Tensor, tuple], ndim_microscopic: int) -> Tuple[int, ...]:
     """
     Get the macroscopic shape of an object.
     """
@@ -19,6 +19,7 @@ def get_macroscopic_shape(obj: Union[Tensor, tuple], ndim_microscopic: int) -> T
             result = obj.shape[:-ndim_microscopic]
     else:
         raise ValueError(f"Invalid type: {type(obj)}")
+    result = cast(tuple[int, ...], result)
 
     return result
 

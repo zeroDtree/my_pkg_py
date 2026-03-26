@@ -33,7 +33,11 @@ def interp_1d(x: Tensor, xp: Tensor, fp: Tensor) -> Tensor:
     # Linear interpolation with numerical stability
     denominator = x1 - x0
     # Add small epsilon to prevent division by zero
-    denominator_safe = torch.where(torch.abs(denominator) < 1e-8, torch.ones_like(denominator) * 1e-8, denominator)
+    denominator_safe = torch.where(
+        torch.abs(denominator) < 1e-8,
+        torch.ones_like(denominator) * 1e-8,
+        denominator,
+    )
     slope = (f1 - f0) / denominator_safe
     y_flat = f0 + slope * (x_flat - x0)
 
@@ -83,7 +87,11 @@ def interp(x: Tensor, xp: Tensor, fp: Tensor) -> Tensor:
     x1 = xp[indices1]  # (B,)
     denominator = (x1 - x0).unsqueeze(1)  # (B, 1)
     # Add small epsilon to prevent division by zero
-    denominator_safe = torch.where(torch.abs(denominator) < 1e-8, torch.ones_like(denominator) * 1e-8, denominator)
+    denominator_safe = torch.where(
+        torch.abs(denominator) < 1e-8,
+        torch.ones_like(denominator) * 1e-8,
+        denominator,
+    )
     slope = (f1 - f0) / denominator_safe  # (B, 1)
     y_flat = f0 + slope * (x_flat - x0).unsqueeze(1)  # (B, 1)
 

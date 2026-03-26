@@ -24,6 +24,6 @@ def get_cosines_and_amplitudes(vectors: Tensor, mask: Tensor) -> tuple[Tensor, T
     cosines = get_vector_cosines(vectors)
     torch.linalg.norm: Callable
     amplitudes = torch.linalg.norm(vectors, dim=-1)
-    amplitudes = amplitudes * mask  # type: ignore
-    amplitudes = torch.nn.functional.normalize(amplitudes, p=2, dim=-1)  # type: ignore #
+    amplitudes = amplitudes * mask  # noqa: F401
+    amplitudes = torch.nn.functional.normalize(amplitudes, p=2, dim=-1)  # noqa: F401 #
     return cosines, amplitudes

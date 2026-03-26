@@ -1,4 +1,4 @@
-from typing import Callable, Dict, List, Literal
+from typing import Callable, Dict, List, Literal, Optional
 
 import torch
 from datasets import Dataset as HFDataset
@@ -18,7 +18,7 @@ def weight_norm_fn(module: Module):
     Returns:
         float: the weight norm of the module
     """
-    return torch.sqrt(sum(torch.sum(p.data * p.data) for p in module.parameters() if p.requires_grad))
+    return torch.sqrt(sum((torch.sum(p.data * p.data) for p in module.parameters() if p.requires_grad), torch.zeros(1)))
 
 
 def gradient_norm_fn(module: Module):
@@ -30,7 +30,9 @@ def gradient_norm_fn(module: Module):
     Returns:
         float: the gradient norm of the module
     """
-    return torch.sqrt(sum(torch.sum(p.grad.data * p.grad.data) for p in module.parameters() if p.grad is not None))
+    return torch.sqrt(
+        sum((torch.sum(p.grad.data * p.grad.data) for p in module.parameters() if p.grad is not None), torch.zeros(1))
+    )
 
 
 def weights_fn(module: Module) -> list[Tensor]:
@@ -67,12 +69,12 @@ class Observer(object):
 
     def __init__(
         self,
-        model: Module = None,
-        optimizer: Optimizer = None,
-        scheduler: LambdaLR = None,
-        dataset: Dataset | HFDataset = None,
-        target_modules: List[str] = None,
-        no_split_classes: List[str] = None,
+        model: Optional[Module] = None,
+        optimizer: Optional[Optimizer] = None,
+        scheduler: Optional[LambdaLR] = None,
+        dataset: Optional[Dataset | HFDataset] = None,
+        target_modules: Optional[List[str]] = None,
+        no_split_classes: Optional[List[str]] = None,
     ):
         """Initialize the Observer
 
@@ -99,8 +101,8 @@ class Observer(object):
     def _get_something(
         model: Module,
         strategy: Literal["all", "block"] = "all",
-        no_split_classes: List[str] = None,
-        function: Callable = None,
+        no_split_classes: Optional[List[str]] = None,
+        function: Callable = weight_norm_fn,
     ):
         info = dict()
 
@@ -144,13 +146,14 @@ class Observer(object):
     @torch.no_grad()
     @staticmethod
     def _get_something_from_targets(
-        model: Module = None,
-        target_modules_dict: Dict[str, Module] = None,
-        target_modules: List[str] = None,
-        function: Callable = None,
+        model: Optional[Module] = None,
+        target_modules_dict: Optional[Dict[str, Module]] = None,
+        target_modules: Optional[List[str]] = None,
+        function: Callable = weight_norm_fn,
     ):
         info = dict()
         if target_modules_dict is None:
+            assert model is not None and target_modules is not None
             target_modules_dict = Observer._get_target_modules(model, target_modules)
         for module_path, module in target_modules_dict.items():
             info[module_path] = function(module)
@@ -170,11 +173,12 @@ class Observer(object):
         self,
         name,
         strategy: Literal["all", "block"] = "all",
-        no_split_classes: List[str] = None,
+        no_split_classes: Optional[List[str]] = None,
     ):
         if self.target_modules is None:
             if no_split_classes is None:
                 no_split_classes = self.no_split_classes
+            assert self.model is not None
             return Observer._get_something(
                 model=self.model,
                 strategy=strategy,
@@ -187,7 +191,7 @@ class Observer(object):
     def get_weight_norm(
         self,
         strategy: Literal["all", "block"] = "all",
-        no_split_classes: List[str] = None,
+        no_split_classes: Optional[List[str]] = None,
     ):
         return self.get_something("weight_norm", strategy, no_split_classes)
 
@@ -195,7 +199,7 @@ class Observer(object):
     def get_gradient_norm(
         self,
         strategy: Literal["all", "block"] = "all",
-        no_split_classes: List[str] = None,
+        no_split_classes: Optional[List[str]] = None,
     ):
         return self.get_something("gradient_norm", strategy, no_split_classes)
 
@@ -203,7 +207,7 @@ class Observer(object):
     def get_weights(
         self,
         strategy: Literal["all", "block"] = "all",
-        no_split_classes: List[str] = None,
+        no_split_classes: Optional[List[str]] = None,
     ):
         return self.get_something("weights", strategy, no_split_classes)
 
@@ -211,7 +215,7 @@ class Observer(object):
     def get_gradients(
         self,
         strategy: Literal["all", "block"] = "all",
-        no_split_classes: List[str] = None,
+        no_split_classes: Optional[List[str]] = None,
     ):
         return self.get_something("gradients", strategy, no_split_classes)
 
@@ -230,7 +234,7 @@ class Observer(object):
         self,
         name,
         strategy: Literal["all", "block"] = "all",
-        no_split_classes: List[str] = None,
+        no_split_classes: Optional[List[str]] = None,
     ):
         something = self.get_something(name, strategy=strategy, no_split_classes=no_split_classes)
         return {key: Observer._get_statistics(value) for key, value in something.items()}

@@ -1,6 +1,6 @@
 import math
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 
 def cosine_decay_with_warmup(value, current, total, warmup_steps=0):
@@ -62,9 +62,9 @@ class Scheduler:
             if value.get("schedule") is None:
                 raise ValueError(f"schedule of {key} is not defined")
             if value.get("warmup_steps") is None:
-                assert (
-                    value.get("warmup_ratio") is not None
-                ), f"warmup_ratio of {key} must be provided if warmup_steps is not provided"
+                assert value.get("warmup_ratio") is not None, (
+                    f"warmup_ratio of {key} must be provided if warmup_steps is not provided"
+                )
                 value["warmup_steps"] = int(self.total * value["warmup_ratio"])
 
     def step(self):
@@ -94,11 +94,11 @@ class ObjectAttrsScheduler:
         obj: object,
         attr_names: list[str],
         total: int,
-        warmup_steps: int = None,
+        warmup_steps: int | None = None,
         warmup_ratio: float = 0,
         strategy: SchedulerType = SchedulerType.CONSTANT_WITH_WARMUP,
-        setter_methods: dict[str, Callable] = None,
-        getter_methods: dict[str, Callable] = None,
+        setter_methods: dict[str, str] | None = None,
+        getter_methods: dict[str, str] | None = None,
     ):
         self.obj = obj
         self.attr_names = attr_names
@@ -111,6 +111,7 @@ class ObjectAttrsScheduler:
             # Get initial value
             getter_method = self.getter_methods.get(attr_name)
             if getter_method is not None:
+                assert isinstance(getter_method, str)
                 assert hasattr(obj, getter_method), f"{getter_method} is not a method of {obj}"
                 initial_value = getattr(obj, getter_method)()
             else:
@@ -120,6 +121,7 @@ class ObjectAttrsScheduler:
             # Validate setter if provided
             setter_method = self.setter_methods.get(attr_name)
             if setter_method is not None:
+                assert isinstance(setter_method, str)
                 assert hasattr(obj, setter_method), f"{setter_method} is not a method of {obj}"
 
             self.info.update(
@@ -142,6 +144,7 @@ class ObjectAttrsScheduler:
             # Use custom setter if provided, otherwise use setattr
             setter_method = self.setter_methods.get(attr_name)
             if setter_method is not None:
+                assert isinstance(setter_method, str)
                 getattr(self.obj, setter_method)(new_value)
             else:
                 setattr(self.obj, attr_name, new_value)
@@ -152,6 +155,7 @@ class ObjectAttrsScheduler:
             # Use custom getter if provided, otherwise use getattr
             getter_method = self.getter_methods.get(attr_name)
             if getter_method is not None:
+                assert isinstance(getter_method, str)
                 result[attr_name] = getattr(self.obj, getter_method)()
             else:
                 result[attr_name] = getattr(self.obj, attr_name)

@@ -1,5 +1,3 @@
-from typing import Callable
-
 import biotite.structure as struc
 import einops
 import torch
@@ -41,9 +39,9 @@ class ANM:
         self,
         atoms: Tensor,
         force_field: ForceField,
-        masses=None,
-        device="cuda",
-        node_mask: Tensor = None,
+        masses: Tensor | None = None,
+        device: str | torch.device = "cuda",
+        node_mask: Tensor | None = None,
     ):
         """
         Args
@@ -62,21 +60,29 @@ class ANM:
         self._coord = atoms
         self._ff = force_field
         self.device = device
+        if node_mask is None:
+            node_mask = torch.ones(
+                atoms.shape[:-1],
+                device=atoms.device,
+                dtype=torch.long,
+            )
         self._node_mask = node_mask
 
         if masses is None:
             self._masses = None
         else:
-            assert (
-                masses.shape == atoms.shape[:-1]
-            ), f"shape(masses) = {masses.shape} != shape(atoms[:-1]) = {atoms.shape[:-1]}"
+            assert masses.shape == atoms.shape[:-1], (
+                f"shape(masses) = {masses.shape} != shape(atoms[:-1]) = {atoms.shape[:-1]}"
+            )
             if torch.any(masses < 0):
                 raise ValueError("Masses must not be negative")
             self._masses = masses * node_mask
 
         if self._masses is not None:
             mass_weights = torch.where(
-                node_mask == 1, 1 / torch.sqrt(self._masses), torch.zeros_like(self._masses)
+                node_mask == 1,
+                1 / torch.sqrt(self._masses),
+                torch.zeros_like(self._masses),
             )  # (..., n)
             mass_weights = mass_weights.repeat_interleave(repeats=3, dim=-1)  # (..., 3n)
             self._mass_weight_matrix = torch.einsum("...i,...j->...ij", mass_weights, mass_weights)
@@ -97,7 +103,11 @@ class ANM:
     def hessian(self):
         if self._hessian is None:
             self._hessian, _ = self.compute_hessian(
-                self._coord, self._ff, device=self.device, use_cell_list=False, node_mask=self._node_mask
+                self._coord,
+                self._ff,
+                device=self.device,
+                use_cell_list=False,
+                node_mask=self._node_mask,
             )
             if self._mass_weight_matrix is not None:
                 self._hessian *= self._mass_weight_matrix
@@ -125,7 +135,6 @@ class ANM:
                 Eigenvectors of the *Hessian* matrix.
                 Eigenvectors will have the same dtype as the *Hessian* matrix and will contain the eigenvectors as its columns.
         """
-        torch.linalg.eigh: Callable
         eig_values, eig_vectors = torch.linalg.eigh(self.hessian + epsilon * torch.randn_like(self.hessian))
         return eig_values, eig_vectors
 
@@ -154,7 +163,10 @@ class ANM:
         _, eig_vectors = self.eigen()  # (..., 3n),(..., 3n, 3n)
 
         macro_shape = indexes.shape[:-1]  # (...), k = indexes.shape[-1]
-        mesh = torch.meshgrid([torch.arange(s, device=indexes.device) for s in macro_shape], indexing="ij")
+        mesh = torch.meshgrid(
+            [torch.arange(s, device=indexes.device) for s in macro_shape],
+            indexing="ij",
+        )
         mesh = [m.unsqueeze(-1).expand(*macro_shape, k) for m in mesh]
         mode_vectors = eig_vectors[(*mesh, slice(None), indexes)]  # shape: (..., k, 3n)
 
@@ -165,7 +177,12 @@ class ANM:
             return mode_vectors
 
     def compute_hessian(
-        self, coord: Tensor, force_field: ForceField, device, use_cell_list=False, node_mask: Tensor = None
+        self,
+        coord: Tensor,
+        force_field: ForceField,
+        device: str | torch.device,
+        use_cell_list: bool = False,
+        node_mask: Tensor | None = None,
     ):
         """
         Compute the *Hessian* matrix for atoms with given coordinates and
@@ -233,7 +250,14 @@ class ANM:
         hessian = einops.rearrange(hessian, "... a b c d -> ... (a c) (b d)")
         return hessian, pairs
 
-    def _prepare_values_for_interaction_matrix(self, coord, force_field, device, use_cell_list, node_mask):
+    def _prepare_values_for_interaction_matrix(
+        self,
+        coord: Tensor,
+        force_field: ForceField,
+        device: str | torch.device,
+        use_cell_list: bool,
+        node_mask: Tensor | None,
+    ):
         """
         Check input values and calculate common intermediate values for
         :func:`compute_kirchhoff()` and :func:`compute_hessian()`.
@@ -258,6 +282,13 @@ class ANM:
         if coord.shape[-1] != 3:
             raise ValueError(f"Expected coordinates with shape (..., n, 3), got {coord.shape}")
 
+        if node_mask is None:
+            node_mask = torch.ones(
+                coord.shape[:-1],
+                device=coord.device,
+                dtype=torch.long,
+            )
+
         # Find interacting atoms within cutoff distance
         cutoff_distance = force_field.cutoff_distance
         macro_shape = coord.shape[:-2]
@@ -265,7 +296,11 @@ class ANM:
         adj_matrix_shape = list(macro_shape) + [n, n]
         if cutoff_distance is None:
             # Include all possible interactions
-            adj_matrix = torch.ones(adj_matrix_shape, dtype=bool, device=device)
+            adj_matrix = torch.ones(
+                tuple(adj_matrix_shape),
+                dtype=torch.bool,
+                device=device,
+            )
         else:
             dist_matrix = torch.cdist(coord, coord, p=2).reshape(adj_matrix_shape)
             sq_dist_matrix = dist_matrix**2
@@ -273,7 +308,9 @@ class ANM:
 
         # Remove interactions of atoms with themselves
         adj_matrix = adj_matrix.squeeze(-1)
-        adj_matrix = adj_matrix & (~torch.eye(n, dtype=bool, device=device).view([1 for _ in macro_shape] + [n, n]))
+        adj_matrix = adj_matrix & (
+            ~torch.eye(n, dtype=torch.bool, device=device).view([1 for _ in macro_shape] + [n, n])
+        )
         # (..., n, n)
 
         node_mask_matrix = torch.einsum("...i,...j->...ij", node_mask, node_mask)
@@ -299,7 +336,7 @@ class ANM:
         # and squared distances for distance-dependent force fields
         if cutoff_distance is None:
             disp = struc.index_displacement(coord, pair_indices)
-            sq_dist = torch.sum(disp * disp, axis=-1)
+            sq_dist = torch.sum(disp * disp, dim=-1)
         else:
             sq_dist = sq_dist_matrix[*pair_indices]
 

@@ -7,7 +7,12 @@ from .conditioner import Conditioner
 
 
 def get_accumulated_conditional_score(
-    conditioner_list: list[Conditioner], x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any
+    conditioner_list: list[Conditioner],
+    x_t: Tensor,
+    t: Tensor,
+    padding_mask: Tensor,
+    *args: Any,
+    **kwargs: Any,
 ) -> Tensor:
     r"""Get the accumulated conditional score
 

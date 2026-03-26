@@ -7,10 +7,9 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 import accelerate
 import datasets
 import torch
+import wandb
 from accelerate import Accelerator
 from accelerate.utils import DistributedDataParallelKwargs
-
-import wandb
 
 from ..util.decorators import inherit_docstrings
 from .callback import BaseCallback, CallbackEvent
@@ -154,7 +153,7 @@ class DistributedPipeline(BasePipeline):
 
         if self.accelerator.is_local_main_process:
             assert self.logger is not None, f"Error from {self.__class__.__name__}: logger is required"
-            self.logger.info(f"Using distributed training with accelerate")
+            self.logger.info("Using distributed training with accelerate")
             self.logger.info(f"Number of processes: {self.accelerator.num_processes}")
             self.logger.info(f"Current device: {self.accelerator.device}")
 
@@ -162,10 +161,15 @@ class DistributedPipeline(BasePipeline):
         model = self.model
         if self.training_config.grad_clip_strategy == "norm":
             self.accelerator.clip_grad_norm_(
-                model.parameters(), max_norm=self.training_config.max_grad_norm, norm_type=2
+                model.parameters(),
+                max_norm=self.training_config.max_grad_norm,
+                norm_type=2,
             )
         if self.training_config.grad_clip_strategy == "value":
-            self.accelerator.clip_grad_value_(model.parameters(), clip_value=self.training_config.max_grad_value)
+            self.accelerator.clip_grad_value_(
+                model.parameters(),
+                clip_value=self.training_config.max_grad_value,
+            )
 
     def train_a_step(self, batch: Dict[str, Any]):
         self.trigger_callbacks(event=CallbackEvent.STEP_START, batch=batch)
@@ -235,7 +239,11 @@ class DistributedPipeline(BasePipeline):
             self.accelerator.save_state(temp_checkpoint_dir)
 
             # Save training metadata separately
-            for base_name in ["training_state", "training_config", "log_config"]:
+            for base_name in [
+                "training_state",
+                "training_config",
+                "log_config",
+            ]:
                 file_path = os.path.join(temp_checkpoint_dir, f"{base_name}.pth")
                 torch.save(getattr(self, base_name), file_path)
 

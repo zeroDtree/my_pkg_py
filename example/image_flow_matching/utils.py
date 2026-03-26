@@ -6,12 +6,14 @@ from omegaconf import DictConfig
 from torch import Tensor
 from torch.nn import Module
 
-from ls_mlkit.util.utils_for_main import get_learing_rate_scheduler  # type: ignore
-from ls_mlkit.util.utils_for_main import get_new_save_dir  # type: ignore
-from ls_mlkit.util.utils_for_main import get_optimizer  # type: ignore
-from ls_mlkit.util.utils_for_main import get_run_name  # type: ignore
-from ls_mlkit.util.utils_for_main import get_train_class  # type: ignore
-from ls_mlkit.util.utils_for_main import load_checkpoint  # type: ignore
+from ls_mlkit.util.utils_for_main import (
+    get_learing_rate_scheduler,  # noqa: F401
+    get_new_save_dir,  # noqa: F401
+    get_optimizer,  # noqa: F401
+    get_run_name,  # noqa: F401
+    get_train_class,  # noqa: F401
+    load_checkpoint,  # noqa: F401
+)
 
 
 def get_dataset(cfg: DictConfig):
@@ -52,9 +54,12 @@ def get_dataset(cfg: DictConfig):
 
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from diffusers import UNet2DModel
-
-    from ls_mlkit.flow_matching.euclidean_ot_fm import EuclideanOTFlow, EuclideanOTFlowConfig
     from ls_mlkit.flow_matching.model_interface import Model4FMInterface
+
+    from ls_mlkit.flow_matching.euclidean_ot_fm import (
+        EuclideanOTFlow,
+        EuclideanOTFlowConfig,
+    )
     from ls_mlkit.flow_matching.time_scheduler import FlowMatchingTimeScheduler
     from ls_mlkit.util.mask.image_masker import ImageMasker
 
@@ -64,7 +69,14 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             in_channels=3,  # the number of input channels, 3 for RGB images
             out_channels=3,  # the number of output channels
             layers_per_block=2,  # how many ResNet layers to use per UNet block
-            block_out_channels=(128, 128, 256, 256, 512, 512),  # the number of output channels for each UNet block
+            block_out_channels=(
+                128,
+                128,
+                256,
+                256,
+                512,
+                512,
+            ),  # the number of output channels for each UNet block
             down_block_types=(
                 "DownBlock2D",  # a regular ResNet downsampling block
                 "DownBlock2D",
@@ -88,7 +100,14 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             super().__init__()
             self.model = model
 
-        def forward(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
+        def forward(
+            self,
+            x_t: Tensor,
+            t: Tensor,
+            padding_mask: Tensor,
+            *args: Any,
+            **kwargs: Any,
+        ) -> Tensor:
             return {"x": self.model(x_t, t, return_dict=False)[0]}
 
         def get_model_device(self):

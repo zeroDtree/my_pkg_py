@@ -4,19 +4,21 @@ from typing import Callable, List, Literal, Optional, cast
 import datasets
 import numpy as np
 import torch
+import wandb
 from accelerate import Accelerator
 from overrides import override
 from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-import wandb
-
 from ..util.decorators import inherit_docstrings
 from ..util.iterator import inf_iterator
 from .callback import BaseCallback, CallbackEvent
-from .distributed_pipeline import DistributedPipeline, DistributedTrainingConfig, LogConfig
-from .pipeline import LogConfig
+from .distributed_pipeline import (
+    DistributedPipeline,
+    DistributedTrainingConfig,
+    LogConfig,
+)
 
 
 @inherit_docstrings
@@ -117,9 +119,9 @@ class MyTrainingConfig(DistributedTrainingConfig):
         n_processes = Accelerator().num_processes
         assert real_batch_size % n_processes == 0, "real_batch_size must be divisible by n_processes"
         per_device_real_batch_size = real_batch_size // n_processes
-        assert (
-            per_device_real_batch_size % per_device_batch_size == 0
-        ), "per_device_real_batch_size must be divisible by per_device_batch_size"
+        assert per_device_real_batch_size % per_device_batch_size == 0, (
+            "per_device_real_batch_size must be divisible by per_device_batch_size"
+        )
         gradient_accumulation_steps = per_device_real_batch_size // per_device_batch_size
         return gradient_accumulation_steps
 
@@ -132,7 +134,8 @@ class MyDistributedPipeline(DistributedPipeline):
         train_dataset: torch.utils.data.Dataset | datasets.Dataset,
         eval_dataset: torch.utils.data.Dataset | datasets.Dataset,
         optimizers: tuple[
-            torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR | torch.optim.lr_scheduler.CosineAnnealingLR
+            torch.optim.Optimizer,
+            torch.optim.lr_scheduler.LambdaLR | torch.optim.lr_scheduler.CosineAnnealingLR,
         ],
         training_config: MyTrainingConfig,
         log_config: LogConfig,

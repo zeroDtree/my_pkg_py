@@ -7,7 +7,6 @@ from .masker_interface import MaskerInterface
 
 
 class Masker(MaskerInterface):
-
     def __init__(self, ndim_mini_micro_shape: int = 0, **kwargs: dict[Any, Any]):
         super().__init__(**kwargs)
         self.ndim_mini_micro_shape: int = ndim_mini_micro_shape
@@ -46,5 +45,8 @@ class Masker(MaskerInterface):
         1 represents the region that can be seen
         """
         self.check_mask_shape(x_0, inpainting_mask)
-        inpainting_mask = inpainting_mask.view(*inpainting_mask.shape, *[1 for _ in range(self.ndim_mini_micro_shape)])
+        inpainting_mask = inpainting_mask.view(
+            *inpainting_mask.shape,
+            *[1 for _ in range(self.ndim_mini_micro_shape)],
+        )
         return x_t * (1 - inpainting_mask) + x_0 * inpainting_mask

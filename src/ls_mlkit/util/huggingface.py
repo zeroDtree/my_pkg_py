@@ -14,6 +14,9 @@ class HF_MIRROR:
     @staticmethod
     def unset_hf_mirror(clear=False):
         if not clear:
-            os.environ["HF_ENDPOINT"] = HF_MIRROR.HF_ENDPOINT
+            os.environ["HF_ENDPOINT"] = HF_MIRROR.HF_ENDPOINT or ""
         else:
             os.environ["HF_ENDPOINT"] = ""
+
+
+HF_MIRROR.set_hf_mirror()

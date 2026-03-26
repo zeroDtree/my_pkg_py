@@ -1,7 +1,6 @@
 import math
-from typing import Any, Callable, Tuple, cast
+from typing import Any, Callable, Optional, Tuple, cast
 
-from scipy.constants import sigma
 import torch
 from torch import Tensor
 from torch.nn import Module
@@ -133,7 +132,7 @@ class EuclideanEDMConfig(EuclideanDiffuserConfig):
         """
         return (sigma**2 + self.sigma_data**2) / (sigma * self.sigma_data) ** 2
 
-    def sampling_timestep_for_training(self, macro_shape: Tensor):
+    def sampling_timestep_for_training(self, macro_shape: tuple):
         rnd_normal = torch.randn(macro_shape)
         t = (self.P_mean + self.P_std * rnd_normal).exp()
         if self.sigma_multiply_by_sigma_data:
@@ -176,17 +175,29 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
         macro_shape = self.get_macro_shape(x_0)  # (b, )
         macro_shape = self.hook_manager.run_hooks(
-            stage=GMHookStageType.POST_GET_MACRO_SHAPE, tgt_key_name="macro_shape", macro_shape=macro_shape, batch=batch
+            stage=GMHookStageType.POST_GET_MACRO_SHAPE,
+            tgt_key_name="macro_shape",
+            macro_shape=macro_shape,
+            batch=batch,
         )
+        macro_shape = cast(tuple[int, ...], macro_shape)
         t = self.config.sampling_timestep_for_training(macro_shape=macro_shape).to(device)
         t = self.hook_manager.run_hooks(
-            stage=GMHookStageType.POST_SAMPLING_TIME_STEP, tgt_key_name="t", t=t, batch=batch
+            stage=GMHookStageType.POST_SAMPLING_TIME_STEP,
+            tgt_key_name="t",
+            t=t,
+            batch=batch,
         )
+        t = cast(Tensor, t)
         t = self.complete_micro_shape(t)
 
         # Forward process: add noise
         forward_result = self.forward_process(x_0, torch.zeros_like(t), t, padding_mask, is_continuous_time=True)
-        x_t, noise, sigma_diff = (forward_result["x_t"], forward_result["noise"], forward_result["sigma_diff"])
+        x_t, noise, sigma_diff = (
+            forward_result["x_t"],
+            forward_result["noise"],
+            forward_result["sigma_diff"],
+        )
         sigma = sigma_diff
         batch["t"] = t
         batch["x_t"] = self.config.c_in(sigma) * x_t
@@ -252,7 +263,13 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
         return self.config.c_skip(sigma_expanded) * x + self.config.c_out(sigma_expanded) * F_x
 
-    def step(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:
+    def step(
+        self,
+        x_t: Tensor,
+        t: Tensor,
+        padding_mask: Optional[Tensor] = None,
+        **kwargs: Any,
+    ) -> dict:
         r"""EDM sampling step (Euler or Heun's method).
 
         Args:
@@ -279,7 +296,10 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
         if not self.config.use_ode_flow:
             episilon = self.config.S_noise * torch.randn_like(x_t)
             gamma = (
-                min(self.config.S_churn / self.config.n_discretization_steps, math.sqrt(2) - 1)
+                min(
+                    self.config.S_churn / self.config.n_discretization_steps,
+                    math.sqrt(2) - 1,
+                )
                 if ((self.config.S_min <= sigma_cur).all() and (sigma_cur <= self.config.S_max).all())
                 else 0.0
             )
@@ -316,7 +336,9 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             **kwargs,
         }
         hook_output = self.hook_manager.run_hooks(
-            GMHookStageType.PRE_UPDATE_IN_STEP_FN, tgt_key_name="p_x_0", **hook_input
+            GMHookStageType.PRE_UPDATE_IN_STEP_FN,
+            tgt_key_name="p_x_0",
+            **hook_input,
         )
         if hook_output is not None:
             p_x_0 = hook_output
@@ -354,7 +376,9 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
                 **kwargs,
             }
             hook_output = self.hook_manager.run_hooks(
-                GMHookStageType.PRE_UPDATE_IN_STEP_FN, tgt_key_name="p_x_0", **hook_input
+                GMHookStageType.PRE_UPDATE_IN_STEP_FN,
+                tgt_key_name="p_x_0",
+                **hook_input,
             )
             if hook_output is not None:
                 p_x_0_next = hook_output
@@ -363,7 +387,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
         return {"x": x_next, "E_x0_xt": p_x_0}
 
-    def get_posterior_mean_fn(self, score: Tensor = None, score_fn: Callable = None):
+    def get_posterior_mean_fn(self, score: Optional[Tensor] = None, score_fn: Optional[Callable] = None):
         r"""Get the posterior mean function for EDM.
 
         For EDM, the posterior mean is:
@@ -431,8 +455,8 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
         tgt_mask: Tensor,
         padding_mask: Tensor,
         p_uc_score: Tensor,
-        gt_data: Tensor = None,
-        sampling_condition: Tensor = None,
+        gt_data: Optional[Tensor] = None,
+        sampling_condition: Optional[Tensor] = None,
     ) -> None:
         """Setup conditioners with common parameters.
 
@@ -494,6 +518,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
             # Compute scores
             sigma = self.config.sigma(t, is_continuous_time=True)
+            p_x_0 = cast(Tensor, p_x_0)
             p_uc_score = self._compute_edm_score(x_t, p_x_0, sigma)
             gt_uc_score = self._compute_edm_score(x_t, x_0, sigma)
 
@@ -549,6 +574,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             p_x_0 = kwargs.get("p_x_0")
             # Compute unconditional score
             sigma = self.config.sigma(t, is_continuous_time=True)
+            p_x_0 = cast(Tensor, p_x_0)
             p_uc_score = self._compute_edm_score(x_t, p_x_0, sigma)
 
             # Setup conditioners and get accumulated conditional score

@@ -1,3 +1,5 @@
+from typing import Optional
+
 import torch
 from tabulate import tabulate
 from torch.nn import Module
@@ -27,13 +29,19 @@ def table_print_dict(sample, prefix_priority_list=[], show_value=False):
         if show_value:
             value = v
         table_data.append([k, type(v).__name__, shape_str, length, value])
-    print(tabulate(table_data, headers=["Key", "Type", "Shape", "Length", "Value"], tablefmt="github"))
+    print(
+        tabulate(
+            table_data,
+            headers=["Key", "Type", "Shape", "Length", "Value"],
+            tablefmt="github",
+        )
+    )
 
 
 def show_info(
-    model: Module | None = None,
-    dataset: Dataset | None = None,
-    optimizer: Optimizer | None = None,
+    model: Optional[Module] = None,
+    dataset: Optional[Dataset] = None,
+    optimizer: Optional[Optimizer] = None,
     batch_size: int = 7,
 ) -> None:
     def print_kv_table(info: dict, title: str) -> None:
@@ -70,7 +78,7 @@ def show_info(
         }
 
         try:
-            dataset_info["dataset_size"] = len(dataset)
+            dataset_info["dataset_size"] = len(dataset)  # type: ignore[arg-type]
         except TypeError:
             dataset_info["dataset_size"] = "unknown"
 

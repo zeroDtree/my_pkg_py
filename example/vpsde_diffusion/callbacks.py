@@ -1,10 +1,12 @@
 import torch
-from accelerate import Accelerator
 from torch.nn.parallel import DistributedDataParallel
 
 from ls_mlkit.pipeline.callback import BaseCallback, CallbackEvent
 from ls_mlkit.pipeline.pipeline import TrainingState
-from ls_mlkit.util.base_class.base_gm_class import BaseGenerativeModel, GMHookHandler
+from ls_mlkit.util.base_class.base_gm_class import (
+    BaseGenerativeModel,
+    GMHookHandler,
+)
 
 
 class TrainingStepCallback(BaseCallback):
@@ -19,7 +21,7 @@ class TrainingStepCallback(BaseCallback):
     def step_start(self, *args, **kwargs):
         training_state: TrainingState = kwargs.get("training_state", None)
         diffuser: BaseGenerativeModel = kwargs.get("model", None)
-        accelerator: Accelerator = kwargs.get("accelerator", None)
+        kwargs.get("accelerator", None)
         if isinstance(diffuser, DistributedDataParallel):
             diffuser = diffuser.module
         assert training_state is not None

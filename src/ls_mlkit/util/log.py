@@ -3,7 +3,7 @@ import os
 import time
 
 
-def get_logger(name="unnamed", log_dir: str = None) -> logging.Logger:
+def get_logger(name="unnamed", log_dir: str | None = None) -> logging.Logger:
     """Get a logger
 
     Args:

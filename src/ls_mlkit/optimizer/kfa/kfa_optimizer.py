@@ -205,10 +205,14 @@ class KFAOptimizer(Optimizer):
                 self.state[p][name] = p.data.detach().clone()
 
     @torch.no_grad()
-    def get_something_norm(self, something_name: Literal["grad", "state", "weight"] = "grad", **kwargs):
-        assert (
-            something_name == "grad" or something_name == "state" or something_name == "weight"
-        ), f"something_name must be in ['grad','state','weight'], {something_name} not"
+    def get_something_norm(
+        self,
+        something_name: Literal["grad", "state", "weight"] = "grad",
+        **kwargs,
+    ):
+        assert something_name == "grad" or something_name == "state" or something_name == "weight", (
+            f"something_name must be in ['grad','state','weight'], {something_name} not"
+        )
         something_norm = 0.0
         if something_name == "grad":
             for group in self.param_groups:

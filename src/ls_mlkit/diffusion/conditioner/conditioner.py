@@ -1,5 +1,5 @@
 import abc
-from typing import Any
+from typing import Any, Callable, cast
 
 import torch
 from torch import Tensor
@@ -15,7 +15,7 @@ class Conditioner(abc.ABC):
         self._guidance_scale: float = guidance_scale
 
     @abc.abstractmethod
-    def prepare_condition_dict(self, train: bool = True, *args: list[Any], **kwargs: dict[Any, Any]) -> dict[str, Any]:
+    def prepare_condition_dict(self, train: bool = True, *args: Any, **kwargs: Any) -> dict[str, Any]:
         r"""Prepare the condition dictionary
 
         Args:
@@ -26,7 +26,7 @@ class Conditioner(abc.ABC):
         """
 
     @abc.abstractmethod
-    def set_condition(self, *args: list[Any], **kwargs: dict[Any, Any]) -> None:
+    def set_condition(self, *args: Any, **kwargs: Any) -> None:
         r"""Set the condition
 
         Args:
@@ -35,7 +35,14 @@ class Conditioner(abc.ABC):
         """
 
     @abc.abstractmethod
-    def get_conditional_score(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
+    def get_conditional_score(
+        self,
+        x_t: Tensor,
+        t: Tensor,
+        padding_mask: Tensor,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Tensor:
         r"""Get conditional score
 
         Args:
@@ -90,7 +97,14 @@ class LGDConditioner(Conditioner):
             ``Tensor``: the conditional loss
         """
 
-    def get_conditional_score(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
+    def get_conditional_score(
+        self,
+        x_t: Tensor,
+        t: Tensor,
+        padding_mask: Tensor,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Tensor:
         r"""Get conditional score
 
         Args:
@@ -103,10 +117,11 @@ class LGDConditioner(Conditioner):
         """
         if not self._enabled:
             return torch.zeros_like(x_t, device=x_t.device)
-        assert self.ready == True, "Conditioner is not ready, please call set_condition first"
+        assert self.ready, "Conditioner is not ready, please call set_condition first"
         with torch.autograd.set_detect_anomaly(True, check_nan=True):
             with torch.enable_grad():
                 x_t = x_t.detach().clone().requires_grad_(True)
+                self.posterior_mean_fn = cast(Callable, self.posterior_mean_fn)
                 p_gt_data = self.posterior_mean_fn(x_t, t, padding_mask, *args, **kwargs)
                 conditional_loss = self.compute_conditional_loss(p_gt_data, padding_mask)
                 grad = torch.autograd.grad(conditional_loss, x_t)[0]

@@ -1,68 +1,54 @@
-import torch
-
-
-def get_record_gradient_hook(self, model, record_dict):
-    def record_gradient_hook(grad):
-        for n, p in model.named_parameters():
-            if p.requires_grad and p.grad is not None:
-                if n not in record_dict:
-                    record_dict[n] = p.grad.to(self.gradient_device)
-                else:
-                    record_dict[n] += p.grad.to(self.gradient_device)
-                p.grad = None
-        return grad
-
-    return record_gradient_hook
+import torch.nn
 
 
 class GradientOffloadHookContext:
-    def __init__(
-        self,
-        model: torch.nn.Module,
-        record_dict: dict,
-        enable: bool = True,
-        *args,
-        **kwargs,
-    ):
-        """Offload gradient to cpu
+    def __init__(self, model: torch.nn.Module, enable: bool, record_dict: dict, *args, **kwargs):
+        """Offload gradients to CPU after each accumulation step.
 
         Args:
-            model (torch.nn.Module): The model whose gradients will be offloaded.
-            record_dict (dict): A dictionary to record offloaded gradient (named_grad)
-            enable (bool, optional): If True, enables the gradient offloading. Defaults to True.
-            *args: Additional arguments.
-            **kwargs: Additional keyword arguments.
+            model: The model whose gradients will be offloaded.
+            enable: If False, this context is a no-op.
+            record_dict: Dictionary that accumulates offloaded named gradients.
         """
-
-        if enable:
-            self.gradient_device = "cpu"
-        else:
-            self.gradient_device = "cuda"
-        self.handle_list = list()
+        self.enable = enable
+        if not enable:
+            return
         self.model = model
         self.record_dict = record_dict
+        self.offload_device = "cpu"
+        self.handle_list: list = []
 
     def __enter__(self):
-        self.register_gradient_hook()
+        if not self.enable:
+            return self
+        for name, param in self.model.named_parameters():
+            handle = param.register_post_accumulate_grad_hook(
+                self._make_offload_grad_hook(name, self.record_dict, self.offload_device)
+            )
+            self.handle_list.append(handle)
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if not self.enable:
+            return False
         for handle in self.handle_list:
             handle.remove()
+        return False
 
-    def register_gradient_hook(self):
-        for _, param in self.model.named_parameters():
-            hook = param.register_hook(self.get_record_gradient_hook(self.model, self.record_dict))
-            self.handle_list.append(hook)
+    @staticmethod
+    def _make_offload_grad_hook(name: str, record_dict: dict, offload_device: str):
+        def offload_grad_hook(param):
+            if param.grad is None:
+                return
+            grad = param.grad.to(offload_device)
+            param.grad = None
+            if name not in record_dict:
+                record_dict[name] = grad
+            else:
+                acc = record_dict[name]
+                if acc.dtype == grad.dtype and acc.device == grad.device:
+                    acc.add_(grad)
+                else:
+                    record_dict[name] = acc + grad
 
-    def get_record_gradient_hook(self, model, record_dict):
-        def record_gradient_hook(grad):
-            for n, p in model.named_parameters():
-                if p.requires_grad and p.grad is not None:
-                    if n not in record_dict:
-                        record_dict[n] = p.grad.to(self.gradient_device)
-                    else:
-                        record_dict[n] += p.grad.to(self.gradient_device)
-                    p.grad = None
-            return grad
-
-        return record_gradient_hook
+        return offload_grad_hook

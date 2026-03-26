@@ -2,6 +2,7 @@
 
 import os
 
+import wandb
 from accelerate import Accelerator
 from diffusers.utils.pil_utils import make_image_grid, numpy_to_pil
 from omegaconf import DictConfig, OmegaConf
@@ -16,7 +17,6 @@ from utils import (
     get_train_class,
 )
 
-import wandb
 from ls_mlkit.pipeline.pipeline import LogConfig
 from ls_mlkit.util.log import get_and_create_new_log_dir, get_logger
 from ls_mlkit.util.seed import seed_everything
@@ -42,7 +42,7 @@ def main(cfg: DictConfig):
     run_name = get_run_name(cfg)
 
     if accelerator.is_local_main_process:
-        logger.info("Config: \n" + OmegaConf.to_yaml(cfg))  # type: ignore
+        logger.info("Config: \n" + OmegaConf.to_yaml(cfg))  # noqa: F401
         wandb.init(
             reinit=cfg.wandb.reinit,
             mode=cfg.wandb.mode,
@@ -107,7 +107,10 @@ def main(cfg: DictConfig):
         model = model.to(accelerator.device)
         import torch
 
-        result = torch.randn((16, 3, cfg.dataset.image_size, cfg.dataset.image_size), device=accelerator.device)
+        result = torch.randn(
+            (16, 3, cfg.dataset.image_size, cfg.dataset.image_size),
+            device=accelerator.device,
+        )
         # with torch.no_grad():
         #     for t in range(cfg.flow.n_inference_steps):
         #         result = model.step(result, t, torch.ones_like(result, dtype=torch.bool, device=accelerator.device))

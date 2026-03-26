@@ -1,8 +1,4 @@
-from ls_mlkit.util.huggingface import HF_MIRROR
-
-HF_MIRROR.set_hf_mirror()
-import os
-
+import wandb
 from accelerate import Accelerator
 from omegaconf import DictConfig, OmegaConf
 from utils_for_main import (
@@ -16,8 +12,8 @@ from utils_for_main import (
     get_train_class,
 )
 
-import wandb
 from ls_mlkit.pipeline.pipeline import LogConfig
+from ls_mlkit.util.huggingface import HF_MIRROR  # noqa: F401
 from ls_mlkit.util.log import get_and_create_new_log_dir, get_logger
 from ls_mlkit.util.seed import seed_everything
 from ls_mlkit.util.show import show_info
@@ -42,7 +38,7 @@ def main(cfg: DictConfig):
     run_name = get_run_name(cfg)
 
     if accelerator.is_local_main_process:
-        logger.info("Config: \n" + OmegaConf.to_yaml(cfg))  # type: ignore
+        logger.info("Config: \n" + OmegaConf.to_yaml(cfg))  # noqa: F401
         wandb.init(
             reinit=cfg.wandb.reinit,
             mode=cfg.wandb.mode,
@@ -105,9 +101,11 @@ def main(cfg: DictConfig):
         wandb.finish()
 
     if accelerator.is_local_main_process:
-
         from diffusers.utils.pil_utils import make_image_grid, numpy_to_pil
-        from ls_mlkit.diffusion.euclidean_edm_diffuser import EuclideanEDMDiffuser
+
+        from ls_mlkit.diffusion.euclidean_edm_diffuser import (
+            EuclideanEDMDiffuser,
+        )
 
         model: EuclideanEDMDiffuser = get_model(
             cfg,
@@ -128,7 +126,7 @@ def main(cfg: DictConfig):
 
             image = numpy_to_pil(image)
             image_grid = make_image_grid(image, rows=4, cols=4)
-            image_grid.save(f"samping_uc.png")
+            image_grid.save("samping_uc.png")
 
             E_x0_xt_list = result["E_x0_xt_list"]
 
@@ -155,7 +153,7 @@ def main(cfg: DictConfig):
                 grid_rows = 2 if num_samples > 4 else 1
                 grid_cols = (num_samples + grid_rows - 1) // grid_rows
                 denoising_grid = make_image_grid(sampled_images, rows=grid_rows, cols=grid_cols)
-                denoising_grid.save(f"denoising_process.png")
+                denoising_grid.save("denoising_process.png")
                 print(
                     f"Saved denoising process visualization with {num_samples} timesteps from {len(E_x0_xt_list)} total steps"
                 )
@@ -278,7 +276,6 @@ if __name__ == "__main__":
             "inpainting": True,
         }
     )
-    import shutil
 
     # if os.path.exists("checkpoints"):
     #     shutil.rmtree("checkpoints")

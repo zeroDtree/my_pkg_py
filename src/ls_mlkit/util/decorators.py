@@ -82,7 +82,7 @@ def timer(format="ms"):
     return decorator
 
 
-def register_class_to_dict(cls=None, *, key_name=None, global_dict=None):
+def register_class_to_dict(cls=None, *, key_name=None, global_dict: dict | None = None):
     """Register a class to a global dictionary
 
     Args:
@@ -91,14 +91,16 @@ def register_class_to_dict(cls=None, *, key_name=None, global_dict=None):
         global_dict (dict, optional): the global dictionary to register the class. Defaults to None.
 
     """
+    if global_dict is None:
+        raise ValueError("global_dict must be provided")
 
     def _register(cls):
         if key_name is None:
             local_key_name = cls.__name__
         else:
             local_key_name = key_name
-        if key_name in global_dict:
-            raise ValueError(f"Already registered model with name: {key_name}")
+        if local_key_name in global_dict:
+            raise ValueError(f"Already registered model with name: {local_key_name}")
         global_dict[local_key_name] = cls
         return cls
 
@@ -219,7 +221,7 @@ def inherit_docstrings(cls):
     return cls
 
 
-def inherit_docstring_from_parent(method_name: str = None):
+def inherit_docstring_from_parent(method_name: str | None = None):
     r"""
     Method decorator that inherits docstring from a specific parent class method.
 

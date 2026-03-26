@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -8,7 +8,12 @@ from .base_sde import SDE
 
 
 class VPSDE(SDE):
-    def __init__(self, beta_min: float = 0.1, beta_max: float = 20, ndim_micro_shape: int = 2):
+    def __init__(
+        self,
+        beta_min: float = 0.1,
+        beta_max: float = 20,
+        ndim_micro_shape: int = 2,
+    ):
         r"""Construct a Variance Preserving SDE.
 
         Args:
@@ -73,7 +78,7 @@ class VPSDE(SDE):
         b = torch.sqrt(1.0 - torch.exp(2.0 * log_mean_coeff))
         return a, b
 
-    def forward_process(self, x_0: Tensor, t: Tensor, mask: Tensor = None) -> Tuple[Tensor, Tensor]:
+    def forward_process(self, x_0: Tensor, t: Tensor, mask: Optional[Tensor] = None) -> Dict[str, Tensor]:
         r"""
 
         .. math::
@@ -133,7 +138,12 @@ class VPSDE(SDE):
 
 
 class SubVPSDE(SDE):
-    def __init__(self, beta_min: float = 0.1, beta_max: float = 20, ndim_micro_shape: int = 2):
+    def __init__(
+        self,
+        beta_min: float = 0.1,
+        beta_max: float = 20,
+        ndim_micro_shape: int = 2,
+    ):
         """Construct the sub-VP SDE that excels at likelihoods.
 
         Args:
@@ -178,7 +188,12 @@ class SubVPSDE(SDE):
 
 class VESDE(SDE):
     def __init__(
-        self, sigma_min=0.01, sigma_max=50, n_discretization_steps=1000, ndim_micro_shape=2, drop_first_step=False
+        self,
+        sigma_min=0.01,
+        sigma_max=50,
+        n_discretization_steps=1000,
+        ndim_micro_shape=2,
+        drop_first_step=False,
     ):
         """Construct a Variance Exploding SDE.
 
@@ -189,7 +204,10 @@ class VESDE(SDE):
             n_discretization_steps: number of discretization steps
             ndim_micro_shape: number of dimensions of a sample
         """
-        super().__init__(n_discretization_steps=n_discretization_steps, ndim_micro_shape=ndim_micro_shape)
+        super().__init__(
+            n_discretization_steps=n_discretization_steps,
+            ndim_micro_shape=ndim_micro_shape,
+        )
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.drop_first_step = drop_first_step
@@ -197,11 +215,20 @@ class VESDE(SDE):
         sigma_max = torch.tensor(sigma_max)
         if drop_first_step:
             self.discrete_sigmas = (
-                10 ** torch.linspace(torch.log10(sigma_min), torch.log10(sigma_max), n_discretization_steps + 1)[1:]
+                10
+                ** torch.linspace(
+                    torch.log10(sigma_min),
+                    torch.log10(sigma_max),
+                    n_discretization_steps + 1,
+                )[1:]
             )
         else:
             self.discrete_sigmas = torch.exp(
-                torch.linspace(torch.log(sigma_min), torch.log(sigma_max), n_discretization_steps)
+                torch.linspace(
+                    torch.log(sigma_min),
+                    torch.log(sigma_max),
+                    n_discretization_steps,
+                )
             )
 
     @property
@@ -221,7 +248,10 @@ class VESDE(SDE):
         sigma = self.sigma_min * (self.sigma_max / self.sigma_min) ** t
         drift = torch.zeros_like(x)
         diffusion = sigma * torch.sqrt(
-            torch.tensor(2 * (np.log(self.sigma_max) - np.log(self.sigma_min)), device=t.device)
+            torch.tensor(
+                2 * (np.log(self.sigma_max) - np.log(self.sigma_min)),
+                device=t.device,
+            )
         )
         return drift, diffusion
 
@@ -241,7 +271,9 @@ class VESDE(SDE):
         timestep = (t * (self.n_discretization_steps - 1) / self.T).long()
         sigma = self.discrete_sigmas.to(t.device)[timestep]
         adjacent_sigma = torch.where(
-            timestep == 0, torch.zeros_like(t), self.discrete_sigmas[timestep - 1].to(t.device)
+            timestep == 0,
+            torch.zeros_like(t),
+            self.discrete_sigmas[timestep - 1].to(t.device),
         )
         f = torch.zeros_like(x)
         g = torch.sqrt(sigma**2 - adjacent_sigma**2)

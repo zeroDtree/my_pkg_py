@@ -130,7 +130,7 @@ def plot_boxplot(
             legend_handles = [Patch(facecolor=color, label=label) for color, label in zip(colors, legend_text)]
 
             # Set up legend parameters
-            legend_kwargs = {
+            legend_kwargs: dict[str, Any] = {
                 "handles": legend_handles,
                 "title": legend_title,
                 "fontsize": legend_fontsize,
@@ -145,7 +145,7 @@ def plot_boxplot(
 
     # Save the plot
     if save:
-        save_kwargs = {"bbox_inches": "tight", "dpi": dpi}
+        save_kwargs: dict[str, Any] = {"bbox_inches": "tight", "dpi": dpi}
         if legend and legend_handles and legend_bbox_to_anchor:
             # Include legend in the saved area
             legend_obj = ax.get_legend()

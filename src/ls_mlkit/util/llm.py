@@ -38,7 +38,7 @@ def get_data_collator(tokenizer, max_length=-1, ignore_masked_token=True, model_
         for sample in batch:
             input_text_length_list.append(len(tokenizer(sample["x"], return_tensors="pt")["input_ids"][0]))
         labels = encodings["input_ids"].clone()
-        for i, l in enumerate(input_text_length_list):
+        for i, l in enumerate(input_text_length_list):  # noqa: E741
             labels[i, :l] = ignore_index
         if ignore_masked_token:
             # The attention mask here should be padding mask.
@@ -130,9 +130,9 @@ def compute_metrics(eval_prediction: EvalPrediction):
         dict: the metrics
     """
 
-    predictions, _labels = eval_prediction.predictions
+    predictions, _labels = eval_prediction.predictions  # type: ignore[assignment]
     predictions = predictions[:, :-1]
-    labels = eval_prediction.label_ids[:, 1:]
+    labels = eval_prediction.label_ids[:, 1:]  # type: ignore[index]
 
     predictions = predictions.flatten().astype(np.int32)
     labels = labels.flatten().astype(np.int32)

@@ -3,7 +3,12 @@ from typing import Optional, Tuple
 
 import torch
 from torch import Tensor
-from transformers import AutoModelForCausalLM, GenerationMixin, PretrainedConfig, PreTrainedModel
+from transformers import (
+    AutoModelForCausalLM,
+    GenerationMixin,
+    PretrainedConfig,
+    PreTrainedModel,
+)
 from transformers.modeling_outputs import CausalLMOutputWithCrossAttentions
 
 ACTIVATION_MAP = {
@@ -32,7 +37,6 @@ class FeedForwardBlock(torch.nn.Module):
 
 
 class MultiHeadAttention(torch.nn.Module):
-
     def __init__(
         self,
         embed_dim,
@@ -484,7 +488,10 @@ class CausalLanguageModelForAuto(PreTrainedModel, GenerationMixin):
             shift_logits = logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
             loss_fn = torch.nn.CrossEntropyLoss()
-            loss = loss_fn(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+            loss = loss_fn(
+                shift_logits.view(-1, shift_logits.size(-1)),
+                shift_labels.view(-1),
+            )
         return CausalLMOutputWithCrossAttentions(
             loss=loss,
             logits=logits,

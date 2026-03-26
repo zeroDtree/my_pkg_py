@@ -6,7 +6,10 @@ from typing import Any
 
 from ..util.decorators import inherit_docstrings
 from ..util.manifold.lie_group import LieGroup
-from .manifold_diffuser import RiemannianManifoldDiffuser, RiemannianManifoldDiffuserConfig
+from .manifold_diffuser import (
+    RiemannianManifoldDiffuser,
+    RiemannianManifoldDiffuserConfig,
+)
 from .time_scheduler import DiffusionTimeScheduler
 
 

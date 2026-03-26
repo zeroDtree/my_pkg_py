@@ -1,6 +1,9 @@
 from typing import Any
 
-from ..util.base_class.base_gm_class import BaseGenerativeModel, BaseGenerativeModelConfig
+from ..util.base_class.base_gm_class import (
+    BaseGenerativeModel,
+    BaseGenerativeModelConfig,
+)
 from ..util.decorators import inherit_docstrings
 from .time_scheduler import FlowMatchingTimeScheduler
 

@@ -170,7 +170,7 @@ def plot_histogram_and_kde(
 
     # Save the plot
     if save:
-        save_kwargs = {"bbox_inches": "tight", "dpi": dpi}
+        save_kwargs: dict[str, Any] = {"bbox_inches": "tight", "dpi": dpi}
         if legend and legend_bbox_to_anchor:
             # Include legend in the saved area
             legend_obj = ax.get_legend()

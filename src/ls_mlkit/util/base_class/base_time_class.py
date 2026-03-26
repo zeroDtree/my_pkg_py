@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 from torch import Tensor
@@ -70,7 +70,7 @@ class BaseTimeScheduler(ABC):
         continuous_time_start: float = 0.0,
         continuous_time_end: float = 1.0,
         num_train_timesteps: int = 1000,
-        num_inference_steps: int = None,
+        num_inference_steps: Optional[int] = None,
         idx_start: int = 0,
     ) -> None:
         self.continuous_time_start: float = continuous_time_start
@@ -81,8 +81,8 @@ class BaseTimeScheduler(ABC):
         )
         self.idx_start: int = idx_start  # Starting value for timestep indices
         self.idx_end: int = idx_start + num_train_timesteps - 1  # Last value for timestep indices
-        self._timesteps_idx: Tensor = None  # Stores timestep indices
-        self._continuous_timesteps: Tensor = None  # Stores continuous times
+        self._timesteps_idx: Optional[Tensor] = None  # Stores timestep indices
+        self._continuous_timesteps: Optional[Tensor] = None  # Stores continuous times
         self.T: float = continuous_time_end - continuous_time_start
         self.initialize_timesteps_schedule()
 
@@ -298,10 +298,19 @@ if __name__ == "__main__":
     )
     # Add theoretical uniform distribution line
     expected_density = 1.0 / num_train_timesteps
-    ax1.axhline(y=expected_density, color="red", linestyle="--", linewidth=2, label=f"Expected: {expected_density:.6f}")
+    ax1.axhline(
+        y=expected_density,
+        color="red",
+        linestyle="--",
+        linewidth=2,
+        label=f"Expected: {expected_density:.6f}",
+    )
     ax1.set_xlabel("Timestep Index", fontsize=12)
     ax1.set_ylabel("Density", fontsize=12)
-    ax1.set_title(f"Distribution of Timestep Indices\n(N={num_train_timesteps}, samples={num_samples})", fontsize=14)
+    ax1.set_title(
+        f"Distribution of Timestep Indices\n(N={num_train_timesteps}, samples={num_samples})",
+        fontsize=14,
+    )
     ax1.legend()
     ax1.grid(True, alpha=0.3)
 
@@ -334,12 +343,17 @@ if __name__ == "__main__":
     # Add theoretical uniform distribution line
     expected_density2 = 1.0 / t_range
     ax2.axhline(
-        y=expected_density2, color="red", linestyle="--", linewidth=2, label=f"Expected: {expected_density2:.4f}"
+        y=expected_density2,
+        color="red",
+        linestyle="--",
+        linewidth=2,
+        label=f"Expected: {expected_density2:.4f}",
     )
     ax2.set_xlabel("Continuous Time", fontsize=12)
     ax2.set_ylabel("Density", fontsize=12)
     ax2.set_title(
-        f"Distribution of Continuous Time\n(range=[{t_min:.4f}, {t_max:.4f}], samples={num_samples})", fontsize=14
+        f"Distribution of Continuous Time\n(range=[{t_min:.4f}, {t_max:.4f}], samples={num_samples})",
+        fontsize=14,
     )
     ax2.legend()
     ax2.grid(True, alpha=0.3)

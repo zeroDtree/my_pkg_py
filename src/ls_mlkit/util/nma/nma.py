@@ -8,7 +8,7 @@ def get_nma_displacement_from_node_coordinates(
     node_coordinates: Tensor,
     cutoff_distance: float = 10.0,
     indexes: list[int] = [6],
-    node_mask: Tensor = None,
+    node_mask: Tensor | None = None,
 ) -> Tensor:
     """
     node_coordinates: shape = (..., n, 3)

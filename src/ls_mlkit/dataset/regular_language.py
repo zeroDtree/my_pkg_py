@@ -22,13 +22,22 @@ class RegularLanguageDataset(Dataset):
         return string
 
 
-def get_regular_language_dataset(regex_pattern, max_len=10, data_size=100, limit=100, test_ratio=0.2, **kwargs):
+def get_regular_language_dataset(
+    regex_pattern,
+    max_len=10,
+    data_size=100,
+    limit=100,
+    test_ratio=0.2,
+    **kwargs,
+):
     dataset = RegularLanguageDataset(regex_pattern, max_len=max_len, data_size=data_size, limit=limit)
     num_samples = len(dataset)
     train_size = int((1 - test_ratio) * num_samples)
     test_size = num_samples - train_size
     train_dataset, test_dataset = random_split(
-        dataset, [train_size, test_size], generator=torch.Generator().manual_seed(0)
+        dataset,
+        [train_size, test_size],
+        generator=torch.Generator().manual_seed(0),
     )
     return train_dataset, test_dataset, test_dataset
 

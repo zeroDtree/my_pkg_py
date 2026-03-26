@@ -1,5 +1,6 @@
 # official packages
 
+import wandb
 from accelerate import Accelerator
 from diffusers.utils.pil_utils import make_image_grid, numpy_to_pil
 from omegaconf import DictConfig, OmegaConf
@@ -15,7 +16,6 @@ from utils import (
     get_train_class,
 )
 
-import wandb
 from ls_mlkit.pipeline.pipeline import LogConfig
 from ls_mlkit.util.log import get_and_create_new_log_dir, get_logger
 from ls_mlkit.util.seed import seed_everything
@@ -41,7 +41,7 @@ def main(cfg: DictConfig):
     run_name = get_run_name(cfg)
 
     if accelerator.is_local_main_process:
-        logger.info("Config: \n" + OmegaConf.to_yaml(cfg))  # type: ignore
+        logger.info("Config: \n" + OmegaConf.to_yaml(cfg))  # noqa: F401
         wandb.init(
             reinit=cfg.wandb.reinit,
             mode=cfg.wandb.mode,
@@ -78,7 +78,9 @@ def main(cfg: DictConfig):
     training_config = TrainingConfigClass(**cfg.train)
     if accelerator.is_local_main_process:
         training_config.save_dir = get_new_save_dir(
-            training_config.save_dir, cfg, suffix=f"-{cfg.optimizer.name}-{cfg.diffuser.mode}"
+            training_config.save_dir,
+            cfg,
+            suffix=f"-{cfg.optimizer.name}-{cfg.diffuser.mode}",
         )
 
     print(training_config.__dict__)

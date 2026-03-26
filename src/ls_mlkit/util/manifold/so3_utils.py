@@ -2,6 +2,7 @@ r"""
 SO3 Utils
 """
 
+import math
 from typing import Tuple
 
 import torch
@@ -48,7 +49,11 @@ def vector_to_skew_symmetric(v: Tensor) -> Tensor:
     """
     macro_shape = get_macro_shape(x=v, ndim_micro_shape=1)
     hat_v = torch.zeros([*macro_shape, 3, 3], dtype=v.dtype, device=v.device)
-    hat_v[..., 0, 1], hat_v[..., 0, 2], hat_v[..., 1, 2] = -v[..., 2], v[..., 1], -v[..., 0]
+    hat_v[..., 0, 1], hat_v[..., 0, 2], hat_v[..., 1, 2] = (
+        -v[..., 2],
+        v[..., 1],
+        -v[..., 0],
+    )
     return hat_v + -hat_v.transpose(-1, -2)
 
 
@@ -70,7 +75,11 @@ def skew_symmetric_to_vector(hat_v: Tensor) -> Tensor:
     """
     macro_shape = get_macro_shape(x=hat_v, ndim_micro_shape=2)
     v = torch.zeros([*macro_shape, 3], dtype=hat_v.dtype, device=hat_v.device)
-    v[..., 0], v[..., 1], v[..., 2] = -hat_v[..., 1, 2], hat_v[..., 0, 2], -hat_v[..., 0, 1]
+    v[..., 0], v[..., 1], v[..., 2] = (
+        -hat_v[..., 1, 2],
+        hat_v[..., 0, 2],
+        -hat_v[..., 0, 1],
+    )
     return v
 
 
@@ -203,7 +212,11 @@ def f_igso3(omega: Tensor, c: Tensor, L: int = L_default) -> Tensor:
 
     # Add small epsilon to prevent division by zero when omega is close to 0 or 2π
     denominator_safe = torch.clamp(torch.abs(denominator), min=1e-8) * torch.sign(denominator)
-    denominator_safe = torch.where(torch.abs(denominator) < 1e-8, torch.ones_like(denominator) * 1e-8, denominator)
+    denominator_safe = torch.where(
+        torch.abs(denominator) < 1e-8,
+        torch.ones_like(denominator) * 1e-8,
+        denominator,
+    )
 
     result = s * numerator / denominator_safe  # (..., L)
     result = result.sum(dim=-1)
@@ -286,7 +299,13 @@ def igso3_score(R: Tensor, c: Tensor, L: int = L_default) -> Tensor:
 
 @cache_to_disk(root_datadir="cache")
 def calculate_igso3(
-    *, num_sigma: int, num_omega: int, min_sigma: float, max_sigma: float, discrete_omega=None, discrete_sigma=None
+    *,
+    num_sigma: int,
+    num_omega: int,
+    min_sigma: float,
+    max_sigma: float,
+    discrete_omega=None,
+    discrete_sigma=None,
 ) -> dict[str, Tensor]:
     r"""calculate_igso3 pre-computes numerical approximations to the IGSO3 cdfs
     and score norms and expected squared score norms.
@@ -312,7 +331,7 @@ def calculate_igso3(
 
     if discrete_sigma is None:
         discrete_sigma = (
-            10 ** torch.linspace(torch.log10(min_sigma), torch.log10(max_sigma), num_sigma + 1)[1:]
+            10 ** torch.linspace(math.log10(min_sigma), math.log10(max_sigma), num_sigma + 1)[1:]
         )  # [num_sigma, ]
     else:
         discrete_sigma = discrete_sigma
@@ -338,7 +357,7 @@ def calculate_igso3(
     $$
     """
     exp_score_norms = torch.sqrt(
-        torch.sum(score_norm**2 * pdf_vals, axis=1) / torch.sum(pdf_vals, axis=1)
+        torch.sum(score_norm**2 * pdf_vals, dim=1) / torch.sum(pdf_vals, dim=1)
     )  # [num_sigma, ]
     return {
         "cdf": cdf_vals,  # [num_sigma, num_omega]

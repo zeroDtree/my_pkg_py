@@ -5,6 +5,7 @@ Comparison plotting utilities for multi-model analysis
 import os
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -77,7 +78,7 @@ def plot_entity_wise_comparison(
     bar_width = 0.8 / len(results_dict)
 
     # Generate colors for different models
-    colors = plt.cm.Set3(np.linspace(0, 1, len(results_dict)))
+    colors = matplotlib.colormaps["Set3"](np.linspace(0, 1, len(results_dict)))
 
     for i, ((model_name, data), color) in enumerate(zip(results_dict.items(), colors)):
         model_values = []
@@ -93,7 +94,14 @@ def plot_entity_wise_comparison(
         # Plot bars for this model
         label = name_formatter(model_name) if name_formatter else model_name
         x_pos = x_positions + i * bar_width - (len(results_dict) - 1) * bar_width / 2
-        ax.bar(x_pos, model_values, bar_width, label=label, color=color, alpha=alpha)
+        ax.bar(
+            x_pos,
+            model_values,
+            bar_width,
+            label=label,
+            color=color,
+            alpha=alpha,
+        )
 
     # Set labels and title
     ax.set_xlabel(xlabel)
@@ -112,7 +120,12 @@ def plot_entity_wise_comparison(
     ax.set_xticklabels(truncated_names, rotation=rotation, ha=ha)
 
     # Add legend and grid
-    ax.legend(bbox_to_anchor=legend_bbox_to_anchor, loc=legend_loc, fontsize=legend_fontsize, ncol=legend_ncol)
+    ax.legend(
+        bbox_to_anchor=legend_bbox_to_anchor,
+        loc=legend_loc,
+        fontsize=legend_fontsize,
+        ncol=legend_ncol,
+    )
 
     if grid:
         ax.grid(True, alpha=grid_alpha, axis="y")
@@ -122,7 +135,7 @@ def plot_entity_wise_comparison(
     # Save the plot
     if save:
         output_path = os.path.join(output_dir, filename)
-        save_kwargs = {"dpi": dpi, "bbox_inches": "tight", "pad_inches": 0.2}
+        save_kwargs: dict[str, Any] = {"dpi": dpi, "bbox_inches": "tight", "pad_inches": 0.2}
 
         # Include legend in saved area
         legend = ax.get_legend()
@@ -159,4 +172,10 @@ if __name__ == "__main__":
     }
 
     # Test the function
-    plot_entity_wise_comparison(example_results, output_dir=".", top_n=10, show=True, filename="test_comparison.png")
+    plot_entity_wise_comparison(
+        example_results,
+        output_dir=".",
+        top_n=10,
+        show=True,
+        filename="test_comparison.png",
+    )

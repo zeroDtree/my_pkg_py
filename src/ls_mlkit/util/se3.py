@@ -82,9 +82,12 @@ class T:
             raise ValueError("Incorrectly shaped input")
 
     def __getitem__(self, index):
-        if type(index) != tuple:
+        if type(index) is not tuple:
             index = (index,)
-        return T(self.rots[index + (slice(None), slice(None))], self.trans[index + (slice(None),)])
+        return T(
+            self.rots[index + (slice(None), slice(None))],
+            self.trans[index + (slice(None),)],
+        )
 
     def __eq__(self, obj):
         return torch.all(self.rots == obj.rots) and torch.all(self.trans == obj.trans)
@@ -196,7 +199,7 @@ class T:
         u2 = v2 - (torch.einsum("...li, ...li -> ...l", e1, v2)[..., None] * e1)
         e2 = u2 / (torch.norm(u2, dim=-1, keepdim=True) + eps)
         e3 = torch.cross(e1, e2, dim=-1)
-        R = torch.cat([e1[..., None], e2[..., None], e3[..., None]], axis=-1)  # [B,L,3,3] - rotation matrix
+        R = torch.cat([e1[..., None], e2[..., None], e3[..., None]], dim=-1)  # [B,L,3,3] - rotation matrix
 
         return T(R, x_2)
 

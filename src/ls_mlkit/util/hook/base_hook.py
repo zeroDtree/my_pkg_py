@@ -5,9 +5,13 @@ HookStageType = TypeVar("HookStageType", bound=Enum)
 
 
 class Hook(Generic[HookStageType]):
-
     def __init__(
-        self, name: str, stage: HookStageType, fn: Callable[..., Optional[Any]], priority: int = 0, enabled: bool = True
+        self,
+        name: str,
+        stage: HookStageType,
+        fn: Callable[..., Optional[Any]],
+        priority: int = 0,
+        enabled: bool = True,
     ):
         self.name = name
         self.stage = stage
@@ -25,7 +29,6 @@ class Hook(Generic[HookStageType]):
 
 
 class HookHandler(Generic[HookStageType]):
-
     def __init__(self, manager: "HookManager[HookStageType]", hook: Hook[HookStageType]):
         self._manager = manager
         self._hook = hook
@@ -49,7 +52,6 @@ class HookHandler(Generic[HookStageType]):
 
 
 class HookManager(Generic[HookStageType]):
-
     def __init__(self) -> None:
         self._hooks: Dict[HookStageType, list[Hook[HookStageType]]] = {}
 
@@ -69,7 +71,12 @@ class HookManager(Generic[HookStageType]):
             for s in self._hooks:
                 self._hooks[s] = [h for h in self._hooks[s] if h.name != name]
 
-    def enable_hook(self, name: str = None, stage: HookStageType = None, enabled: bool = True) -> None:
+    def enable_hook(
+        self,
+        name: Optional[str] = None,
+        stage: Optional[HookStageType] = None,
+        enabled: bool = True,
+    ) -> None:
         hook_found = False
         for stage_key, hooks in self._hooks.items():
             if stage is not None and stage_key != stage:
@@ -81,18 +88,18 @@ class HookManager(Generic[HookStageType]):
         if not hook_found:
             raise ValueError(f"Hook with name {name} not found.")
 
-    def disable_hook(self, name: str = None, stage: HookStageType = None) -> None:
+    def disable_hook(self, name: Optional[str] = None, stage: Optional[HookStageType] = None) -> None:
         self.enable_hook(name=name, stage=stage, enabled=False)
 
-    def run_hooks(self, stage: HookStageType, tgt_key_name=None, **kwargs) -> Optional[Any]:
+    def run_hooks(self, stage: HookStageType, tgt_key_name: Optional[str] = None, **kwargs) -> Optional[Any]:
         """Executes all enabled hooks for a given stage, optionally updating or collecting results in kwargs,
         and returns either the final modified kwargs or a specific key's value.
 
         Args:
             stage (``HookStageType``): _description_
-            tgt_key_name (``_type_``, *optional*): target key name. Defaults to None.
+            tgt_key_name (``str``, *optional*): target key name. Defaults to None.
         """
-        hook_output = None
+        hook_output: Optional[Any] = None
 
         if stage is not None and stage in self._hooks:
             for hook in self._hooks[stage]:
@@ -101,13 +108,12 @@ class HookManager(Generic[HookStageType]):
                 hook_output = hook(**kwargs)
                 if tgt_key_name is not None:
                     kwargs[tgt_key_name] = hook_output
-                else:
+                elif isinstance(hook_output, dict):
                     kwargs = hook_output
 
         if tgt_key_name is not None:
-            return kwargs[tgt_key_name]
-        elif tgt_key_name is None:
-            return kwargs
+            return kwargs.get(tgt_key_name)
+        return kwargs
 
     def list_hooks(self) -> None:
         for stage, hooks in self._hooks.items():

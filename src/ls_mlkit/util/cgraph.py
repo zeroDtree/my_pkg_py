@@ -4,8 +4,8 @@ from torchviz import make_dot
 
 def get_compute_graph(
     model: torch.nn.Module,
-    input_shape=None,
-    input: dict = None,
+    input_shape: tuple | None = None,
+    input: dict | None = None,
     dir: str = "compute_graph",
     filename: str = "simple_net_graph",
     format: str = "pdf",
@@ -26,10 +26,10 @@ def get_compute_graph(
     """
     assert input is not None or input_shape is not None, "error: input is None and input_shape is None"
     if input is None:
-        example_input = torch.randn(input_shape)
+        assert input_shape is not None
+        out = model(torch.randn(input_shape))
     else:
-        example_input = input
-    out = model(**example_input)
+        out = model(**input)
 
     def extract_tensors(output):
         if isinstance(output, torch.Tensor):

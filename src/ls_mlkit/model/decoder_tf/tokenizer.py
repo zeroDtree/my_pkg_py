@@ -16,7 +16,15 @@ class Tokenizer:
         self.vocab = None
         self.has_add_special_tokens = False
         self.has_build_vocab = False
-        self.default_special_token_list = ["[BOS]", "[EOS]", "[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]"]
+        self.default_special_token_list = [
+            "[BOS]",
+            "[EOS]",
+            "[UNK]",
+            "[SEP]",
+            "[PAD]",
+            "[CLS]",
+            "[MASK]",
+        ]
         self.eos_token = None
         self.pad_token = None
         self.set_eos_token("[EOS]")
@@ -57,7 +65,10 @@ class Tokenizer:
         if not self.has_add_special_tokens:
             self.add_special_tokens(self.default_special_token_list)
         vocab = copy.deepcopy(self.special_vocab)
-        p_bar = tqdm(total=max(counter.total(), max_vocab_size), desc="specifying id to tokens")
+        p_bar = tqdm(
+            total=max(counter.total(), max_vocab_size),
+            desc="specifying id to tokens",
+        )
         for token, freq in counter.most_common(max_vocab_size):
             if freq >= min_freq and token not in vocab:
                 vocab[token] = len(vocab)
@@ -110,7 +121,9 @@ def get_collate_fn(tokenizer: Tokenizer, max_len: int = 500, train=True):
         for sample in batch:
             collated_batch.append(transform_text_to_tensor(sample.rstrip("\n"), tokenizer))
         collated_batch = pad_sequence(
-            collated_batch, padding_value=tokenizer.convert_token_to_id([tokenizer.pad_token])[0], batch_first=True
+            collated_batch,
+            padding_value=tokenizer.convert_token_to_id([tokenizer.pad_token])[0],
+            batch_first=True,
         )
         collated_batch = collated_batch.long()[:, :max_len]
         attention_mask, padding_mask = get_masks(collated_batch[:, :-1] if train else collated_batch, tokenizer)

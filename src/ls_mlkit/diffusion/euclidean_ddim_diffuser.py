@@ -102,7 +102,14 @@ class EuclideanDDIMDiffuser(EuclideanDDPMDiffuser):
         variance = (beta_prod_t_prev / beta_prod_t) * (1 - alpha_prod_t / alpha_prod_t_prev)
         return variance
 
-    def step(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:
+    def step(
+        self,
+        x_t: Tensor,
+        t: Tensor,
+        padding_mask: Tensor,
+        *args: Any,
+        **kwargs: Any,
+    ) -> dict:
         r"""DDIM sampling algorithm:
 
         .. math::
@@ -168,6 +175,7 @@ class EuclideanDDIMDiffuser(EuclideanDDPMDiffuser):
         r"""
         $$x_{t-1} = \sqrt{\bar{\alpha}_{t-1}} \cdot \hat{x}_0 + \text{direction} + \sigma_t \cdot z$$
         """
+        pred_original_sample = cast(Tensor, pred_original_sample)
         pred_prev_sample = torch.sqrt(alpha_prod_t_prev) * pred_original_sample + direction
 
         epsilon_t = torch.randn_like(x_t)

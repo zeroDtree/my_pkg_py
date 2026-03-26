@@ -1,6 +1,7 @@
 # official packages
 
 
+import wandb
 from accelerate import Accelerator
 from omegaconf import DictConfig, OmegaConf
 from utils import (
@@ -14,7 +15,6 @@ from utils import (
     get_train_class,
 )
 
-import wandb
 from ls_mlkit.pipeline.pipeline import LogConfig
 from ls_mlkit.util.log import get_and_create_new_log_dir, get_logger
 from ls_mlkit.util.seed import seed_everything
@@ -40,7 +40,7 @@ def main(cfg: DictConfig):
     run_name = get_run_name(cfg)
 
     if accelerator.is_local_main_process:
-        logger.info("Config: \n" + OmegaConf.to_yaml(cfg))  # type: ignore
+        logger.info("Config: \n" + OmegaConf.to_yaml(cfg))  # noqa: F401
         wandb.init(
             reinit=cfg.wandb.reinit,
             mode=cfg.wandb.mode,
@@ -150,7 +150,7 @@ def main(cfg: DictConfig):
         ax.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.savefig("sample_visualization.png", dpi=150)
-        print(f"Sample visualization saved to 'sample_visualization.png'")
+        print("Sample visualization saved to 'sample_visualization.png'")
         print(f"Sample shape: {sample.shape}")
         print(f"Sample statistics - mean: {sample_cpu.mean(dim=0)}, std: {sample_cpu.std(dim=0)}")
 
@@ -174,7 +174,7 @@ def main(cfg: DictConfig):
         for i in range(n_steps):
             x = x_list[i + 1]
             axes[i + 1].scatter(x[:, 0], x[:, 1], s=10)
-            axes[i + 1].set_title(f"idx = {i+1}")
+            axes[i + 1].set_title(f"idx = {i + 1}")
 
         plt.tight_layout()
         plt.savefig("sample_uc.png")
@@ -190,7 +190,10 @@ def main(cfg: DictConfig):
         # if you just want random labels –– otherwise load real labels here
         c_eval = torch.randint(0, 2, (n_samples, 1), dtype=torch.float32, device=accelerator.device)  # (n_samples, 1)
         result: dict = model.sampling(
-            shape=(256, 2), device=accelerator.device, return_all=True, sampling_condition=c_eval
+            shape=(256, 2),
+            device=accelerator.device,
+            return_all=True,
+            sampling_condition=c_eval,
         )
         x_list = result["x_list"]
         x_list = [x.detach().cpu() for x in x_list]
@@ -203,11 +206,17 @@ def main(cfg: DictConfig):
         # colours for the scatter (same length as x)
         colors = ["blue" if lbl == 0 else "orange" for lbl in c_eval.squeeze().tolist()]
 
-        fig, axes = plt.subplots(1, n_steps + 1, figsize=(4 * (n_steps + 1), 4), sharex=True, sharey=True)
+        fig, axes = plt.subplots(
+            1,
+            n_steps + 1,
+            figsize=(4 * (n_steps + 1), 4),
+            sharex=True,
+            sharey=True,
+        )
 
         # initial frame
         axes[0].scatter(x[:, 0], x[:, 1], s=10, c=colors)
-        axes[0].set_title(f"idx = 0")
+        axes[0].set_title("idx = 0")
         axes[0].set_xlim(-3.0, 3.0)
         axes[0].set_ylim(-3.0, 3.0)
 
@@ -248,12 +257,15 @@ def main(cfg: DictConfig):
         # Add legend
         from matplotlib.patches import Patch
 
-        legend_elements = [Patch(facecolor="blue", label="Class 0"), Patch(facecolor="orange", label="Class 1")]
+        legend_elements = [
+            Patch(facecolor="blue", label="Class 0"),
+            Patch(facecolor="orange", label="Class 1"),
+        ]
         ax.legend(handles=legend_elements, loc="upper right")
 
         plt.tight_layout()
         plt.savefig("real_dataset_with_categories.png", dpi=150)
-        print(f"Real dataset visualization saved to 'real_dataset_with_categories.png'")
+        print("Real dataset visualization saved to 'real_dataset_with_categories.png'")
         print(f"Real dataset shape: {x_real.shape}")
         print(f"Class 0 count: {(c_real == 0).sum().item()}, Class 1 count: {(c_real == 1).sum().item()}")
 

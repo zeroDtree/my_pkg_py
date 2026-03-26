@@ -3,11 +3,15 @@ from typing import Any
 import torch
 from torch.nn import Module
 
-from ..util.hook.model_hook import ModelHook, ModelHookHandler, ModelHookManager, ModelHookStageType
+from ..util.hook.model_hook import (
+    ModelHook,
+    ModelHookHandler,
+    ModelHookManager,
+    ModelHookStageType,
+)
 
 
 class ModelForPipeline(Module):
-
     def __init__(self, model: Module):
         super().__init__()
         self.model = model
@@ -25,7 +29,10 @@ class ModelForPipeline(Module):
         self.hook_manager.run_hooks(stage=ModelHookStageType.PRE_COMPUTE_LOSS, model=model, batch=batch)
         model_output = model(**batch)
         self.hook_manager.run_hooks(
-            stage=ModelHookStageType.POST_COMPUTE_LOSS, model=model, batch=batch, model_output=model_output
+            stage=ModelHookStageType.POST_COMPUTE_LOSS,
+            model=model,
+            batch=batch,
+            model_output=model_output,
         )
         return model_output
 

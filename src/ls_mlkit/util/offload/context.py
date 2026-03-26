@@ -1,3 +1,5 @@
+from contextlib import ExitStack
+
 import torch.nn
 
 from .gradient_offload import GradientOffloadHookContext
@@ -19,10 +21,8 @@ class OffloadContext:
             no_split_module_classes=no_split_module_classes,
             num_block=num_block,
             enable=enable_model_offload,
-            # =========================
             device="cuda",
             strategy="block",
-            with_backward_hook=False,
         )
         self.gradientOffloadHookContext = GradientOffloadHookContext(
             model=model,
@@ -31,9 +31,10 @@ class OffloadContext:
         )
 
     def __enter__(self):
-        self.modelOffloadHookContext.__enter__()
-        self.gradientOffloadHookContext.__enter__()
+        self._stack = ExitStack()
+        self._stack.enter_context(self.modelOffloadHookContext)
+        self._stack.enter_context(self.gradientOffloadHookContext)
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.modelOffloadHookContext.__exit__(exc_type, exc_val, exc_tb)
-        self.gradientOffloadHookContext.__exit__(exc_type, exc_val, exc_tb)
+        return self._stack.__exit__(exc_type, exc_val, exc_tb)

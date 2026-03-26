@@ -1,6 +1,6 @@
 import abc
 import functools
-from typing import Tuple
+from typing import Callable, Tuple
 
 import torch
 from overrides import override
@@ -15,7 +15,7 @@ register_predictor = functools.partial(register_class_to_dict, global_dict=_PRED
 
 
 class Predictor(abc.ABC):
-    def __init__(self, sde: SDE, score_fn: object, use_probability_flow=False):
+    def __init__(self, sde: SDE, score_fn: Callable[..., Tensor], use_probability_flow=False):
         super().__init__()
         self.sde = sde
         # Compute the reverse SDE/ODE
@@ -38,7 +38,7 @@ class Predictor(abc.ABC):
 
 @register_predictor(key_name="none")
 class NonePredictor(Predictor):
-    def __init__(self, sde, score_fn, use_probability_flow=False): ...
+    def __init__(self, sde: SDE, score_fn: Callable[..., Tensor], use_probability_flow: bool = False): ...
 
     def update_fn(self, x, t, mask=None):
         return x, x
@@ -46,8 +46,12 @@ class NonePredictor(Predictor):
 
 @register_predictor(key_name="reverse_diffusion_predictor")
 class ReverseDiffusionPredictor(Predictor):
-    def __init__(self, sde: SDE, score_fn, use_probability_flow=False, n_dim: int = 3):
-        super().__init__(sde=sde, score_fn=score_fn, use_probability_flow=use_probability_flow)
+    def __init__(self, sde: SDE, score_fn: Callable[..., Tensor], use_probability_flow=False, n_dim: int = 3):
+        super().__init__(
+            sde=sde,
+            score_fn=score_fn,
+            use_probability_flow=use_probability_flow,
+        )
         self.n_dim = n_dim
 
     @override

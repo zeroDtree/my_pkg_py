@@ -8,7 +8,7 @@ from torch.nn import Module
 
 
 def get_run_name(cfg: DictConfig, prefix: str = "", suffix: str = "") -> str:
-    run_name = f"{cfg.dataset.name}-{cfg.model.name.replace('/','_').replace('-','_')}-lr:{cfg.optimizer.lr}"
+    run_name = f"{cfg.dataset.name}-{cfg.model.name.replace('/', '_').replace('-', '_')}-lr:{cfg.optimizer.lr}"
     if cfg.train.train_strategy in ["steps"]:
         run_name += f"-n_steps:{cfg.train.n_steps}"
     if cfg.train.train_strategy in ["epochs"]:
@@ -18,7 +18,7 @@ def get_run_name(cfg: DictConfig, prefix: str = "", suffix: str = "") -> str:
 
 
 def get_optimizer(model, cfg: DictConfig):
-    import torch  # type: ignore
+    import torch  # noqa: F401
 
     optimizer_config = dict(cfg.optimizer)
     optimizer_class_name = optimizer_config.pop("name")
@@ -26,7 +26,13 @@ def get_optimizer(model, cfg: DictConfig):
     return optimizer
 
 
-def get_learing_rate_scheduler(optimizer, accelerator: Accelerator, train_set, cfg: DictConfig, inplace: bool = True):
+def get_learing_rate_scheduler(
+    optimizer,
+    accelerator: Accelerator,
+    train_set,
+    cfg: DictConfig,
+    inplace: bool = True,
+):
     from ls_mlkit.scheduler.lr_scheduler_factory import get_lr_scheduler
 
     cfg.train.batch_size
@@ -58,7 +64,10 @@ def get_learing_rate_scheduler(optimizer, accelerator: Accelerator, train_set, c
 
 
 def get_train_class():
-    from ls_mlkit.pipeline.dist_pipeline_impl import MyDistributedPipeline, MyTrainingConfig
+    from ls_mlkit.pipeline.dist_pipeline_impl import (
+        MyDistributedPipeline,
+        MyTrainingConfig,
+    )
 
     return MyDistributedPipeline, MyTrainingConfig
 

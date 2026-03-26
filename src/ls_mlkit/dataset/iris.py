@@ -54,7 +54,9 @@ def get_iris_dataset(test_ratio=0.2, **kwargs):
     train_size = int((1 - test_ratio) * num_samples)
     test_size = num_samples - train_size
     train_dataset, test_dataset = random_split(
-        dataset, [train_size, test_size], generator=torch.Generator().manual_seed(0)
+        dataset,
+        [train_size, test_size],
+        generator=torch.Generator().manual_seed(0),
     )
     print(f"total_size = {len(dataset)}, (train_size, test_size) = {len(train_dataset)}, {len(test_dataset)}")
     return train_dataset, test_dataset, test_dataset

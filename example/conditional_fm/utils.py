@@ -6,12 +6,14 @@ from torch import Tensor
 from torch.nn import Module
 from transformers.trainer import Accelerator
 
-from ls_mlkit.util.utils_for_main import get_learing_rate_scheduler  # type: ignore
-from ls_mlkit.util.utils_for_main import get_new_save_dir  # type: ignore
-from ls_mlkit.util.utils_for_main import get_optimizer  # type: ignore
-from ls_mlkit.util.utils_for_main import get_run_name  # type: ignore
-from ls_mlkit.util.utils_for_main import get_train_class  # type: ignore
-from ls_mlkit.util.utils_for_main import load_checkpoint  # type: ignore
+from ls_mlkit.util.utils_for_main import (
+    get_learing_rate_scheduler,  # noqa: F401
+    get_new_save_dir,  # noqa: F401
+    get_optimizer,  # noqa: F401
+    get_run_name,  # noqa: F401
+    get_train_class,  # noqa: F401
+    load_checkpoint,  # noqa: F401
+)
 
 
 def get_dataset(cfg: DictConfig):
@@ -42,7 +44,10 @@ def get_collate_fn(cfg: DictConfig):
         # Extract the "images" from each example and stack them
         batch = examples
         x_1 = torch.stack(batch)
-        return {"gt_data": Tensor(make_moons(256, noise=0.15)[0]), "padding_mask": torch.ones_like(x_1)}
+        return {
+            "gt_data": Tensor(make_moons(256, noise=0.15)[0]),
+            "padding_mask": torch.ones_like(x_1),
+        }
 
     return collate_fn
 
@@ -51,7 +56,10 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
     from torch import nn
 
-    from ls_mlkit.flow_matching.euclidean_ot_fm import EuclideanOTFlow, EuclideanOTFlowConfig
+    from ls_mlkit.flow_matching.euclidean_ot_fm import (
+        EuclideanOTFlow,
+        EuclideanOTFlowConfig,
+    )
     from ls_mlkit.flow_matching.time_scheduler import FlowMatchingTimeScheduler
     from ls_mlkit.model.model_for_pipeline import ModelForPipeline
     from ls_mlkit.util.mask.image_masker import ImageMasker
@@ -60,7 +68,13 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         def __init__(self, dim: int = 2, h: int = 64):
             super().__init__()
             self.net = nn.Sequential(
-                nn.Linear(dim + 1, h), nn.ELU(), nn.Linear(h, h), nn.ELU(), nn.Linear(h, h), nn.ELU(), nn.Linear(h, dim)
+                nn.Linear(dim + 1, h),
+                nn.ELU(),
+                nn.Linear(h, h),
+                nn.ELU(),
+                nn.Linear(h, h),
+                nn.ELU(),
+                nn.Linear(h, dim),
             )
 
         def forward(self, x_t: Tensor, t: Tensor, *args, **kwarg) -> Tensor:
@@ -208,4 +222,8 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     sampling_hook_handlers = flow.register_hooks([samling_hook])
     train_hook = flow.get_condition_post_compute_loss_hook([classifier_conditioner])
     train_hook_handlers = flow.register_hooks([train_hook])
-    return {"model": flow, "train_hook_handlers": train_hook_handlers, "sampling_hook_handlers": sampling_hook_handlers}
+    return {
+        "model": flow,
+        "train_hook_handlers": train_hook_handlers,
+        "sampling_hook_handlers": sampling_hook_handlers,
+    }

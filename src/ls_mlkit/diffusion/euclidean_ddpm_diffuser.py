@@ -57,11 +57,16 @@ class EuclideanDDPMConfig(EuclideanDiffuserConfig):
         if betas is None:
             # Use the same beta schedule as standard DDPMScheduler
             # Linear schedule from beta_start=0.0001 to beta_end=0.02
-            self.betas = torch.linspace(0.0001, 0.02, steps=self.n_discretization_steps, dtype=torch.float32)
+            self.betas = torch.linspace(
+                0.0001,
+                0.02,
+                steps=self.n_discretization_steps,
+                dtype=torch.float32,
+            )
         else:
             self.betas = betas
         self.alphas = 1.0 - self.betas
-        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
+        self.alphas_cumprod = torch.cumprod(cast(Tensor, self.alphas), dim=0)
         self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)  # expectation
         self.sqrt_1m_alphas_cumprod = torch.sqrt(1.0 - self.alphas_cumprod)  # std
         self.use_clip = use_clip
@@ -109,15 +114,20 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
         macro_shape = self.get_macro_shape(x_0)  # (b, )
         macro_shape = self.hook_manager.run_hooks(
-            stage=GMHookStageType.POST_GET_MACRO_SHAPE, tgt_key_name="macro_shape", macro_shape=macro_shape, batch=batch
+            stage=GMHookStageType.POST_GET_MACRO_SHAPE,
+            tgt_key_name="macro_shape",
+            macro_shape=macro_shape,
+            batch=batch,
         )
-
+        macro_shape = cast(tuple[int, ...], macro_shape)
         t = self.time_scheduler.sample_timestep_index_uniformly(macro_shape).to(device)  # (b, )
         t = self.hook_manager.run_hooks(
-            stage=GMHookStageType.POST_SAMPLING_TIME_STEP, tgt_key_name="t", t=t, batch=batch
+            stage=GMHookStageType.POST_SAMPLING_TIME_STEP,
+            tgt_key_name="t",
+            t=t,
+            batch=batch,
         )
-
-        self.config = self.config.to(t)
+        t = cast(Tensor, t)
         sqrt_1m_alphas_cumprod = self.complete_micro_shape(self.config.sqrt_1m_alphas_cumprod[t])
         sqrt_alphas_cumprod = self.complete_micro_shape(self.config.sqrt_alphas_cumprod[t])
         b = sqrt_1m_alphas_cumprod
@@ -186,7 +196,13 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         return expectation, standard_deviation
 
     def forward_process_n_step(
-        self, x: Tensor, t: Tensor, next_t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any
+        self,
+        x: Tensor,
+        t: Tensor,
+        next_t: Tensor,
+        padding_mask: Tensor,
+        *args: Any,
+        **kwargs: Any,
     ) -> Tensor:
         assert (next_t > t).all()
         assert (t >= 0).all()
@@ -202,15 +218,31 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         return x_next
 
     def forward_process(
-        self, x_0: Tensor, discrete_t: Tensor, mask: Tensor, *args: list[Any], **kwargs: dict[Any, Any]
+        self,
+        x_0: Tensor,
+        discrete_t: Tensor,
+        mask: Tensor,
+        **kwargs: dict[Any, Any],
     ) -> dict:
         device = x_0.device
         expectation, standard_deviation = self.q_xt_x_0(x_0, discrete_t, mask)
         noise = torch.randn_like(expectation, device=device)
         x_t = expectation + standard_deviation * noise
-        return {"x_t": x_t, "noise": noise, "expectation": expectation, "standard_deviation": standard_deviation}
+        return {
+            "x_t": x_t,
+            "noise": noise,
+            "expectation": expectation,
+            "standard_deviation": standard_deviation,
+        }
 
-    def step(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> dict:
+    def step(
+        self,
+        x_t: Tensor,
+        t: Tensor,
+        padding_mask: Tensor,
+        *args: Any,
+        **kwargs: Any,
+    ) -> dict:
         r"""
         Predict the sample from the previous timestep by reversing the SDE.
         This function propagates the diffusion process from the learned model outputs.
@@ -255,7 +287,9 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
                 "b": self.complete_micro_shape(self.config.sqrt_1m_alphas_cumprod[t]),
             }
             hook_output = self.hook_manager.run_hooks(
-                GMHookStageType.PRE_UPDATE_IN_STEP_FN, tgt_key_name="p_noise", **hook_input
+                GMHookStageType.PRE_UPDATE_IN_STEP_FN,
+                tgt_key_name="p_noise",
+                **hook_input,
             )
             if hook_output is not None:
                 model_pred = hook_output
@@ -327,7 +361,13 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         """
         return timestep - 1
 
-    def _get_variance(self, t: int, alpha_prod_t: Tensor, alpha_prod_t_prev: Tensor, current_beta_t: Tensor) -> Tensor:
+    def _get_variance(
+        self,
+        t: int,
+        alpha_prod_t: Tensor,
+        alpha_prod_t_prev: Tensor,
+        current_beta_t: Tensor,
+    ) -> Tensor:
         r"""Calculate variance for timestep t following standard DDPM formula. For t > 0, compute predicted variance βt (see formula (6) and (7) from https://huggingface.co/papers/2006.11239)
 
         .. math::

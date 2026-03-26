@@ -38,14 +38,14 @@ class BaseLoss(Module, abc.ABC):
         )
 
     @abc.abstractmethod
-    def compute_loss(self, **batch) -> dict | Tensor:
+    def compute_loss(self, **batch) -> dict:
         r"""Compute loss
 
         Args:
             batch (``dict[str, Any]``): the batch of data
 
         Returns:
-            ``dict``|``Tensor``: a dictionary that must contain the key "loss" or a tensor of loss
+            ``dict``|``Tensor``: a dictionary that must contain the key "loss"
         """
 
     def get_macro_shape(self, x: Tensor) -> tuple[int, ...]:

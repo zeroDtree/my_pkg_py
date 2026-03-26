@@ -6,12 +6,14 @@ from torch import Tensor
 from torch.nn import Module
 from transformers.trainer import Accelerator
 
-from ls_mlkit.util.utils_for_main import get_learing_rate_scheduler  # type: ignore
-from ls_mlkit.util.utils_for_main import get_new_save_dir  # type: ignore
-from ls_mlkit.util.utils_for_main import get_optimizer  # type: ignore
-from ls_mlkit.util.utils_for_main import get_run_name  # type: ignore
-from ls_mlkit.util.utils_for_main import get_train_class  # type: ignore
-from ls_mlkit.util.utils_for_main import load_checkpoint  # type: ignore
+from ls_mlkit.util.utils_for_main import (
+    get_learing_rate_scheduler,  # noqa: F401
+    get_new_save_dir,  # noqa: F401
+    get_optimizer,  # noqa: F401
+    get_run_name,  # noqa: F401
+    get_train_class,  # noqa: F401
+    load_checkpoint,  # noqa: F401
+)
 
 
 def get_dataset(cfg: DictConfig):
@@ -51,7 +53,10 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
     from torch import nn
 
-    from ls_mlkit.diffusion.euclidean_edm_diffuser import EuclideanEDMConfig, EuclideanEDMDiffuser
+    from ls_mlkit.diffusion.euclidean_edm_diffuser import (
+        EuclideanEDMConfig,
+        EuclideanEDMDiffuser,
+    )
     from ls_mlkit.diffusion.time_scheduler import DiffusionTimeScheduler
     from ls_mlkit.model.model_for_pipeline import ModelForPipeline
     from ls_mlkit.util.mask.masker import Masker
@@ -60,7 +65,13 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         def __init__(self, dim: int = 2, h: int = 64):
             super().__init__()
             self.net = nn.Sequential(
-                nn.Linear(dim + 1, h), nn.ELU(), nn.Linear(h, h), nn.ELU(), nn.Linear(h, h), nn.ELU(), nn.Linear(h, dim)
+                nn.Linear(dim + 1, h),
+                nn.ELU(),
+                nn.Linear(h, h),
+                nn.ELU(),
+                nn.Linear(h, h),
+                nn.ELU(),
+                nn.Linear(h, dim),
             )
 
         def forward(self, x_t: Tensor, t: Tensor, *args, **kwarg) -> Tensor:
@@ -212,4 +223,8 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     sampling_hook_handlers = gm.register_hooks([samling_hook])
     train_hook = gm.get_condition_post_compute_loss_hook([classifier_conditioner])
     train_hook_handlers = gm.register_hooks([train_hook])
-    return {"model": gm, "train_hook_handlers": train_hook_handlers, "sampling_hook_handlers": sampling_hook_handlers}
+    return {
+        "model": gm,
+        "train_hook_handlers": train_hook_handlers,
+        "sampling_hook_handlers": sampling_hook_handlers,
+    }

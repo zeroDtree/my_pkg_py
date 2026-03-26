@@ -107,7 +107,12 @@ class InvariantForceField(ForceField):
             raise ValueError("Cutoff distance must be a float")
         self._cutoff_distance = cutoff_distance
 
-    def force_constant(self, atom_i: Tensor, atom_j: Tensor = None, sq_distance: Tensor = None):
+    def force_constant(
+        self,
+        atom_i: Tensor,
+        atom_j: Tensor | None = None,
+        sq_distance: Tensor | None = None,
+    ):
         """
         Calculate force constants for atom interactions.
 
@@ -145,7 +150,7 @@ class HinsenForceField(ForceField):
             By default all interactions are included.
     """
 
-    def __init__(self, cutoff_distance: float = None):
+    def __init__(self, cutoff_distance: float | None = None):
         self._cutoff_distance = cutoff_distance
 
     def force_constant(self, atom_i: Tensor, atom_j: Tensor, sq_distance: Tensor):

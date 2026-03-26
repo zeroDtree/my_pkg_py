@@ -7,10 +7,9 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import datasets
 import torch
+import wandb
 from torch import Tensor
 from tqdm.auto import tqdm
-
-import wandb
 
 from .callback import BaseCallback, CallbackEvent, CallbackManager
 
@@ -254,7 +253,7 @@ class BasePipeline(metaclass=ABCMeta):
         device = self.training_config.device
         model.train()
         for key, value in batch.items():
-            if type(value) == torch.Tensor:
+            if type(value) is torch.Tensor:
                 batch[key] = value.to(device)
         model = model.to(device)
 
@@ -292,10 +291,16 @@ class BasePipeline(metaclass=ABCMeta):
         model = self.model
         if self.training_config.grad_clip_strategy == "norm":
             torch.nn.utils.clip_grad_norm_(
-                model.parameters(), max_norm=self.training_config.max_grad_norm, norm_type=2, error_if_nonfinite=False
+                model.parameters(),
+                max_norm=self.training_config.max_grad_norm,
+                norm_type=2,
+                error_if_nonfinite=False,
             )
         if self.training_config.grad_clip_strategy == "value":
-            torch.nn.utils.clip_grad_value_(model.parameters(), clip_value=self.training_config.max_grad_value)
+            torch.nn.utils.clip_grad_value_(
+                model.parameters(),
+                clip_value=self.training_config.max_grad_value,
+            )
 
     def eval(self):
         """Evaluate the model"""
@@ -375,7 +380,14 @@ class BasePipeline(metaclass=ABCMeta):
 
         os.makedirs(temp_checkpoint_dir, exist_ok=True)
         try:
-            for base_name in ["model", "optimizer", "scheduler", "training_state", "training_config", "log_config"]:
+            for base_name in [
+                "model",
+                "optimizer",
+                "scheduler",
+                "training_state",
+                "training_config",
+                "log_config",
+            ]:
                 file_path = os.path.join(temp_checkpoint_dir, f"{base_name}.pth")
                 torch.save(getattr(self, base_name), file_path)
             os.rename(temp_checkpoint_dir, final_checkpoint_dir)
@@ -404,7 +416,14 @@ class BasePipeline(metaclass=ABCMeta):
 
         # load ============================================================================================
 
-        for base_name in ["model", "optimizer", "scheduler", "training_state", "training_config", "log_config"]:
+        for base_name in [
+            "model",
+            "optimizer",
+            "scheduler",
+            "training_state",
+            "training_config",
+            "log_config",
+        ]:
             file_path = os.path.join(checkpoint_dir, f"{base_name}.pth")
             if not os.path.exists(file_path):
                 if self.logger is not None:

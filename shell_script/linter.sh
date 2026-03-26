@@ -2,4 +2,4 @@
 
 set -e
 
-pylint src -E
+ty check

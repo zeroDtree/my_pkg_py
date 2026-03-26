@@ -4,7 +4,6 @@ from .masker import Masker
 
 
 class ImageMasker(Masker):
-
     def check_mask_shape(self, x: Tensor, mask: Tensor):
         if self.ndim_mini_micro_shape == 0:
             if mask.shape[-3] == 1:

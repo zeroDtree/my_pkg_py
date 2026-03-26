@@ -18,7 +18,6 @@ EPS = 1e-5
 
 @inherit_docstrings
 class EuclideanOTFlowConfig(BaseFlowConfig):
-
     def __init__(
         self,
         n_discretization_steps: int,
@@ -93,7 +92,13 @@ class EuclideanOTFlow(BaseFlow):
         t_start: torch.Tensor = self.complete_micro_shape(copied_t_start)
         t_end: torch.Tensor = self.complete_micro_shape(copied_t_end)
 
-        p_dx_t = self.model(x_t=x_t, t=copied_t_start, padding_mask=padding_mask, *args, **kwargs)["x"]
+        p_dx_t = self.model(
+            x_t=x_t,
+            t=copied_t_start,
+            padding_mask=padding_mask,
+            *args,
+            **kwargs,
+        )["x"]
 
         hook_input = {
             "x_t": x_t,
@@ -198,7 +203,17 @@ class EuclideanOTFlow(BaseFlow):
     def prior_sampling(self, shape) -> torch.Tensor:
         return torch.randn(shape)
 
-    def recover_bright_region(self, x_known, x_t, t, padding_mask, inpainting_mask, x_prior, *args, **kwargs) -> Tensor:
+    def recover_bright_region(
+        self,
+        x_known,
+        x_t,
+        t,
+        padding_mask,
+        inpainting_mask,
+        x_prior,
+        *args,
+        **kwargs,
+    ) -> Tensor:
         device = x_t.device
         idx = kwargs.get("idx")
         t_start = self.time_scheduler.get_continuous_timesteps_schedule().to(device)[idx]
@@ -225,7 +240,7 @@ class EuclideanOTFlow(BaseFlow):
         def _hook_fn(**kwargs):
             nonlocal conditioner_list
 
-            loss = kwargs.get("loss")
+            kwargs.get("loss")
             x_0 = kwargs.get("x_0")
             x_t = kwargs.get("x_t")
             x_1 = kwargs.get("x_1")

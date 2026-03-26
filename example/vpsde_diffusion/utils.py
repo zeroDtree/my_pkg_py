@@ -6,12 +6,14 @@ from torch import Tensor
 from torch.nn import Module
 from transformers.trainer import Accelerator
 
-from ls_mlkit.util.utils_for_main import get_learing_rate_scheduler  # type: ignore
-from ls_mlkit.util.utils_for_main import get_new_save_dir  # type: ignore
-from ls_mlkit.util.utils_for_main import get_optimizer  # type: ignore
-from ls_mlkit.util.utils_for_main import get_run_name  # type: ignore
-from ls_mlkit.util.utils_for_main import get_train_class  # type: ignore
-from ls_mlkit.util.utils_for_main import load_checkpoint  # type: ignore
+from ls_mlkit.util.utils_for_main import (
+    get_learing_rate_scheduler,  # noqa: F401
+    get_new_save_dir,  # noqa: F401
+    get_optimizer,  # noqa: F401
+    get_run_name,  # noqa: F401
+    get_train_class,  # noqa: F401
+    load_checkpoint,  # noqa: F401
+)
 
 
 def get_dataset(cfg: DictConfig):
@@ -51,7 +53,10 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from torch import nn
 
     from ls_mlkit.diffusion.conditioner.conditioner import LGDConditioner
-    from ls_mlkit.diffusion.euclidean_vpsde_diffuser import EuclideanVPSDEConfig, EuclideanVPSDEDiffuser
+    from ls_mlkit.diffusion.euclidean_vpsde_diffuser import (
+        EuclideanVPSDEConfig,
+        EuclideanVPSDEDiffuser,
+    )
     from ls_mlkit.diffusion.time_scheduler import DiffusionTimeScheduler
     from ls_mlkit.util.mask.masker import Masker as OneDimMasker
 
@@ -59,7 +64,13 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         def __init__(self, dim: int = 2, h: int = 64):
             super().__init__()
             self.net = nn.Sequential(
-                nn.Linear(dim + 1, h), nn.ELU(), nn.Linear(h, h), nn.ELU(), nn.Linear(h, h), nn.ELU(), nn.Linear(h, dim)
+                nn.Linear(dim + 1, h),
+                nn.ELU(),
+                nn.Linear(h, h),
+                nn.ELU(),
+                nn.Linear(h, h),
+                nn.ELU(),
+                nn.Linear(h, dim),
             )
 
         def forward(self, x_t: Tensor, t: Tensor, *args, **kwarg) -> Tensor:
@@ -69,11 +80,18 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
     class MyModel(Module):
         def __init__(self, model: Module):
-            print(f"MyModel initialized&&&&&&&&&&&&&&&&&&&&&")
+            print("MyModel initialized&&&&&&&&&&&&&&&&&&&&&")
             super().__init__()
             self.model = model
 
-        def forward(self, x_t: Tensor, t: Tensor, padding_mask: Tensor, *args: Any, **kwargs: Any) -> Tensor:
+        def forward(
+            self,
+            x_t: Tensor,
+            t: Tensor,
+            padding_mask: Tensor,
+            *args: Any,
+            **kwargs: Any,
+        ) -> Tensor:
             t = t.unsqueeze(-1)
             return {"x": self.model(x_t, t, return_dict=False)}
 
