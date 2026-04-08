@@ -80,9 +80,9 @@ class SAM(Optimizer):
 
     @torch.no_grad()
     def get_gradient_norm(self, src: Literal["grad", "state", "weight"] = "grad", **kwargs):
-        assert src == "grad" or src == "state" or src == "weight", (
-            f"src must be in ['grad','state','weight'], {src} not"
-        )
+        assert (
+            src == "grad" or src == "state" or src == "weight"
+        ), f"src must be in ['grad','state','weight'], {src} not"
         gradient_norm = 0.0
         if src == "grad":
             for group in self.param_groups:

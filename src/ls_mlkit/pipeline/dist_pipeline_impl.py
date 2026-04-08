@@ -4,12 +4,13 @@ from typing import Callable, List, Literal, Optional, cast
 import datasets
 import numpy as np
 import torch
-import wandb
 from accelerate import Accelerator
 from overrides import override
 from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+
+import wandb
 
 from ..util.decorators import inherit_docstrings
 from ..util.iterator import inf_iterator
@@ -119,9 +120,9 @@ class MyTrainingConfig(DistributedTrainingConfig):
         n_processes = Accelerator().num_processes
         assert real_batch_size % n_processes == 0, "real_batch_size must be divisible by n_processes"
         per_device_real_batch_size = real_batch_size // n_processes
-        assert per_device_real_batch_size % per_device_batch_size == 0, (
-            "per_device_real_batch_size must be divisible by per_device_batch_size"
-        )
+        assert (
+            per_device_real_batch_size % per_device_batch_size == 0
+        ), "per_device_real_batch_size must be divisible by per_device_batch_size"
         gradient_accumulation_steps = per_device_real_batch_size // per_device_batch_size
         return gradient_accumulation_steps
 

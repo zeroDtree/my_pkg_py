@@ -71,9 +71,9 @@ class ANM:
         if masses is None:
             self._masses = None
         else:
-            assert masses.shape == atoms.shape[:-1], (
-                f"shape(masses) = {masses.shape} != shape(atoms[:-1]) = {atoms.shape[:-1]}"
-            )
+            assert (
+                masses.shape == atoms.shape[:-1]
+            ), f"shape(masses) = {masses.shape} != shape(atoms[:-1]) = {atoms.shape[:-1]}"
             if torch.any(masses < 0):
                 raise ValueError("Masses must not be negative")
             self._masses = masses * node_mask

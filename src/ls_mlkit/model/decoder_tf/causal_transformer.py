@@ -51,7 +51,6 @@ class MultiHeadAttention(torch.nn.Module):
         device=None,
         dtype=None,
     ):
-
         super().__init__()
         self.d_model = embed_dim
         self.d_head = embed_dim // num_heads

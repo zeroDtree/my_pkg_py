@@ -463,7 +463,6 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         return _ddpm_posterior_mean_fn
 
     def get_condition_post_compute_loss_hook(self, conditioner_list: list[Conditioner]):
-
         def _hook_fn(**kwargs):
             nonlocal conditioner_list
             x_0 = kwargs.get("gt_data")

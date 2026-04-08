@@ -2,7 +2,6 @@
 
 import os
 
-import wandb
 from accelerate import Accelerator
 from omegaconf import DictConfig, OmegaConf
 from utils_for_main import (
@@ -16,6 +15,7 @@ from utils_for_main import (
     get_train_class,
 )
 
+import wandb
 from ls_mlkit.pipeline.pipeline import LogConfig
 from ls_mlkit.util.log import get_and_create_new_log_dir, get_logger
 from ls_mlkit.util.seed import seed_everything

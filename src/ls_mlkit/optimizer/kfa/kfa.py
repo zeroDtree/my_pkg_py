@@ -68,7 +68,6 @@ class KFA:
 
     @staticmethod
     def get_save_hook_for_g(cache: dict, module_dot_path: str, name: str = "g"):
-
         def _save_hook_for_g(module, grad_input, grad_output):
             match module.__class__.__name__:
                 case "Linear":

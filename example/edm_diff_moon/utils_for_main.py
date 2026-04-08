@@ -50,7 +50,6 @@ def get_collate_fn(cfg: DictConfig):
 
 
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
-
     from torch import nn
 
     from ls_mlkit.diffusion.euclidean_edm_diffuser import (

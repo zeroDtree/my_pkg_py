@@ -1,5 +1,4 @@
 # official packages
-import wandb
 from accelerate import Accelerator
 from diffusers.utils.pil_utils import make_image_grid, numpy_to_pil
 from omegaconf import DictConfig, OmegaConf
@@ -14,6 +13,7 @@ from utils import (
     get_train_class,
 )
 
+import wandb
 from ls_mlkit.pipeline.pipeline import LogConfig
 from ls_mlkit.util.huggingface import HF_MIRROR  # noqa: F401
 from ls_mlkit.util.log import get_and_create_new_log_dir, get_logger

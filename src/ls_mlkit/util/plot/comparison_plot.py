@@ -37,7 +37,6 @@ def plot_entity_wise_comparison(
     save: bool = True,
     return_fig_ax: bool = False,
 ) -> Optional[Tuple[plt.Figure, plt.Axes]]:
-
     # Extract all unique entity names
     all_entity_names = set()
     for model_data in results_dict.values():

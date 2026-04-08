@@ -53,7 +53,6 @@ def get_collate_fn(cfg: DictConfig):
 
 
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
-
     from torch import nn
 
     from ls_mlkit.flow_matching.euclidean_ot_fm import (

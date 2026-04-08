@@ -54,12 +54,12 @@ def get_dataset(cfg: DictConfig):
 
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from diffusers import UNet2DModel
-    from ls_mlkit.diffusion.model_interface import Model4DiffuserInterface
 
     from ls_mlkit.diffusion.euclidean_vpsde_diffuser import (
         EuclideanVPSDEConfig,
         EuclideanVPSDEDiffuser,
     )
+    from ls_mlkit.diffusion.model_interface import Model4DiffuserInterface
     from ls_mlkit.diffusion.time_scheduler import DiffusionTimeScheduler
     from ls_mlkit.util.mask.image_masker import ImageMasker
 

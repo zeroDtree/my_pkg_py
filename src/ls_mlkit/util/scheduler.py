@@ -62,9 +62,9 @@ class Scheduler:
             if value.get("schedule") is None:
                 raise ValueError(f"schedule of {key} is not defined")
             if value.get("warmup_steps") is None:
-                assert value.get("warmup_ratio") is not None, (
-                    f"warmup_ratio of {key} must be provided if warmup_steps is not provided"
-                )
+                assert (
+                    value.get("warmup_ratio") is not None
+                ), f"warmup_ratio of {key} must be provided if warmup_steps is not provided"
                 value["warmup_steps"] = int(self.total * value["warmup_ratio"])
 
     def step(self):
