@@ -1,0 +1,38 @@
+site_name: ls_mlkit
+
+nav:
+  - Home: index.md
+  - API Reference:
+    - Overview: api/index.md
+    - diffusion: api/diffusion.md
+    - flow_matching: api/flow_matching.md
+    - pipeline: api/pipeline.md
+    - model: api/model.md
+    - dataset: api/dataset.md
+    - optimizer: api/optimizer.md
+    - scheduler: api/scheduler.md
+    - util: api/util.md
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            show_source: true
+            show_root_heading: true
+            annotations_path: brief
+            members_order: source
+            show_if_no_docstring: false

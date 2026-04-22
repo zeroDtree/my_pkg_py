@@ -186,7 +186,7 @@ class SO3Diffuser(LieGroupDiffuser):
         return {"x_t": x_t}
 
     def get_ground_truth_score(self, x_0: Tensor, x_t: Tensor, discrete_t: Tensor, padding_mask: Tensor) -> Tensor:
-        """Denoise Score Matching
+        r"""Denoise Score Matching
 
         .. math::
             \nabla_x \log p_{0t} (x_t | x_0)

@@ -74,6 +74,9 @@ dev = [
     { include-group = "lint" },
     { include-group = "dl" },
     { include-group = "bio" },
+    "mkdocs-gen-files>=0.6.1",
+    "mkdocs-material>=9.7.6",
+    "mkdocstrings[python]>=1.0.4",
 ]
 
 [project.optional-dependencies]

@@ -1,13 +1,3 @@
-- [1. Install](#1-install)
-	- [1.1. By uv](#11-by-uv)
-		- [1.1.1. With optional dependencies](#111-with-optional-dependencies)
-	- [1.2. by pip (A virtual environment is recommended)](#12-by-pip-a-virtual-environment-is-recommended)
-		- [1.2.1. With optional dependencies](#121-with-optional-dependencies)
-- [2. Docs](#2-docs)
-	- [2.1. Generate documentations locally (uv is required)](#21-generate-documentations-locally-uv-is-required)
-- [3. Example](#3-example)
-
-
 ## 1. Install
 
 ### 1.1. By [uv](https://github.com/astral-sh/uv)
@@ -33,12 +23,12 @@ uv add --editable my_pkg_py
 ```bash
 uv add git+https://git@github.com/zeroDtree/my_pkg_py[bio]
 ```
-or 
+or
 ```bash
 uv add git+https://git@github.com/zeroDtree/my_pkg_py --optional bio
 ```
 
-### 1.2. by pip (A virtual environment is recommended)
+### 1.2. By pip (A virtual environment is recommended)
 ```bash
 pip install "ls_mlkit @ git+https://github.com/zeroDtree/my_pkg_py.git"
 ```
@@ -51,12 +41,16 @@ pip install "ls_mlkit[bio] @ git+https://github.com/zeroDtree/my_pkg_py.git"
 
 ## 2. Docs
 
-Online [documents](https://zeroDtree.github.io/my_pkg_py/) are generated using Sphinx.
-
-### 2.1. Generate documentations locally (uv is required)
+### 2.1. Generate documentation locally (uv is required)
 
 ```bash
-make -C docs html
+uv run mkdocs serve
+```
+
+To use a custom address:
+
+```bash
+uv run mkdocs serve --dev-addr 127.0.0.1:8080
 ```
 
 ## 3. Example

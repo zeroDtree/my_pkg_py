@@ -20,11 +20,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
@@ -33,14 +28,11 @@ jobs:
             pyproject.toml
             uv.lock
 
-      - name: Install docs dependencies (lightweight)
-        run: |
-          uv python pin 3.12
-          uv sync
+      - name: Install dependencies
+        run: uv sync
 
       - name: Build documentation
-        run: |
-          make -C docs html
+        run: uv run mkdocs build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -48,7 +40,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: ./docs/build/html
+          path: ./site
 
   deploy:
     environment:
