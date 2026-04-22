@@ -18,7 +18,14 @@ def weight_norm_fn(module: Module):
     Returns:
         float: the weight norm of the module
     """
-    return torch.sqrt(sum((torch.sum(p.data * p.data) for p in module.parameters() if p.requires_grad), torch.zeros(1)))
+    sq_sum: Tensor | None = None
+    for p in module.parameters():
+        if p.requires_grad:
+            term = torch.sum(p.data * p.data)
+            sq_sum = term if sq_sum is None else sq_sum + term
+    if sq_sum is None:
+        return torch.sqrt(torch.zeros(1))
+    return torch.sqrt(sq_sum)
 
 
 def gradient_norm_fn(module: Module):
@@ -30,9 +37,15 @@ def gradient_norm_fn(module: Module):
     Returns:
         float: the gradient norm of the module
     """
-    return torch.sqrt(
-        sum((torch.sum(p.grad.data * p.grad.data) for p in module.parameters() if p.grad is not None), torch.zeros(1))
-    )
+    sq_sum: Tensor | None = None
+    for p in module.parameters():
+        if p.grad is not None:
+            g = p.grad
+            term = torch.sum(g * g)
+            sq_sum = term if sq_sum is None else sq_sum + term
+    if sq_sum is None:
+        return torch.sqrt(torch.zeros(1))
+    return torch.sqrt(sq_sum)
 
 
 def weights_fn(module: Module) -> list[Tensor]:

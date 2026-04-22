@@ -1,11 +1,11 @@
-from typing import Any
+from typing import Any, cast
 
 import torch
 from torch.nn import Module
 
+from ..util.hook.base_hook import Hook, HookHandler
 from ..util.hook.model_hook import (
     ModelHook,
-    ModelHookHandler,
     ModelHookManager,
     ModelHookStageType,
 )
@@ -23,8 +23,8 @@ class ModelForPipeline(Module):
 
     def forward(
         self,
-        **batch: dict[str, Any],
-    ) -> dict:
+        **batch: Any,
+    ) -> dict[str, Any]:
         model = self.model
         self.hook_manager.run_hooks(stage=ModelHookStageType.PRE_COMPUTE_LOSS, model=model, batch=batch)
         model_output = model(**batch)
@@ -36,5 +36,6 @@ class ModelForPipeline(Module):
         )
         return model_output
 
-    def register_hooks(self, hooks: list[ModelHook]) -> list[ModelHookHandler]:
-        return self.hook_manager.register_hooks(hooks)
+    def register_hooks(self, hooks: list[ModelHook]) -> list[HookHandler[ModelHookStageType]]:
+        typed_hooks = cast(list[Hook[ModelHookStageType]], hooks)
+        return self.hook_manager.register_hooks(typed_hooks)
