@@ -46,7 +46,7 @@ utils = [
     "multiprocess",
     "sphinx",
 ]
-lint = ["ruff","ty"]
+lint = ["ruff", "ty"]
 dl = [
     "tensorboard",
     "opt_einsum",
@@ -70,13 +70,17 @@ hard = ["deepspeed", "flash-attn"]
 
 bio = ["biotite"]
 
+doc = [
+    "mkdocs-gen-files>=0.6.1",
+    "mkdocs-material>=9.7.6",
+    "mkdocstrings[python]>=1.0.4",
+]
+
 dev = [
     { include-group = "lint" },
     { include-group = "dl" },
     { include-group = "bio" },
-    "mkdocs-gen-files>=0.6.1",
-    "mkdocs-material>=9.7.6",
-    "mkdocstrings[python]>=1.0.4",
+    { include-group = "doc" },
 ]
 
 [project.optional-dependencies]
