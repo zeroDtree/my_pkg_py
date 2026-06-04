@@ -1,2 +1,2 @@
-[rules]
-unresolved-import = "ignore"
+# [rules]
+# unresolved-import = "ignore"
