@@ -18,9 +18,11 @@ class SAM(Optimizer):
         params,
         base_optimizer,
         model: torch.nn.Module,
-        sam_config: SAMConfig = None,
+        sam_config: SAMConfig | None = None,
         **kwargs,
     ):
+        if sam_config is None:
+            sam_config = SAMConfig()
         adaptive = sam_config.adaptive
         rho = sam_config.rho
         defaults = dict(adaptive=adaptive, rho=rho, **kwargs)
@@ -83,14 +85,16 @@ class SAM(Optimizer):
         assert (
             src == "grad" or src == "state" or src == "weight"
         ), f"src must be in ['grad','state','weight'], {src} not"
-        gradient_norm = 0.0
+        gradient_norm: torch.Tensor | None = None
         if src == "grad":
             for group in self.param_groups:
                 for p in group["params"]:
                     if p.grad is None:
                         continue
-                    grad = (torch.abs(p) if group["adaptive"] else 1.0) * p.grad
-                    gradient_norm += torch.sum(grad * grad)
+                    scale_factor = torch.abs(p) if group["adaptive"] else torch.ones((), device=p.device, dtype=p.dtype)
+                    grad = scale_factor * p.grad
+                    term = torch.sum(grad * grad)
+                    gradient_norm = term if gradient_norm is None else gradient_norm + term
         elif src == "state":
             key = kwargs.get("key", None)
             assert key is not None, "src='state',please provide key of state"
@@ -101,13 +105,16 @@ class SAM(Optimizer):
                     if self.state[p].get(key, None) is None:
                         continue
                     grad = self.state[p][key]
-                    gradient_norm += torch.sum(grad * grad)
+                    term = torch.sum(grad * grad)
+                    gradient_norm = term if gradient_norm is None else gradient_norm + term
         elif src == "weight":
             for group in self.param_groups:
                 for p in group["params"]:
                     if p.grad is None:
                         continue
-                    gradient_norm += torch.sum(p.data * p.data)
+                    term = torch.sum(p.data * p.data)
+                    gradient_norm = term if gradient_norm is None else gradient_norm + term
+        assert gradient_norm is not None
         return torch.sqrt(gradient_norm)
 
     def zero_grad(self, set_to_none: bool = True):

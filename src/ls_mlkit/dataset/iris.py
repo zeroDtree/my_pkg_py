@@ -43,7 +43,7 @@ class IrisDataset(Dataset):
     def __len__(self):
         return len(self.y)
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: int) -> tuple[torch.Tensor, torch.Tensor]:  # ty: ignore[invalid-method-override]
         return self.x[item], self.y[item]
 
 

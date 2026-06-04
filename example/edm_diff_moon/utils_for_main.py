@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import torch
 from omegaconf import DictConfig
@@ -25,7 +25,7 @@ def get_dataset(cfg: DictConfig):
             super().__init__()
             self.data = Tensor(make_moons(1024, noise=0.15)[0])
 
-        def __getitem__(self, index):
+        def __getitem__(self, index: int) -> Tensor:
             return self.data[index]
 
         def __len__(self):
@@ -83,7 +83,7 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             super().__init__()
             self.model = model
 
-        def forward(self, **batch: dict[str, Any]) -> Tensor:
+        def forward(self, **batch: Any) -> dict[str, Tensor]:
             x_t: Tensor = batch["x_t"]
             t: Tensor = batch["t"]
             # t = t.unsqueeze(-1)
@@ -121,7 +121,7 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     )
 
     if final_model_ckpt_path is not None and final_model_ckpt_path != "":
-        gm = load_checkpoint(gm, final_model_ckpt_path)
+        gm = cast(EuclideanEDMDiffuser, load_checkpoint(gm, final_model_ckpt_path))
 
     import torch.nn.functional as F
     from sklearn.datasets import make_moons
@@ -211,8 +211,8 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             self.ready = True
 
         def compute_conditional_loss(self, p_gt_data, padding_mask):
-            c = self.label
-            c = c.squeeze(-1).long()
+            assert self.label is not None
+            c = self.label.squeeze(-1).long()
             logits = self.classifier_model(p_gt_data)
             loss = F.cross_entropy(logits, c)
             return loss

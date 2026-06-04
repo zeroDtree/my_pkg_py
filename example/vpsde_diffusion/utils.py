@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import torch
 from omegaconf import DictConfig
@@ -84,22 +84,11 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             super().__init__()
             self.model = model
 
-        def forward(
-            self,
-            x_t: Tensor,
-            t: Tensor,
-            padding_mask: Tensor,
-            *args: Any,
-            **kwargs: Any,
-        ) -> Tensor:
+        def forward(self, **batch: Any) -> dict[str, Tensor]:
+            x_t: Tensor = batch["x_t"]
+            t: Tensor = batch["t"]
             t = t.unsqueeze(-1)
             return {"x": self.model(x_t, t, return_dict=False)}
-
-        def get_model_device(self):
-            return next(self.model.parameters()).device
-
-        def prepare_batch_data_for_input(self, batch):
-            return batch
 
     def mse(predicted: Tensor, ground_truth: Tensor, mask: Tensor):
         from torch.nn.functional import mse_loss
@@ -117,7 +106,7 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         ndim_micro_shape=1,
         n_inference_steps=cfg.diffusion.n_inference_steps,
     )
-    model = EuclideanVPSDEDiffuser(
+    diffuser = EuclideanVPSDEDiffuser(
         config=model_config,
         time_scheduler=time_scheduler,
         model=model4fm,
@@ -126,7 +115,7 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     )
 
     if final_model_ckpt_path is not None and final_model_ckpt_path != "":
-        model = load_checkpoint(model, final_model_ckpt_path)
+        diffuser = cast(EuclideanVPSDEDiffuser, load_checkpoint(diffuser, final_model_ckpt_path))
 
     import torch.nn.functional as F
     from sklearn.datasets import make_moons
@@ -212,19 +201,19 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             self.ready = True
 
         def compute_conditional_loss(self, p_gt_data, padding_mask):
-            c = self.label
-            c = c.squeeze(-1).long()
+            assert self.label is not None
+            c = self.label.squeeze(-1).long()
             logits = self.classifier_model(p_gt_data)
             loss = F.cross_entropy(logits, c)
             return loss
 
     classifier_conditioner = ClassifierConditioner(classifier_model=classifier_model, guidance_scale=cfg.diffusion.gs)
-    samling_hook = model.get_condition_pre_update_in_step_fn_hook([classifier_conditioner])
-    sampling_hook_handlers = model.register_hooks([samling_hook])
-    train_hook = model.get_condition_post_compute_loss_hook([classifier_conditioner])
-    train_hook_handlers = model.register_hooks([train_hook])
+    samling_hook = diffuser.get_condition_pre_update_in_step_fn_hook([classifier_conditioner])
+    sampling_hook_handlers = diffuser.register_hooks([samling_hook])
+    train_hook = diffuser.get_condition_post_compute_loss_hook([classifier_conditioner])
+    train_hook_handlers = diffuser.register_hooks([train_hook])
     return {
-        "model": model,
+        "model": diffuser,
         "train_hook_handlers": train_hook_handlers,
         "sampling_hook_handlers": sampling_hook_handlers,
     }

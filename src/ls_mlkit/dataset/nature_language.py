@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import datasets
 from tqdm import tqdm
 
@@ -25,13 +27,14 @@ def load_meta_math(max_tokens=666, num_samples=100000, eval_split_ratio=0.1, see
     ok = 0
     for sample in dataset:
         total += 1
-        temp = preprocess(sample)
-        if len(temp["x"] + " " + temp["y"]) >= max_tokens or "GSM" not in sample["type"]:
+        sample_dict = cast(dict[str, Any], sample)
+        temp = preprocess(sample_dict)
+        if len(temp["x"] + " " + temp["y"]) >= max_tokens or "GSM" not in sample_dict["type"]:
             continue
         bar.update(1)
         bar.set_description(f"ok: {ok}/{total}")
         ok += 1
-        processed_sample = preprocess(sample)
+        processed_sample = preprocess(sample_dict)
         if count < train_size:  # First 100,000 samples for training
             train_samples.append(processed_sample)
         elif train_size <= count < num_samples:  # Next 10,000 samples for evaluation
@@ -104,15 +107,16 @@ def load_codefeedback(max_tokens=512, num_samples=100000, eval_split_ratio=0.1, 
     ok = 0
     for sample in dataset:
         total += 1
-        temp = preprocess(sample)
-        if "```" not in sample["answer"]:
+        sample_dict = cast(dict[str, Any], sample)
+        temp = preprocess(sample_dict)
+        if "```" not in sample_dict["answer"]:
             continue
         if len(temp["x"] + " " + temp["y"]) >= max_tokens:
             continue
         bar.update(1)
         bar.set_description(f"ok: {ok}/{total}")
         ok += 1
-        processed_sample = preprocess(sample)
+        processed_sample = preprocess(sample_dict)
         if count < train_size:
             train_samples.append(processed_sample)
         elif train_size <= count < num_samples:
@@ -204,8 +208,9 @@ def load_alpaca_gpt4(**kwargs):
 
     dataset = dataset.map(lambda e: alpaca_preprocess(e["instruction"], e["input"], e["output"]))
     # we sample 10% of the training set as validation set
-    train_set = dataset["train"].train_test_split(test_size=0.1)["train"]
-    validation_set = dataset["train"].train_test_split(test_size=0.1)["test"]
+    train_split = cast(Any, dataset["train"]).train_test_split(test_size=0.1)
+    train_set = train_split["train"]
+    validation_set = train_split["test"]
     return train_set, validation_set, validation_set
 
 

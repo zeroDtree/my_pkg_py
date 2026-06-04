@@ -1,2 +1,4 @@
-# [rules]
-# unresolved-import = "ignore"
+[rules]
+
+[src]
+exclude = ["**/*.ipynb"]

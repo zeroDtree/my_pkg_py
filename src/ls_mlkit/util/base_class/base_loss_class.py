@@ -15,7 +15,7 @@ from .base_config_class import DeviceConfig
 
 @inherit_docstrings
 class BaseLossConfig(DeviceConfig):
-    def __init__(self, ndim_micro_shape: int, *args: list[Any], **kwargs: dict[Any, Any]):
+    def __init__(self, ndim_micro_shape: int, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.ndim_micro_shape: int = ndim_micro_shape
 

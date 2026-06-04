@@ -1,5 +1,4 @@
 import random
-from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -25,7 +24,7 @@ class RandomGenerator:
     def get_probabilities_by_distribution(
         n_numbers: int,
         number_list: list[int],
-        distribution: Literal["uniform", "normal", "binomial", "linear"] = "uniform",
+        distribution: str = "uniform",
     ):
         if distribution == "uniform":
             p = np.ones(len(number_list)) / len(number_list)
@@ -147,7 +146,7 @@ class LDADataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> list[int]:  # ty: ignore[invalid-method-override]
         return self.data[idx]
 
 

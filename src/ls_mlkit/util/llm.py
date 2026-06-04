@@ -130,9 +130,16 @@ def compute_metrics(eval_prediction: EvalPrediction):
         dict: the metrics
     """
 
-    predictions, _labels = eval_prediction.predictions  # type: ignore[assignment]
+    pred_raw = eval_prediction.predictions
+    if isinstance(pred_raw, tuple):
+        predictions = pred_raw[0]
+    else:
+        predictions = pred_raw
     predictions = predictions[:, :-1]
-    labels = eval_prediction.label_ids[:, 1:]  # type: ignore[index]
+    label_ids = eval_prediction.label_ids
+    if isinstance(label_ids, tuple):
+        label_ids = label_ids[0]
+    labels = label_ids[:, 1:]
 
     predictions = predictions.flatten().astype(np.int32)
     labels = labels.flatten().astype(np.int32)

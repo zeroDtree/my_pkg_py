@@ -121,7 +121,8 @@ class EuclideanDiffuser(BaseDiffuser):
             t = self.complete_micro_shape(t)
             no_padding_mask = masker.get_full_bright_mask(x_t)
             kwargs["idx"] = idx
-            step_output = self.step(x_t=x_t, t=t, padding_mask=no_padding_mask, *args, **kwargs)
+            step_kwargs = {k: v for k, v in kwargs.items() if k not in ("x_t", "t", "padding_mask")}
+            step_output = self.step(x_t=x_t, t=t, padding_mask=no_padding_mask, **step_kwargs)
             x_t = step_output["x"]
             if "E_x0_xt" in step_output:
                 E_x0_xt_list.append(step_output["E_x0_xt"])

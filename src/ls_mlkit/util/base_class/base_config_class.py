@@ -9,7 +9,7 @@ from ..decorators import inherit_docstrings
 
 @inherit_docstrings
 class DeviceConfig(object):
-    def __init__(self, *args: list[Any], **kwargs: dict[Any, Any]) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         pass
 
     def to(self, device: torch.device | str | Tensor, inplace: bool = True) -> "DeviceConfig":

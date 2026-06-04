@@ -160,6 +160,8 @@ def load_mt19937(
             mt = MT12Bit(seed)
         elif num_bits == 16:
             mt = MT16Bit(seed)
+        else:
+            raise ValueError(f"Unsupported num_bits: {num_bits}")
         seq = ""
         for j in range(len):
             random_number = mt.extract_number()

@@ -45,6 +45,7 @@ utils = [
     "chardet",
     "multiprocess",
     "sphinx",
+    "nbstripout",
 ]
 lint = ["ruff", "ty"]
 dl = [

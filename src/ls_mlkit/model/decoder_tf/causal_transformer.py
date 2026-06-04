@@ -1,5 +1,5 @@
 import math
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 
 import torch
 from torch import Tensor
@@ -133,6 +133,7 @@ class MultiHeadAttention(torch.nn.Module):
                 batch_size=query.shape[0],
                 seq_len=query.shape[-2],
             )
+            assert mask is not None
             mask = mask.to(device=query.device, dtype=query.dtype)
         # (bs, head_num, seq_L, kdim) @ (bs, head_num, kdim, seq_L) -> (bs, head_num, seq_L, seq_L)
         scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(self.d_head)
@@ -148,7 +149,7 @@ class MultiHeadAttention(torch.nn.Module):
                 scores = torch.mean(scores, dim=1)
             return output, scores
         else:
-            return output
+            return output, None
 
     def forward(
         self,
@@ -182,7 +183,7 @@ class MultiHeadAttention(torch.nn.Module):
             else:
                 pass
 
-        x = self.attention(
+        x, att_weight = self.attention(
             query=q,
             key=k,
             value=v,
@@ -193,9 +194,8 @@ class MultiHeadAttention(torch.nn.Module):
             use_cache=use_cache,
             past_key_values=past_key_values,
         )
-        att_weight = None
-        if need_weights:
-            x, att_weight = x
+        if not need_weights:
+            att_weight = None
         x = x.transpose(1, 2).contiguous().view(bs, -1, self.d_model)
         x = self.out_linear(x)
         result = {
@@ -343,12 +343,12 @@ class CausalLanguageModel(torch.nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        att_mask: torch.Tensor = None,
-        key_padding_mask: torch.Tensor = None,
+        att_mask: torch.Tensor | None = None,
+        key_padding_mask: torch.Tensor | None = None,
         need_weights: bool = True,
         average_attn_weights: bool = True,
         use_cache: bool = False,
-        past_key_values: torch.Tensor = None,
+        past_key_values: torch.Tensor | None = None,
         is_causal: bool = True,
         need_hidden_states: bool = False,
     ):
@@ -432,7 +432,7 @@ class CausalLanguageModelConfigForAuto(PretrainedConfig):
         self.batch_first = batch_first
 
 
-class CausalLanguageModelForAuto(PreTrainedModel, GenerationMixin):
+class CausalLanguageModelForAuto(PreTrainedModel, GenerationMixin):  # ty: ignore[unsupported-base]
     config_class = CausalLanguageModelConfigForAuto
     base_model_prefix = "zls_causal_tf"
 
@@ -451,7 +451,7 @@ class CausalLanguageModelForAuto(PreTrainedModel, GenerationMixin):
 
     def forward(
         self,
-        input_ids: torch.LongTensor = None,
+        input_ids: torch.LongTensor | None = None,
         attention_mask: Optional[torch.Tensor] = None,
         output_attentions: Optional[bool] = True,
         average_attn_weights: bool = True,
@@ -465,8 +465,9 @@ class CausalLanguageModelForAuto(PreTrainedModel, GenerationMixin):
         cache_position: Optional[torch.LongTensor] = None,
     ):
         # Adjust the forward method to match the expected input/output format
+        assert input_ids is not None
         if use_cache and past_key_values is not None:
-            input_ids = input_ids[:, -1:]
+            input_ids = cast(torch.LongTensor, input_ids[:, -1:])
         # print(f"input_ids.shape: {input_ids.shape}")
         model_out = self.model(
             input_ids,

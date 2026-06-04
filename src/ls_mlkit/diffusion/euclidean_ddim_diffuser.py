@@ -106,7 +106,7 @@ class EuclideanDDIMDiffuser(EuclideanDDPMDiffuser):
         self,
         x_t: Tensor,
         t: Tensor,
-        padding_mask: Tensor,
+        padding_mask: Tensor | None = None,
         *args: Any,
         **kwargs: Any,
     ) -> dict:
@@ -141,11 +141,12 @@ class EuclideanDDIMDiffuser(EuclideanDDPMDiffuser):
         beta_prod_t = 1 - alpha_prod_t
 
         mode: Literal["epsilon", "x_0", "score"] = kwargs.get("mode", "epsilon")
+        model_batch = {"x_t": x_t, "t": t, "padding_mask": padding_mask, **kwargs}
         # print(f"mode: {mode}, t={t}, prev_t={prev_t}")
         if mode == "epsilon":
-            epsilon_predicted = self.model(x_t, t, padding_mask, *args, **kwargs)["x"]
+            epsilon_predicted = self.model(**model_batch)["x"]
         elif mode == "x_0":
-            p_x_0 = self.model(x_t, t, padding_mask, *args, **kwargs)["x"]
+            p_x_0 = self.model(**model_batch)["x"]
             epsilon_predicted = (x_t - alpha_prod_t ** (0.5) * p_x_0) / beta_prod_t ** (0.5)
         elif mode == "score":
             raise ValueError(f"Currently not supported mode: {mode}")

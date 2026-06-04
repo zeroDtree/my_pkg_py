@@ -37,7 +37,7 @@ class BaseGenerativeModelConfig(BaseLossConfig):
         ndim_micro_shape: int,
         n_discretization_steps: int,
         n_inference_steps: Optional[int] = None,
-        **kwargs: dict[Any, Any],
+        **kwargs: Any,
     ):
         super().__init__(ndim_micro_shape=ndim_micro_shape, **kwargs)
         self.n_discretization_steps: int = n_discretization_steps
@@ -67,7 +67,8 @@ class BaseGenerativeModel(BaseLoss):
         x_t: Tensor,
         t: Tensor,
         padding_mask: Optional[Tensor] = None,
-        **kwargs: dict[Any, Any],
+        *args: Any,
+        **kwargs: Any,
     ) -> dict:
         """_summary_
 

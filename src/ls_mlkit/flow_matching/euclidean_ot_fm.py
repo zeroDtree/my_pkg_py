@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import torch
 from torch import Tensor
@@ -10,6 +10,7 @@ from ..diffusion.conditioner.utils import get_accumulated_conditional_score
 from ..util.base_class.base_gm_class import GMHook, GMHookStageType
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
+from ..util.typing_utils import require
 from .base_fm import BaseFlow, BaseFlowConfig
 from .time_scheduler import FlowMatchingTimeScheduler
 
@@ -22,15 +23,14 @@ class EuclideanOTFlowConfig(BaseFlowConfig):
         self,
         n_discretization_steps: int,
         ndim_micro_shape: int = 2,
-        n_inference_steps: int = None,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
+        n_inference_steps: int | None = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         super().__init__(
             ndim_micro_shape=ndim_micro_shape,
             n_discretization_steps=n_discretization_steps,
             n_inference_steps=n_inference_steps,
-            *args,
             **kwargs,
         )
 
@@ -66,7 +66,13 @@ class EuclideanOTFlow(BaseFlow):
         model_input_dict.pop("gt_data")
         model_input_dict.pop("padding_mask")
         model_input_dict.pop("t", None)
-        p_dx_t = self.model(x_t=x_t, t=copied_t, padding_mask=padding_mask, **model_input_dict)["x"]
+        model_batch = {
+            "x_t": x_t,
+            "t": copied_t,
+            "padding_mask": padding_mask,
+            **model_input_dict,
+        }
+        p_dx_t = self.model(**model_batch)["x"]
         loss = self.loss_fn(p_dx_t, dx_t, padding_mask)
         result = {
             "loss": loss,
@@ -81,24 +87,32 @@ class EuclideanOTFlow(BaseFlow):
         }
         return result
 
-    def step(self, x_t, t, padding_mask=None, *args, **kwargs) -> dict:
+    def step(
+        self,
+        x_t: Tensor,
+        t: Tensor,
+        padding_mask: Tensor | None = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> dict:
         device = x_t.device
-        idx = kwargs.get("idx")
+        idx = require(kwargs.get("idx"), "idx")
+        schedule = self.time_scheduler.get_continuous_timesteps_schedule().to(device)
         ones = torch.ones_like(t)
-        t_start = self.time_scheduler.get_continuous_timesteps_schedule().to(device)[idx] * ones
-        t_end = self.time_scheduler.get_continuous_timesteps_schedule().to(device)[idx + 1] * ones
+        t_start = schedule[int(idx)] * ones
+        t_end = schedule[int(idx) + 1] * ones
         copied_t_start = t_start.clone().detach()
         copied_t_end = t_end.clone().detach()
         t_start: torch.Tensor = self.complete_micro_shape(copied_t_start)
         t_end: torch.Tensor = self.complete_micro_shape(copied_t_end)
 
-        p_dx_t = self.model(
-            x_t=x_t,
-            t=copied_t_start,
-            padding_mask=padding_mask,
-            *args,
+        model_batch = {
+            "x_t": x_t,
+            "t": copied_t_start,
+            "padding_mask": padding_mask,
             **kwargs,
-        )["x"]
+        }
+        p_dx_t = self.model(**model_batch)["x"]
 
         hook_input = {
             "x_t": x_t,
@@ -143,7 +157,8 @@ class EuclideanOTFlow(BaseFlow):
             t = torch.ones(macro_shape, device=device, dtype=torch.long) * t
             no_padding_mask = masker.get_full_bright_mask(x_t)
             kwargs["idx"] = idx
-            x_t = self.step(x_t=x_t, t=t, padding_mask=no_padding_mask, *args, **kwargs)["x"]
+            step_kwargs = {k: v for k, v in kwargs.items() if k not in ("x_t", "t", "padding_mask")}
+            x_t = self.step(x_t=x_t, t=t, padding_mask=no_padding_mask, **step_kwargs)["x"]
             if return_all:
                 x_list.append(x_t)
         return {"x": x_t, "x_list": x_list}
@@ -193,7 +208,8 @@ class EuclideanOTFlow(BaseFlow):
                 x_prior=x_0,
                 **kwargs,
             )
-            x_t = self.step(x_t=x_t, t=t, padding_mask=padding_mask, *args, **kwargs)["x"]
+            step_kwargs = {k: v for k, v in kwargs.items() if k not in ("x_t", "t", "padding_mask")}
+            x_t = self.step(x_t=x_t, t=t, padding_mask=padding_mask, **step_kwargs)["x"]
             x_t = masker.apply_mask(x_t, padding_mask)
             if return_all:
                 x_list.append(x_t)
@@ -215,18 +231,24 @@ class EuclideanOTFlow(BaseFlow):
         **kwargs,
     ) -> Tensor:
         device = x_t.device
-        idx = kwargs.get("idx")
-        t_start = self.time_scheduler.get_continuous_timesteps_schedule().to(device)[idx]
+        idx = require(kwargs.get("idx"), "idx")
+        schedule = self.time_scheduler.get_continuous_timesteps_schedule().to(device)
+        t_start = schedule[int(idx)]
         t_start = self.complete_micro_shape(t_start)
         x_1_t = t_start * x_known + (1 - t_start) * x_prior
         x_t = self.masker.apply_inpainting_mask(x_1_t, x_t, inpainting_mask)
         return x_t
 
-    def get_posterior_mean_fn(self, vf, vf_fn=None):
-        def _otfm_posterior_mean_fn(x_t, t, padding_mask):
+    def get_posterior_mean_fn(
+        self,
+        vf: Tensor | None,
+        vf_fn: Callable[[Tensor, Tensor, Tensor | None], Tensor] | None = None,
+    ):
+        def _otfm_posterior_mean_fn(x_t: Tensor, t: Tensor, padding_mask: Tensor | None) -> Tensor:
             nonlocal vf, vf_fn
             assert vf is not None or vf_fn is not None, "Either vf or vf_fn must be provided"
             if vf is None:
+                assert vf_fn is not None
                 vf = vf_fn(x_t, t, padding_mask)
 
             t = t.view(*t.shape, *([1] * (vf.ndim - t.ndim)))
@@ -236,17 +258,17 @@ class EuclideanOTFlow(BaseFlow):
         return _otfm_posterior_mean_fn
 
     def get_condition_post_compute_loss_hook(self, conditioner_list: list[Conditioner]):
-        def _hook_fn(**kwargs):
+        def _hook_fn(**kwargs: Any):
             nonlocal conditioner_list
 
             kwargs.get("loss")
-            x_0 = kwargs.get("x_0")
-            x_t = kwargs.get("x_t")
-            x_1 = kwargs.get("x_1")
-            t = kwargs.get("t", None)
-            padding_mask = kwargs.get("padding_mask")
-            p_dx_t = kwargs.get("p_dx_t")
-            loss_fn = kwargs.get("loss_fn")
+            x_0 = require(cast(Tensor | None, kwargs.get("x_0")), "x_0")
+            x_t = require(cast(Tensor | None, kwargs.get("x_t")), "x_t")
+            x_1 = require(cast(Tensor | None, kwargs.get("x_1")), "x_1")
+            t = require(cast(Tensor | None, kwargs.get("t")), "t")
+            padding_mask = require(cast(Tensor | None, kwargs.get("padding_mask")), "padding_mask")
+            p_dx_t = require(cast(Tensor | None, kwargs.get("p_dx_t")), "p_dx_t")
+            loss_fn = require(cast(Callable[..., Any] | None, kwargs.get("loss_fn")), "loss_fn")
 
             tgt_mask = padding_mask
             for conditioner in conditioner_list:
@@ -284,12 +306,12 @@ class EuclideanOTFlow(BaseFlow):
         )
 
     def get_condition_pre_update_in_step_fn_hook(self, conditioner_list: list[Conditioner]):
-        def _hook_fn(**kwargs):
+        def _hook_fn(**kwargs: Any):
             nonlocal conditioner_list
-            x_t = kwargs.get("x_t")
-            t = kwargs.get("t", None)
-            padding_mask = kwargs.get("padding_mask")
-            p_dx_t = kwargs.get("p_dx_t")
+            x_t = require(cast(Tensor | None, kwargs.get("x_t")), "x_t")
+            t = require(cast(Tensor | None, kwargs.get("t")), "t")
+            padding_mask = require(cast(Tensor | None, kwargs.get("padding_mask")), "padding_mask")
+            p_dx_t = require(cast(Tensor | None, kwargs.get("p_dx_t")), "p_dx_t")
             sampling_condition = kwargs.get("sampling_condition")
 
             tgt_mask = padding_mask

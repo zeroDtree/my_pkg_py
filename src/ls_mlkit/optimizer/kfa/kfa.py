@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, cast
 
 import torch
 
@@ -53,14 +53,14 @@ class KFA:
         def _save_hook_for_a(module: torch.nn.Module, args, kwargs):
             match module.__class__.__name__:
                 case "Linear":
-                    module: torch.nn.Linear
-                    if cache.get(module.weight) is None:
-                        cache[module.weight] = {}
-                    cache[module.weight][name] = args[0]
-                    if module.bias is not None:
-                        if cache.get(module.bias) is None:
-                            cache[module.bias] = {}
-                        cache[module.bias][name] = torch.eye(1, device=module.bias.device)
+                    linear_module = cast(torch.nn.Linear, module)
+                    if cache.get(linear_module.weight) is None:
+                        cache[linear_module.weight] = {}
+                    cache[linear_module.weight][name] = args[0]
+                    if linear_module.bias is not None:
+                        if cache.get(linear_module.bias) is None:
+                            cache[linear_module.bias] = {}
+                        cache[linear_module.bias][name] = torch.eye(1, device=linear_module.bias.device)
                 case _:
                     pass
 
@@ -71,14 +71,14 @@ class KFA:
         def _save_hook_for_g(module, grad_input, grad_output):
             match module.__class__.__name__:
                 case "Linear":
-                    module: torch.nn.Linear
-                    if cache.get(module.weight) is None:
-                        cache[module.weight] = {}
-                    cache[module.weight][name] = grad_output[0] * grad_output[0].shape[0]
-                    if module.bias is not None:
-                        if cache.get(module.bias) is None:
-                            cache[module.bias] = {}
-                        cache[module.bias][name] = grad_output[0] * grad_output[0].shape[0]
+                    linear_module = cast(torch.nn.Linear, module)
+                    if cache.get(linear_module.weight) is None:
+                        cache[linear_module.weight] = {}
+                    cache[linear_module.weight][name] = grad_output[0] * grad_output[0].shape[0]
+                    if linear_module.bias is not None:
+                        if cache.get(linear_module.bias) is None:
+                            cache[linear_module.bias] = {}
+                        cache[linear_module.bias][name] = grad_output[0] * grad_output[0].shape[0]
                 case _:
                     pass
 

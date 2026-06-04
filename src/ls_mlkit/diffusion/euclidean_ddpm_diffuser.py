@@ -9,6 +9,7 @@ from ..util.base_class.base_gm_class import GMHook, GMHookStageType
 from ..util.context.temp_remove import TemporaryKeyRemover
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
+from ..util.typing_utils import require
 from .conditioner import Conditioner
 from .conditioner.utils import get_accumulated_conditional_score
 from .euclidean_diffuser import EuclideanDiffuser, EuclideanDiffuserConfig
@@ -222,7 +223,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         x_0: Tensor,
         discrete_t: Tensor,
         mask: Tensor,
-        **kwargs: dict[Any, Any],
+        **kwargs: Any,
     ) -> dict:
         device = x_0.device
         expectation, standard_deviation = self.q_xt_x_0(x_0, discrete_t, mask)
@@ -239,7 +240,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         self,
         x_t: Tensor,
         t: Tensor,
-        padding_mask: Tensor,
+        padding_mask: Tensor | None = None,
         *args: Any,
         **kwargs: Any,
     ) -> dict:
@@ -273,7 +274,9 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         t_scalar = t.view(-1)[0].long()
 
         # Get model prediction
-        model_output = self.model(x_t, t.long(), padding_mask, *args, **kwargs)
+        model_output = self.model(
+            **{"x_t": x_t, "t": t.long(), "padding_mask": padding_mask, **kwargs}
+        )
 
         if mode == "epsilon":
             model_pred = model_output["x"]
@@ -302,7 +305,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             raise ValueError(f"Invalid mode: {mode}")
 
         # Calculate previous timestep (handle both standard and custom timestep schedules)
-        prev_t = self._get_previous_timestep(t_scalar)
+        prev_t = self._get_previous_timestep(int(t_scalar.item()))
 
         # Get alpha values
         alpha_prod_t = config.alphas_cumprod[t_scalar]
@@ -313,7 +316,6 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         current_beta_t = 1 - current_alpha_t
 
         # Compute predicted original sample from predicted noise
-        pred_original_sample: Tensor = None
         if mode == "epsilon":
             pred_original_sample = (x_t - beta_prod_t**0.5 * model_pred) / alpha_prod_t**0.5
         elif mode == "x_0":
@@ -338,9 +340,10 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
         # Add noise (variance) - following standard DDPM variance calculation
         variance = 0
-        if t_scalar > 0:
+        t_scalar_int = int(t_scalar.item())
+        if t_scalar_int > 0:
             # Standard DDPM variance: β_t * (1 - α̅_{t-1}) / (1 - α̅_t)
-            variance_value = self._get_variance(t_scalar, alpha_prod_t, alpha_prod_t_prev, current_beta_t)
+            variance_value = self._get_variance(t_scalar_int, alpha_prod_t, alpha_prod_t_prev, current_beta_t)
             variance_noise = torch.randn_like(x_t)
             variance = (variance_value**0.5) * variance_noise
             pred_prev_sample = pred_prev_sample + variance
@@ -405,7 +408,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             sample = sample.float()  # upcast for quantile calculation, and clamp not implemented for cpu half
 
         # Flatten sample for doing quantile calculation along each image
-        sample = sample.reshape(batch_size, channels * np.prod(remaining_dims))
+        sample = sample.reshape(batch_size, channels * int(np.prod(remaining_dims)))
 
         abs_sample = sample.abs()  # "a certain percentile absolute pixel value"
 
@@ -421,7 +424,11 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
         return sample
 
-    def get_posterior_mean_fn(self, score: Tensor = None, score_fn: Callable = None):
+    def get_posterior_mean_fn(
+        self,
+        score: Tensor | None = None,
+        score_fn: Callable[[Tensor, Tensor, Tensor | None], Tensor] | None = None,
+    ):
         r"""Get the posterior mean function
 
         Args:
@@ -453,6 +460,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             assert score is not None or score_fn is not None, "either score or score_fn must be provided"
             t = t.view(*t.shape, *([1] * (x_t.ndim - t.ndim)))
             if score is None:
+                assert score_fn is not None
                 score = score_fn(x_t, t, padding_mask)
             config = cast(EuclideanDDPMConfig, self.config.to(t))
             alpha_bar_t = config.alphas_cumprod[t]  # macro_shape
@@ -463,16 +471,16 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         return _ddpm_posterior_mean_fn
 
     def get_condition_post_compute_loss_hook(self, conditioner_list: list[Conditioner]):
-        def _hook_fn(**kwargs):
+        def _hook_fn(**kwargs: Any):
             nonlocal conditioner_list
-            x_0 = kwargs.get("gt_data")
-            x_t = kwargs.get("x_t")
-            t = kwargs.get("t", None)
-            noise = kwargs.get("noise", None)
-            p_noise = kwargs.get("p_noise")
-            padding_mask = kwargs.get("padding_mask")
-            b = kwargs.get("b")
-            loss_fn = kwargs.get("loss_fn")
+            x_0 = require(cast(Tensor | None, kwargs.get("gt_data")), "gt_data")
+            x_t = require(cast(Tensor | None, kwargs.get("x_t")), "x_t")
+            t = require(cast(Tensor | None, kwargs.get("t")), "t")
+            noise = require(cast(Tensor | None, kwargs.get("noise")), "noise")
+            p_noise = require(cast(Tensor | None, kwargs.get("p_noise")), "p_noise")
+            padding_mask = require(cast(Tensor | None, kwargs.get("padding_mask")), "padding_mask")
+            b = require(cast(Tensor | None, kwargs.get("b")), "b")
+            loss_fn = require(cast(Callable[..., Any] | None, kwargs.get("loss_fn")), "loss_fn")
 
             p_uc_score = -p_noise / b
             gt_uc_score = -noise / b
@@ -514,13 +522,13 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         )
 
     def get_condition_pre_update_in_step_fn_hook(self, conditioner_list: list[Conditioner]):
-        def _hook_fn(**kwargs):
+        def _hook_fn(**kwargs: Any):
             nonlocal conditioner_list
-            x_t = kwargs.get("x_t")
-            t = kwargs.get("t", None)
-            p_noise = kwargs.get("p_noise")
-            padding_mask = kwargs.get("padding_mask")
-            b = kwargs.get("b")
+            x_t = require(cast(Tensor | None, kwargs.get("x_t")), "x_t")
+            t = require(cast(Tensor | None, kwargs.get("t")), "t")
+            p_noise = require(cast(Tensor | None, kwargs.get("p_noise")), "p_noise")
+            padding_mask = require(cast(Tensor | None, kwargs.get("padding_mask")), "padding_mask")
+            b = require(cast(Tensor | None, kwargs.get("b")), "b")
             sampling_condition = kwargs.get("sampling_condition")
             p_uc_score = -p_noise / b
 

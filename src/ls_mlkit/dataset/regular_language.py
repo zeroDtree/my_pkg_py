@@ -17,7 +17,7 @@ class RegularLanguageDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> str:  # ty: ignore[invalid-method-override]
         string = self.data[idx]
         return string
 

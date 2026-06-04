@@ -20,14 +20,13 @@ class LieGroupDiffuserConfig(RiemannianManifoldDiffuserConfig):
         ndim_micro_shape: int,
         n_discretization_steps: int,
         n_inference_steps: int,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
+        *args: Any,
+        **kwargs: Any,
     ):
         super().__init__(
             ndim_micro_shape=ndim_micro_shape,
             n_discretization_steps=n_discretization_steps,
             n_inference_steps=n_inference_steps,
-            *args,
             **kwargs,
         )
 

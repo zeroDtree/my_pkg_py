@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import matplotlib.pyplot as plt
 import torch
@@ -26,7 +26,8 @@ def get_dataset(cfg: DictConfig):
     train_dataset = load_dataset(dataset_name, split="train")
 
     fig, axs = plt.subplots(1, 4, figsize=(16, 4))
-    for i, image in enumerate(train_dataset[:4]["image"]):
+    preview_dataset = cast(Any, train_dataset)
+    for i, image in enumerate(preview_dataset.select(range(4))["image"]):
         axs[i].imshow(image)
         axs[i].set_axis_off()
     fig.savefig("train_dataset.png")
@@ -47,7 +48,7 @@ def get_dataset(cfg: DictConfig):
         return {"images": images}
 
     # apply same transform to three datasets
-    train_dataset.set_transform(transform)
+    cast(Any, train_dataset).set_transform(transform)
 
     return train_dataset, train_dataset, train_dataset
 
@@ -100,19 +101,14 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         )
 
     class MyModel(Module):
-        def __init__(self, model: torch.nn.Module):
+        def __init__(self, model: Any):
             Module.__init__(self)
-            self.model: UNet2DModel = model
+            self.model = model
 
-        def forward(
-            self,
-            x_t: Tensor,
-            t: Tensor,
-            padding_mask: Tensor,
-            *args: Any,
-            **kwargs: Any,
-        ) -> dict:
-            p_noise: Tensor = self.model.forward(x_t, t, return_dict=False)[0]
+        def forward(self, **batch: Any) -> dict[str, Tensor]:
+            x_t: Tensor = batch["x_t"]
+            t: Tensor = batch["t"]
+            p_noise: Tensor = self.model(x_t, t, return_dict=False)[0]
             return {"x": p_noise}
 
     model = MyModel(model=model)

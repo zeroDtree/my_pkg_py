@@ -238,8 +238,8 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
         t_b: Tensor,
         mask: Tensor,
         is_continuous_time: bool = True,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
+        *args: Any,
+        **kwargs: Any,
     ) -> dict:
         assert (t_b >= t_a).all()
         sigma_a = self.config.sigma(t_a, is_continuous_time)
@@ -268,6 +268,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
         x_t: Tensor,
         t: Tensor,
         padding_mask: Optional[Tensor] = None,
+        *args: Any,
         **kwargs: Any,
     ) -> dict:
         r"""EDM sampling step (Euler or Heun's method).

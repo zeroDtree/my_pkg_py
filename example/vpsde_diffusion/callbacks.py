@@ -1,3 +1,5 @@
+from typing import cast
+
 import torch
 from torch.nn.parallel import DistributedDataParallel
 
@@ -19,8 +21,8 @@ class TrainingStepCallback(BaseCallback):
             self.step_start(*args, **kwargs)
 
     def step_start(self, *args, **kwargs):
-        training_state: TrainingState = kwargs.get("training_state", None)
-        diffuser: BaseGenerativeModel = kwargs.get("model", None)
+        training_state = cast(TrainingState, kwargs.get("training_state"))
+        diffuser = cast(BaseGenerativeModel, kwargs.get("model"))
         kwargs.get("accelerator", None)
         if isinstance(diffuser, DistributedDataParallel):
             diffuser = diffuser.module

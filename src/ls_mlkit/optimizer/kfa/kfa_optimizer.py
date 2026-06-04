@@ -1,6 +1,6 @@
 import math
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, cast
 
 import torch
 from torch.optim import Optimizer
@@ -78,12 +78,14 @@ class KFAOptimizer(Optimizer):
 
     @torch.no_grad()
     def epsilon_perturb(self):
-        scale = 0.0
+        scale: torch.Tensor | None = None
         for group in self.param_groups:
             for p in group["params"]:
                 if p.grad is None:
                     continue
-                scale += torch.sum(self.state[p]["d"] * self.state[p]["inv_Cd"])
+                term = torch.sum(self.state[p]["d"] * self.state[p]["inv_Cd"])
+                scale = term if scale is None else scale + term
+        assert scale is not None
         scale = 1 / torch.sqrt(scale)
         for group in self.param_groups:
             for p in group["params"]:
@@ -126,21 +128,24 @@ class KFAOptimizer(Optimizer):
                         r"""
                         $\F^{-1}d$
                         """
-                        if not module.weight.requires_grad:
+                        linear_module = cast(torch.nn.Linear, module)
+                        weight = linear_module.weight
+                        if not weight.requires_grad:
                             return
-                        self.state[module.weight][tgt_key] = KFA.calculate_fisher_inverse_mult_V(
+                        self.state[weight][tgt_key] = KFA.calculate_fisher_inverse_mult_V(
                             cache=self.kfa.cache,
-                            a=self.kfa.cache[module.weight]["a"],
-                            g=self.kfa.cache[module.weight]["g"],
-                            V=self.state[module.weight][src_key],
+                            a=self.kfa.cache[weight]["a"],
+                            g=self.kfa.cache[weight]["g"],
+                            V=self.state[weight][src_key],
                         )
-                        if module.bias is not None:
-                            self.state[module.bias][tgt_key] = (
+                        if linear_module.bias is not None:
+                            bias = linear_module.bias
+                            self.state[bias][tgt_key] = (
                                 KFA.calculate_fisher_inverse_mult_V(
                                     cache=self.kfa.cache,
-                                    a=self.kfa.cache[module.bias]["a"],
-                                    g=self.kfa.cache[module.bias]["g"],
-                                    V=self.state[module.bias][src_key].unsqueeze(-2).transpose(-2, -1),
+                                    a=self.kfa.cache[bias]["a"],
+                                    g=self.kfa.cache[bias]["g"],
+                                    V=self.state[bias][src_key].unsqueeze(-2).transpose(-2, -1),
                                 )
                                 .transpose(-2, -1)
                                 .squeeze(-2)
@@ -219,7 +224,10 @@ class KFAOptimizer(Optimizer):
                 for p in group["params"]:
                     if p.grad is None:
                         continue
-                    grad = (torch.abs(p) if group.get("adaptive", None) else 1.0) * p.grad
+                    scale_factor = (
+                        torch.abs(p) if group.get("adaptive", None) else torch.ones((), device=p.device, dtype=p.dtype)
+                    )
+                    grad = scale_factor * p.grad
                     something_norm += torch.sum(grad * grad).item()
         elif something_name == "state":
             key = kwargs.get("key", None)

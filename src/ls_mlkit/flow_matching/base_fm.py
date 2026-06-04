@@ -14,9 +14,9 @@ class BaseFlowConfig(BaseGenerativeModelConfig):
         self,
         ndim_micro_shape: int,
         n_discretization_steps: int,
-        n_inference_steps: int = None,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
+        n_inference_steps: int | None = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         super().__init__(
             ndim_micro_shape=ndim_micro_shape,

@@ -5,10 +5,12 @@ from torch import Tensor
 from torch.nn import Module
 
 from ..util.base_class.base_gm_class import GMHook, GMHookStageType
+from ..util.context.temp_remove import TemporaryKeyRemover
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from ..util.sde.corrector import LangevinCorrector
 from ..util.sde.sde_lib import VPSDE
+from ..util.typing_utils import require
 from .conditioner import Conditioner
 from .conditioner.utils import get_accumulated_conditional_score
 from .euclidean_diffuser import EuclideanDiffuser, EuclideanDiffuserConfig
@@ -75,7 +77,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         self.loss_fn = loss_fn
 
         def score_fn(x: Tensor, t: Tensor, mask: Tensor) -> Tensor:
-            return self.model(x, t.long(), mask)["x"]
+            return self.model(**{"x_t": x, "t": t.long(), "padding_mask": mask})["x"]
 
         self.corrector = LangevinCorrector(
             sde=self.sde,
@@ -93,10 +95,10 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         x_0: Tensor,
         discrete_t: Tensor,
         mask: Tensor,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
+        *args: Any,
+        **kwargs: Any,
     ) -> dict:
-        t = self.time_scheduler.discrete_time_to_continuous_time(discrete_t)
+        t = self.time_scheduler.timestep_index_to_continuous_time(discrete_t)
         forward_result = self.sde.forward_process(x_0, t, mask)
         return {
             "x_t": forward_result["x_t"],
@@ -106,9 +108,9 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
             "b": forward_result["b"],
         }
 
-    def compute_loss(self, batch: dict[str, Any], *args: Any, **kwargs: Any) -> dict:
-        batch = self.model.prepare_batch_data_for_input(batch)
-        assert isinstance(batch, dict), "batch must be a dictionary"
+    def compute_loss(
+        self, batch: dict[str, Any], *args: Any, **kwargs: Any
+    ) -> dict:  # ty: ignore[invalid-method-override]
         x_0 = batch["gt_data"]
         padding_mask = batch["padding_mask"]
         device = x_0.device
@@ -116,8 +118,8 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
 
         t = batch.get("t", None)
         if t is None:
-            t = self.time_scheduler.sample_a_discrete_time_step_uniformly(macro_shape).to(device)
-        self.config = self.config.to(t)
+            t = self.time_scheduler.sample_timestep_index_uniformly(macro_shape).to(device)
+        self.config = cast(EuclideanVPSDEConfig, self.config.to(t))
 
         forward_result = self.forward_process(x_0, t, padding_mask)
         x_t = forward_result["x_t"]
@@ -127,11 +129,10 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         b = forward_result["b"]
         gt_uc_score = self.sde.get_score(x_t=x_t, mean=mean, std=std)
 
-        model_input_dict = batch
-        model_input_dict.pop("gt_data")
-        model_input_dict.pop("padding_mask")
-        model_input_dict.pop("t", None)
-        model_output = self.model(x_t, t, padding_mask, **model_input_dict)
+        batch["x_t"] = x_t
+        batch["t"] = t
+        with TemporaryKeyRemover(mapping=batch, keys=["gt_data"]):
+            model_output = self.model(**batch)
         p_uc_score = model_output["x"]
 
         gt_uc_score = b * gt_uc_score
@@ -166,8 +167,8 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         assert (t >= 0).all()
         assert (next_t < self.config.n_discretization_steps).all()
 
-        continuous_t1 = self.time_scheduler.discrete_time_to_continuous_time(t)
-        continuous_t2 = self.time_scheduler.discrete_time_to_continuous_time(next_t)
+        continuous_t1 = self.time_scheduler.timestep_index_to_continuous_time(t)
+        continuous_t2 = self.time_scheduler.timestep_index_to_continuous_time(next_t)
         x_t2 = self.sde.forward_from_t1_to_t2(x, continuous_t1, continuous_t2)
         return x_t2
 
@@ -175,7 +176,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         self,
         x_t: Tensor,
         t: Tensor,
-        padding_mask: Tensor,
+        padding_mask: Tensor | None = None,
         *args: Any,
         **kwargs: Any,
     ) -> dict:
@@ -190,12 +191,15 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         """
         assert torch.all(t == t.view(-1)[0]).item()
         device = x_t.device
-        idx = kwargs.get("idx")
+        idx = require(kwargs.get("idx"), "idx")
+        schedule = self.time_scheduler.get_continuous_timesteps_schedule().to(device)
         ones = torch.ones_like(t)
-        t_start = self.time_scheduler.get_continuous_timesteps_schedule().to(device)[idx] * ones
-        t_end = self.time_scheduler.get_continuous_timesteps_schedule().to(device)[idx + 1] * ones
+        t_start = schedule[int(idx)] * ones
+        t_end = schedule[int(idx) + 1] * ones
         config = cast(EuclideanVPSDEConfig, self.config.to(device))
-        model_output = self.model(x_t, t.long(), padding_mask, *args, **kwargs)
+        model_output = self.model(
+            **{"x_t": x_t, "t": t.long(), "padding_mask": padding_mask, **kwargs}
+        )
         p_uc_score = model_output["x"]
 
         # score hook start=====================================================
@@ -207,7 +211,11 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
             "config": config,
             "sampling_condition": kwargs.get("sampling_condition"),
         }
-        hook_output = self.hook_manager.run_hooks(GMHookStageType.PRE_UPDATE_IN_STEP_FN, **hook_input)
+        hook_output = self.hook_manager.run_hooks(
+            GMHookStageType.PRE_UPDATE_IN_STEP_FN,
+            tgt_key_name="p_uc_score",
+            **hook_input,
+        )
         if hook_output is not None:
             p_uc_score = hook_output
 
@@ -236,7 +244,11 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
             "x": x,
         }
 
-    def get_posterior_mean_fn(self, score: Tensor = None, score_fn: Callable = None):
+    def get_posterior_mean_fn(
+        self,
+        score: Tensor | None = None,
+        score_fn: Callable[[Tensor, Tensor, Tensor | None], Tensor] | None = None,
+    ):
         r"""Get the posterior mean function
 
         Args:
@@ -267,9 +279,10 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
             nonlocal score, score_fn
             assert score is not None or score_fn is not None, "either score or score_fn must be provided"
             if score is None:
+                assert score_fn is not None
                 score = score_fn(x_t, t, padding_mask)
             sde = cast(EuclideanVPSDEConfig, self.config.to(t)).sde
-            t = self.time_scheduler.discrete_time_to_continuous_time(t)
+            t = self.time_scheduler.timestep_index_to_continuous_time(t)
             a, b = sde.get_a_b(t)
             E_x0_xt = b**2 / a * score + x_t / a
             return E_x0_xt
@@ -277,20 +290,20 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         return _posterior_mean_fn
 
     def get_condition_post_compute_loss_hook(self, conditioner_list: list[Conditioner]):
-        def _hook_fn(**kwargs):
+        def _hook_fn(**kwargs: Any):
             nonlocal conditioner_list
 
             kwargs.get("loss")
-            x_0 = kwargs.get("gt_data")
-            x_t = kwargs.get("x_t")
-            t = kwargs.get("t", None)
-            padding_mask = kwargs.get("padding_mask")
-            loss_fn = kwargs.get("loss_fn")
+            x_0 = require(cast(Tensor | None, kwargs.get("gt_data")), "gt_data")
+            x_t = require(cast(Tensor | None, kwargs.get("x_t")), "x_t")
+            t = require(cast(Tensor | None, kwargs.get("t")), "t")
+            padding_mask = require(cast(Tensor | None, kwargs.get("padding_mask")), "padding_mask")
+            loss_fn = require(cast(Callable[..., Any] | None, kwargs.get("loss_fn")), "loss_fn")
             kwargs.get("config")
-            p_uc_score = kwargs.get("p_uc_score")
-            gt_uc_score = kwargs.get("gt_uc_score")
+            p_uc_score = require(cast(Tensor | None, kwargs.get("p_uc_score")), "p_uc_score")
+            gt_uc_score = require(cast(Tensor | None, kwargs.get("gt_uc_score")), "gt_uc_score")
             kwargs.get("a")
-            b = kwargs.get("b")
+            b = require(cast(Tensor | None, kwargs.get("b")), "b")
 
             tgt_mask = padding_mask
             for conditioner in conditioner_list:
@@ -329,12 +342,12 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         )
 
     def get_condition_pre_update_in_step_fn_hook(self, conditioner_list: list[Conditioner]):
-        def _hook_fn(**kwargs):
+        def _hook_fn(**kwargs: Any):
             nonlocal conditioner_list
-            p_uc_score = kwargs.get("p_uc_score")
-            x_t = kwargs.get("x_t")
-            t = kwargs.get("t", None)
-            padding_mask = kwargs.get("padding_mask")
+            p_uc_score = require(cast(Tensor | None, kwargs.get("p_uc_score")), "p_uc_score")
+            x_t = require(cast(Tensor | None, kwargs.get("x_t")), "x_t")
+            t = require(cast(Tensor | None, kwargs.get("t")), "t")
+            padding_mask = require(cast(Tensor | None, kwargs.get("padding_mask")), "padding_mask")
             kwargs.get("config")
             sampling_condition = kwargs.get("sampling_condition")
 

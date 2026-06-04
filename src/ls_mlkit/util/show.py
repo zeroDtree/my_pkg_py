@@ -78,7 +78,12 @@ def show_info(
         }
 
         try:
-            dataset_info["dataset_size"] = len(dataset)  # type: ignore[arg-type]
+            from collections.abc import Sized
+
+            if isinstance(dataset, Sized):
+                dataset_info["dataset_size"] = len(dataset)
+            else:
+                dataset_info["dataset_size"] = "unknown"
         except TypeError:
             dataset_info["dataset_size"] = "unknown"
 

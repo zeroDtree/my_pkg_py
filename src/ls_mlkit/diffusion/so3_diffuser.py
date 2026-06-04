@@ -1,4 +1,4 @@
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Tuple, cast
 
 import torch
 from torch import Tensor
@@ -32,14 +32,12 @@ class SO3DiffuserConfig(LieGroupDiffuserConfig):
         igso3_num_omega: int,
         igso3_min_sigma: float,
         igso3_max_sigma: float,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
+        **kwargs: Any,
     ):
         super().__init__(
             ndim_micro_shape=ndim_micro_shape,
             n_discretization_steps=n_discretization_steps,
             n_inference_steps=n_inference_steps,
-            *args,
             **kwargs,
         )
 
@@ -98,23 +96,23 @@ class SO3Diffuser(LieGroupDiffuser):
 
     @property
     def igso3_cdf(self) -> Tensor:
-        return self._igso3_cdf
+        return cast(Tensor, self._igso3_cdf)
 
     @property
     def igso3_score_norm(self) -> Tensor:
-        return self._igso3_score_norm
+        return cast(Tensor, self._igso3_score_norm)
 
     @property
     def igso3_exp_score_norms(self) -> Tensor:
-        return self._igso3_exp_score_norms
+        return cast(Tensor, self._igso3_exp_score_norms)
 
     @property
     def igso3_discrete_omega(self) -> Tensor:
-        return self._igso3_discrete_omega
+        return cast(Tensor, self._igso3_discrete_omega)
 
     @property
     def igso3_discrete_sigma(self) -> Tensor:
-        return self._igso3_discrete_sigma
+        return cast(Tensor, self._igso3_discrete_sigma)
 
     def prior_sampling(self, shape: Tuple[int, ...]) -> Tensor:
         r"""Sample initial noise used for reverse process
@@ -148,8 +146,8 @@ class SO3Diffuser(LieGroupDiffuser):
         x_0: Tensor,
         discrete_t: Tensor,
         mask: Tensor,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
+        *args: Any,
+        **kwargs: Any,
     ) -> dict:
         r"""Forward process
 
@@ -215,26 +213,28 @@ class SO3Diffuser(LieGroupDiffuser):
         )
         return ground_truth_score
 
-    def compute_loss(self, batch: dict[str, Any], *args: list[Any], **kwargs: dict[Any, Any]) -> Tensor:
+    def compute_loss(
+        self, batch: dict[str, Any], *args: Any, **kwargs: Any
+    ) -> dict:  # ty: ignore[invalid-method-override]
         x_0 = batch["x_0"]
         padding_mask = batch["padding_mask"]
         macro_shape = self.get_macro_shape(x_0)
         discrete_t = batch.get("t", None)
         if discrete_t is None:
-            discrete_t = self.time_scheduler.sample_a_discrete_time_step_uniformly(macro_shape=macro_shape)
+            discrete_t = self.time_scheduler.sample_timestep_index_uniformly(macro_shape=macro_shape)
         x_t = self.forward_process(x_0, discrete_t=discrete_t, mask=padding_mask)["x_t"]
         ground_truth_score = self.get_ground_truth_score(x_0, x_t, discrete_t, padding_mask)
         predicted_score = self.score_fn(x_t, discrete_t, padding_mask)
         loss = self.loss_fn(predicted_score, ground_truth_score, padding_mask)
-        return loss
+        return {"loss": loss}
 
-    def step(
+    def step(  # ty: ignore[invalid-method-override]
         self,
         x_t: Tensor,
         discrete_t: Tensor,
-        padding_mask: Tensor,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
+        padding_mask: Tensor | None = None,
+        *args: Any,
+        **kwargs: Any,
     ) -> dict:
         r"""
         .. math::
@@ -245,7 +245,7 @@ class SO3Diffuser(LieGroupDiffuser):
             g_{rev} &= g\\
 
         """
-        continuous_t = self.time_scheduler.discrete_time_to_continuous_time(discrete_t)
+        continuous_t = self.time_scheduler.timestep_index_to_continuous_time(discrete_t)
         f, g = self.sde.get_drift_and_diffusion(x=x_t, t=continuous_t, mask=padding_mask)
 
         # p_x_0: Tensor = kwargs.get("p_x_0", None)
@@ -254,6 +254,7 @@ class SO3Diffuser(LieGroupDiffuser):
         #     x_0=p_x_0, x_t=x_t, discrete_t=discrete_t, padding_mask=padding_mask
         # )
 
+        assert padding_mask is not None
         riemannian_grad = self.score_fn(x_t, discrete_t, padding_mask)
 
         assert f.sum() == 0, "f should be 0"
@@ -264,7 +265,7 @@ class SO3Diffuser(LieGroupDiffuser):
         term1 = -rev_f * delta_t
 
         noise_lie_algebra = self.sample_noise_in_lie_algebra(macro_shape=self.get_macro_shape(x_t))
-        delta_w = torch.sqrt(delta_t) * x_t @ noise_lie_algebra
+        delta_w = torch.sqrt(torch.as_tensor(delta_t, device=x_t.device, dtype=x_t.dtype)) * x_t @ noise_lie_algebra
         term2 = rev_g * delta_w
 
         move_in_tangent_space = term1 + term2

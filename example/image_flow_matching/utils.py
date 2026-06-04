@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import matplotlib.pyplot as plt
 import torch
@@ -26,7 +26,8 @@ def get_dataset(cfg: DictConfig):
     train_dataset = load_dataset(dataset_name, split="train")
 
     fig, axs = plt.subplots(1, 4, figsize=(16, 4))
-    for i, image in enumerate(train_dataset[:4]["image"]):
+    preview_dataset = cast(Any, train_dataset)
+    for i, image in enumerate(preview_dataset.select(range(4))["image"]):
         axs[i].imshow(image)
         axs[i].set_axis_off()
     fig.savefig("train_dataset.png")
@@ -47,7 +48,7 @@ def get_dataset(cfg: DictConfig):
         return {"images": images}
 
     # apply same transform to three datasets
-    train_dataset.set_transform(transform)
+    cast(Any, train_dataset).set_transform(transform)
 
     return train_dataset, train_dataset, train_dataset
 
@@ -59,7 +60,6 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         EuclideanOTFlow,
         EuclideanOTFlowConfig,
     )
-    from ls_mlkit.flow_matching.model_interface import Model4FMInterface
     from ls_mlkit.flow_matching.time_scheduler import FlowMatchingTimeScheduler
     from ls_mlkit.util.mask.image_masker import ImageMasker
 
@@ -95,26 +95,15 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
             ),
         )
 
-    class MyModel(Module, Model4FMInterface):
-        def __init__(self, model: Module):
+    class MyModel(Module):
+        def __init__(self, model: Any):
             super().__init__()
             self.model = model
 
-        def forward(
-            self,
-            x_t: Tensor,
-            t: Tensor,
-            padding_mask: Tensor,
-            *args: Any,
-            **kwargs: Any,
-        ) -> Tensor:
+        def forward(self, **batch: Any) -> dict[str, Tensor]:
+            x_t: Tensor = batch["x_t"]
+            t: Tensor = batch["t"]
             return {"x": self.model(x_t, t, return_dict=False)[0]}
-
-        def get_model_device(self):
-            return next(self.model.parameters()).device
-
-        def prepare_batch_data_for_input(self, batch):
-            return batch
 
     def mse(predicted: Tensor, ground_truth: Tensor, mask: Tensor):
         from torch.nn.functional import mse_loss
@@ -141,7 +130,9 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     )
 
     if final_model_ckpt_path is not None and final_model_ckpt_path != "":
-        flow = load_checkpoint(flow, final_model_ckpt_path)
+        from ls_mlkit.flow_matching.euclidean_ot_fm import EuclideanOTFlow
+
+        flow = cast(EuclideanOTFlow, load_checkpoint(flow, final_model_ckpt_path))
 
     return flow
 

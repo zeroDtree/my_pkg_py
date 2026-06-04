@@ -1,8 +1,6 @@
 from abc import abstractmethod
 from typing import Any, Optional
 
-from torch import Tensor
-
 from ..util.base_class.base_gm_class import (
     BaseGenerativeModel,
     BaseGenerativeModelConfig,
@@ -18,8 +16,8 @@ class BaseDiffuserConfig(BaseGenerativeModelConfig):
         ndim_micro_shape: int,
         n_discretization_steps: int,
         n_inference_steps: Optional[int] = None,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
+        *args: Any,
+        **kwargs: Any,
     ) -> None:
         super().__init__(
             ndim_micro_shape=ndim_micro_shape,
@@ -54,13 +52,7 @@ class BaseDiffuser(BaseGenerativeModel):
     @abstractmethod
     def forward_process(
         self,
-        x_0: Tensor,
-        t_a: Tensor,
-        t_b: Tensor,
-        mask: Tensor,
-        is_continuous_time: bool = True,
-        *args: list[Any],
-        **kwargs: dict[Any, Any],
+        *args: Any,
+        **kwargs: Any,
     ) -> dict:
-        assert (t_b >= t_a).all()
         return {}
