@@ -1,16 +1,14 @@
 import logging
-from typing import Callable, List, Literal, Optional, cast
+from typing import Any, Callable, List, Literal, Optional, cast
 
 import datasets
 import numpy as np
 import torch
+import wandb
 from accelerate import Accelerator
 from overrides import override
-from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-
-import wandb
 
 from ..util.decorators import inherit_docstrings
 from ..util.iterator import inf_iterator
@@ -165,7 +163,13 @@ class MyDistributedPipeline(DistributedPipeline):
         self.training_config = cast(MyTrainingConfig, self.training_config)
 
     @override
-    def compute_loss(self, model, batch: dict) -> Tensor:
+    def compute_loss(
+        self,
+        model,
+        batch: dict,
+        *,
+        phase: Literal["train", "eval"] = "train",
+    ) -> dict[str, Any]:
         self.trigger_callbacks(event=CallbackEvent.PRE_COMPUTE_LOSS, batch=batch)
         loss = None
         model_output = model(**batch)
@@ -174,8 +178,19 @@ class MyDistributedPipeline(DistributedPipeline):
             loss = model_output["loss"]
         else:
             loss = model_output
-        self.trigger_callbacks(event=CallbackEvent.POST_COMPUTE_LOSS, batch=batch, loss=loss)
-        return loss
+        parsed_model_output = model_output if isinstance(model_output, dict) else None
+        self.trigger_callbacks(
+            event=CallbackEvent.POST_COMPUTE_LOSS,
+            batch=batch,
+            loss=loss,
+            model_output=parsed_model_output,
+            phase=phase,
+            can_log=phase == "train" and self._can_log(flag="steps"),
+        )
+        return {
+            "loss": loss,
+            "model_output": parsed_model_output,
+        }
 
     def eval_a_step(self, batch: dict) -> dict:
         """Evaluate the model for one step
@@ -187,9 +202,12 @@ class MyDistributedPipeline(DistributedPipeline):
             dict: a dictionary containing the evaluation loss
         """
         self.trigger_callbacks(event=CallbackEvent.PRE_EVAL_STEP, batch=batch)
-        loss = self.compute_loss(self.model, batch).item()
-        self.trigger_callbacks(event=CallbackEvent.POST_EVAL_STEP, batch=batch, loss=loss)
-        return {"eval_loss": loss}
+        out = self.compute_loss(self.model, batch, phase="eval")
+        result: dict[str, Any] = {"eval_loss": out["loss"].item()}
+        if out.get("model_output") is not None:
+            result["model_output"] = out["model_output"]
+        self.trigger_callbacks(event=CallbackEvent.POST_EVAL_STEP, batch=batch, loss=result["eval_loss"])
+        return result
 
     @override
     def train(self):
@@ -249,5 +267,9 @@ class MyDistributedPipeline(DistributedPipeline):
             wandb.log(result, step=self.training_state.current_global_step)
 
         self.model.train()
-        self.trigger_callbacks(event=CallbackEvent.POST_EVAL, eval_dataloader=self.eval_dataloader)
+        self.trigger_callbacks(
+            event=CallbackEvent.POST_EVAL,
+            eval_dataloader=self.eval_dataloader,
+            eval_results=eval_results,
+        )
         return eval_results
