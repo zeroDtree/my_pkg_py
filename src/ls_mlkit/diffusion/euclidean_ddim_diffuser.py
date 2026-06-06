@@ -82,15 +82,16 @@ class EuclideanDDIMDiffuser(EuclideanDDPMDiffuser):
     def get_sigma2(self, t: Tensor, prev_t: Tensor) -> Tensor:
         r"""Compute DDIM variance term
 
-        .. math::
-            \sigma^2 = (\frac{1 - \bar{\alpha}_{pre}}{1 - \bar{\alpha}_{t}}) \cdot ( 1- \frac{\bar{\alpha}_{t}}{\bar{\alpha}_{pre}})
+        $$
+        \sigma^2 = (\frac{1 - \bar{\alpha}_{pre}}{1 - \bar{\alpha}_{t}}) \cdot ( 1- \frac{\bar{\alpha}_{t}}{\bar{\alpha}_{pre}})
+        $$
 
         Args:
             t (Tensor): timestep
             prev_t (Tensor): previous timestep
 
         Returns:
-            Tensor: :math:`\sigma^2`
+            Tensor: $\sigma^2$
         """
         config = cast(EuclideanDDIMConfig, self.config)
         alpha_prod_t = config.alphas_cumprod[t]
@@ -112,13 +113,17 @@ class EuclideanDDIMDiffuser(EuclideanDDPMDiffuser):
     ) -> dict:
         r"""DDIM sampling algorithm:
 
-        .. math::
+        $$
+        \hat{x}_0 = \frac{x_t - \sqrt{1 - \bar{\alpha}_t} \cdot \epsilon_\theta(x_t, t)}{\sqrt{\bar{\alpha}_t}}
+        $$
 
-            \hat{x}_0 = \frac{x_t - \sqrt{1 - \bar{\alpha}_t} \cdot \epsilon_\theta(x_t, t)}{\sqrt{\bar{\alpha}_t}}
+        $$
+        \text{direction} = \sqrt{1 - \bar{\alpha}_{t-1} - \sigma_t^2} \cdot \epsilon_\theta(x_t, t)
+        $$
 
-            \text{direction} = \sqrt{1 - \bar{\alpha}_{t-1} - \sigma_t^2} \cdot \epsilon_\theta(x_t, t)
-
-            x_{t-1} = \sqrt{\bar{\alpha}_{t-1}} \cdot \hat{x}_0 + \text{direction} + \sigma_t \cdot z
+        $$
+        x_{t-1} = \sqrt{\bar{\alpha}_{t-1}} \cdot \hat{x}_0 + \text{direction} + \sigma_t \cdot z
+        $$
 
         Args:
             x_t (Tensor): the sample at timestep t

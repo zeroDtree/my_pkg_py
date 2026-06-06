@@ -17,12 +17,12 @@ def get_accumulated_conditional_score(
     r"""Get the accumulated conditional score
 
     Args:
-        x_t (``Tensor``): :math:`x_t`
-        t (``Tensor``): :math:`t`
-        padding_mask (``Tensor``): the padding mask
+        x_t (Tensor): $x_t$
+        t (Tensor): $t$
+        padding_mask (Tensor): the padding mask
 
     Returns:
-        ``Tensor``: the accumulated conditional score
+        Tensor: the accumulated conditional score
     """
     if t is None or padding_mask is None:
         raise ValueError("t and padding_mask are required for conditional score accumulation")

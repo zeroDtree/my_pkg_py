@@ -179,13 +179,13 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
     def q_xt_x_0(self, x_0: Tensor, t: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
         r"""Forward process
 
-        .. math::
-
-            q(x_t|x_0) = \mathcal{N}(\sqrt{\alpha_t} x_0, \sqrt{1-\alpha_t} I)
+        $$
+        q(x_t|x_0) = \mathcal{N}(\sqrt{\alpha_t} x_0, \sqrt{1-\alpha_t} I)
+        $$
 
         Args:
-            x_0 (Tensor): :math:`x_0`
-            t (Tensor): :math:`t`
+            x_0 (Tensor): $x_0$
+            t (Tensor): $t$
             mask (Tensor): the mask of the sample
 
         Returns:
@@ -250,11 +250,13 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
         Based on the standard DDPM sampling formula:
 
-        .. math::
+        $$
+        \hat{\mathbf{x}}_0:=\frac{1}{\sqrt{\bar{\alpha}_t}}(\mathbf{x}_t - \sqrt{1-\bar{\alpha}_t}\mathbf{\epsilon}_{\theta}(\mathbf{x}_t,t))
+        $$
 
-            \hat{\mathbf{x}}_0:=\frac{1}{\sqrt{\bar{\alpha}_t}}(\mathbf{x}_t - \sqrt{1-\bar{\alpha}_t}\mathbf{\epsilon}_{\theta}(\mathbf{x}_t,t))
-
-            \mathcal{N}\left( \boldsymbol{x}_{t-1}; \underbrace{\frac{\sqrt{\alpha_t}(1-\bar{\alpha}_{t-1})\boldsymbol{x}_t + \sqrt{\bar{\alpha}_{t-1}}(1-\alpha_t)\hat{\boldsymbol{x}}_0}{1-\bar{\alpha}_t}}_{\mu_q(\boldsymbol{x}_t, \hat{\boldsymbol{x}}_0)}, \underbrace{\frac{(1-\alpha_t)(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t}\mathbf{I}}_{\Sigma_q(t)} \right)
+        $$
+        \mathcal{N}\left( \boldsymbol{x}_{t-1}; \underbrace{\frac{\sqrt{\alpha_t}(1-\bar{\alpha}_{t-1})\boldsymbol{x}_t + \sqrt{\bar{\alpha}_{t-1}}(1-\alpha_t)\hat{\boldsymbol{x}}_0}{1-\bar{\alpha}_t}}_{\mu_q(\boldsymbol{x}_t, \hat{\boldsymbol{x}}_0)}, \underbrace{\frac{(1-\alpha_t)(1-\bar{\alpha}_{t-1})}{1-\bar{\alpha}_t}\mathbf{I}}_{\Sigma_q(t)} \right)
+        $$
 
         Args:
             x_t (Tensor): the sample at timestep t
@@ -373,15 +375,15 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
     ) -> Tensor:
         r"""Calculate variance for timestep t following standard DDPM formula. For t > 0, compute predicted variance βt (see formula (6) and (7) from https://huggingface.co/papers/2006.11239)
 
-        .. math::
-
-            \sigma^2 = (\frac{1 - \bar{\alpha}_{pre}}{1 - \bar{\alpha}_{t}}) \cdot ( 1- \frac{\bar{\alpha}_{t}}{\bar{\alpha}_{pre}})
+        $$
+        \sigma^2 = (\frac{1 - \bar{\alpha}_{pre}}{1 - \bar{\alpha}_{t}}) \cdot ( 1- \frac{\bar{\alpha}_{t}}{\bar{\alpha}_{pre}})
+        $$
 
         Args:
             t (int): timestep
-            alpha_prod_t (Tensor): :math:`\bar{\alpha}_t`
-            alpha_prod_t_prev (Tensor): :math:`\bar{\alpha}_{t-1}`
-            current_beta_t (Tensor): :math:`\beta_t`
+            alpha_prod_t (Tensor): $\bar{\alpha}_t$
+            alpha_prod_t_prev (Tensor): $\bar{\alpha}_{t-1}$
+            current_beta_t (Tensor): $\beta_t$
 
         Returns:
             Tensor: the variance for timestep t
@@ -451,9 +453,9 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
 
             For the case of DDPM sampling, the posterior mean is given by
 
-            .. math::
-
-                E[x_0|x_t] = \frac{1}{\sqrt{\bar{\alpha}(t)}}(x_t + (1 - \bar{\alpha}(t))\nabla_{x_t}\log p_t(x_t))
+            $$
+            E[x_0|x_t] = \frac{1}{\sqrt{\bar{\alpha}(t)}}(x_t + (1 - \bar{\alpha}(t))\nabla_{x_t}\log p_t(x_t))
+            $$
 
             """
             nonlocal score, score_fn

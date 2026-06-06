@@ -12,7 +12,7 @@ from ..util.hook.model_hook import (
 
 
 class ModelForPipeline(Module):
-    """Wraps a model whose ``forward(**batch)`` returns a dict (e.g. ``{"x": ...}``)."""
+    """Wraps a model whose `forward(**batch)` returns a dict (e.g. `{"x": ...}`)."""
 
     def __init__(self, model: Module):
         super().__init__()

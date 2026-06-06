@@ -392,10 +392,12 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
         r"""Get the posterior mean function for EDM.
 
         For EDM, the posterior mean is:
-        .. math::
-            E[x_0|x_t] = D_\theta(x_t, \sigma_t)
 
-        where D_\theta is the denoised prediction.
+        $$
+        E[x_0|x_t] = D_\theta(x_t, \sigma_t)
+        $$
+
+        where $D_\theta$ is the denoised prediction.
 
         Args:
             score (Tensor, optional): the score of the sample

@@ -21,11 +21,11 @@ class LinearLikeModule(Protocol):
 def get_float_weight(model: LinearLikeModule) -> Tensor:
     """Get the float weight of a model.
 
-    The model must expose ``in_features``, ``weight``, and optionally ``bias``
-    (e.g. ``torch.nn.Linear``, ``Linear8bitLt``, ``Linear4bit``).
+    The model must expose `in_features`, `weight`, and optionally `bias`
+    (e.g. `torch.nn.Linear`, `Linear8bitLt`, `Linear4bit`).
 
     Args:
-        model: A linear-like module with ``in_features`` and ``weight``.
+        model: A linear-like module with `in_features` and `weight`.
 
     Returns:
         The reconstructed float weight tensor.
@@ -43,7 +43,7 @@ def get_float_weight(model: LinearLikeModule) -> Tensor:
 
 
 def replace_module_with_linear(model: Module, target: type[Module]) -> None:
-    """Replace all child modules of ``target`` type with plain ``nn.Linear`` layers.
+    """Replace all child modules of `target` type with plain `nn.Linear` layers.
 
     Args:
         model: The model whose children will be inspected.
@@ -72,7 +72,7 @@ def dequantize(model: Module, dtype: str) -> None:
 
     Args:
         model: The model to dequantize.
-        dtype: Quantization dtype — ``"int8"`` or ``"nf4"``.
+        dtype: Quantization dtype — `"int8"` or `"nf4"`.
     """
     target: type[Module] | None = None
     if dtype == "int8":

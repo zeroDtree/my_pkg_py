@@ -42,8 +42,8 @@ class BaseDiffuser(BaseGenerativeModel):
         r"""Initialize the BaseDiffuser
 
         Args:
-            config (``BaseDiffuserConfig``): the config of the diffuser
-            time_scheduler (``DiffusionTimeScheduler``): the time scheduler of the diffuser
+            config (BaseDiffuserConfig): the config of the diffuser
+            time_scheduler (DiffusionTimeScheduler): the time scheduler of the diffuser
         """
         super().__init__(config=config)
         self.config: BaseDiffuserConfig = config

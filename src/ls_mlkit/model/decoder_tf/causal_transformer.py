@@ -74,12 +74,12 @@ class MultiHeadAttention(torch.nn.Module):
 
         If only one mask is provided, that mask
         and the corresponding mask type will be returned. If both masks are provided, they will be both
-        expanded to shape ``(batch_size, num_heads, seq_len, seq_len)``, combined with logical ``or``
+        expanded to shape `(batch_size, num_heads, seq_len, seq_len)`, combined with logical `or`
         and mask type 2 will be returned
         Args:
-            attn_mask: attention mask of shape ``(seq_len, seq_len)``, mask type 0
-            key_padding_mask: padding mask of shape ``(batch_size, seq_len)``, mask type 1
-            query: query embeddings of shape ``(batch_size, seq_len, embed_dim)``
+            attn_mask: attention mask of shape `(seq_len, seq_len)`, mask type 0
+            key_padding_mask: padding mask of shape `(batch_size, seq_len)`, mask type 1
+            query: query embeddings of shape `(batch_size, seq_len, embed_dim)`
         Returns:
             merged_mask: merged mask
             mask_type: merged mask type (0, 1, or 2)

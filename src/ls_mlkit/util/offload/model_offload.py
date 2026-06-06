@@ -22,7 +22,7 @@ class ModelOffloadHookContext:
             num_block: Number of blocks for the "block" strategy.
             enable: If False, this context is a no-op.
             device: The compute device (e.g. "cuda").
-            strategy: Only ``'block'`` is supported (see ``ForwardBackwardOffloadHookContext``).
+            strategy: Only `'block'` is supported (see `ForwardBackwardOffloadHookContext`).
         """
         self.enable = enable
         if not enable:

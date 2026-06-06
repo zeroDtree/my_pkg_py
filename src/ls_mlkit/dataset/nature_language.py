@@ -92,7 +92,7 @@ def load_codefeedback(max_tokens=512, num_samples=100000, eval_split_ratio=0.1, 
 
     def preprocess(data):
         y = data["answer"]
-        y = "```".join(y.split("```")[:2]) + "```"  # only keep the first code block
+        y = "``".join(y.split("``")[:2]) + "``"  # only keep the first code block
         return {
             "x": template_wo_input.format(instruction=data["query"]),
             "y": y,
@@ -109,7 +109,7 @@ def load_codefeedback(max_tokens=512, num_samples=100000, eval_split_ratio=0.1, 
         total += 1
         sample_dict = cast(dict[str, Any], sample)
         temp = preprocess(sample_dict)
-        if "```" not in sample_dict["answer"]:
+        if "``" not in sample_dict["answer"]:
             continue
         if len(temp["x"] + " " + temp["y"]) >= max_tokens:
             continue

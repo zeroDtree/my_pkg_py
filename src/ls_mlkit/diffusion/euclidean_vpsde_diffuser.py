@@ -271,9 +271,9 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
 
             For the case of VPSDE sampling, the posterior mean is given by
 
-            .. math::
-
-                E[x_0|x_t] = \frac{b^2}{a} \nabla_{x_t}\log p_t(x_t) - \frac{x_t}{a}
+            $$
+            E[x_0|x_t] = \frac{b^2}{a} \nabla_{x_t}\log p_t(x_t) - \frac{x_t}{a}
+            $$
 
             """
             nonlocal score, score_fn

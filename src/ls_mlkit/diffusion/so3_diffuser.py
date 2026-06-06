@@ -117,9 +117,9 @@ class SO3Diffuser(LieGroupDiffuser):
     def prior_sampling(self, shape: Tuple[int, ...]) -> Tensor:
         r"""Sample initial noise used for reverse process
 
-        .. math::
-
-            \mathcal{U}_{SO(3)}
+        $$
+        \mathcal{U}_{SO(3)}
+        $$
 
         Args:
             shape (Tuple[int, ...]): the shape of the sample
@@ -151,9 +151,9 @@ class SO3Diffuser(LieGroupDiffuser):
     ) -> dict:
         r"""Forward process
 
-        .. math::
-
-            \text{IG}_{\text{SO}(3)} (\mathbf{x}; \mathbf{\mu}, \sigma^2) = f_{\sigma} (\arccos((\text{tr}(\mathbf{\mu}^T \mathbf{x}) - 1)/2)) \quad \forall \mathbf{x} \in \text{SO}(3)
+        $$
+        \text{IG}_{\text{SO}(3)} (\mathbf{x}; \mathbf{\mu}, \sigma^2) = f_{\sigma} (\arccos((\text{tr}(\mathbf{\mu}^T \mathbf{x}) - 1)/2)) \quad \forall \mathbf{x} \in \text{SO}(3)
+        $$
 
         Args:
             x_0 (Tensor): the initial sample
@@ -186,8 +186,9 @@ class SO3Diffuser(LieGroupDiffuser):
     def get_ground_truth_score(self, x_0: Tensor, x_t: Tensor, discrete_t: Tensor, padding_mask: Tensor) -> Tensor:
         r"""Denoise Score Matching
 
-        .. math::
-            \nabla_x \log p_{0t} (x_t | x_0)
+        $$
+        \nabla_x \log p_{0t} (x_t | x_0)
+        $$
 
         Args:
             x_0 (Tensor): _description_
@@ -237,12 +238,14 @@ class SO3Diffuser(LieGroupDiffuser):
         **kwargs: Any,
     ) -> dict:
         r"""
-        .. math::
-
+        $$
+        \begin{aligned}
             dx &= \exp_{x_t}(f_{rev} dt + g_{rev} dw)\\
             x_{t+\Delta_t} &= \exp_{x_t}(- f_{rev} |\Delta_t| + g_{rev} \Delta w)\\
             f_{rev} &= (f - g^2 \nabla_x \ln p_t(x))\\
-            g_{rev} &= g\\
+            g_{rev} &= g
+        \end{aligned}
+        $$
 
         """
         continuous_t = self.time_scheduler.timestep_index_to_continuous_time(discrete_t)
@@ -282,7 +285,7 @@ class SO3Diffuser(LieGroupDiffuser):
             macro_shape (Tuple[int, ...]): the macro shape of the noise
 
         Returns:
-            Tensor: the noise in Lie algebra of shape :math:`(*macro_shape, 3, 3)`
+            Tensor: the noise in Lie algebra of shape $(*macro_shape, 3, 3)$
         """
         return self.so3.random_tangent(p=self.so3.identity(macro_shape=macro_shape))
 

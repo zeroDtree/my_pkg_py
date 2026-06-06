@@ -19,10 +19,10 @@ class Conditioner(abc.ABC):
         r"""Prepare the condition dictionary
 
         Args:
-            train (``bool``, *optional*): whether the conditioner is used in training. Defaults to True.
+            train (`bool`, *optional*): whether the conditioner is used in training. Defaults to True.
 
         Returns:
-            ``dict[str, Any]``: the condition dictionary
+            dict[str, Any]: the condition dictionary
         """
 
     @abc.abstractmethod
@@ -46,12 +46,12 @@ class Conditioner(abc.ABC):
         r"""Get conditional score
 
         Args:
-            x_t (``Tensor``): the input tensor
-            t (``Tensor``): the time tensor
-            padding_mask (``Tensor``): the padding mask
+            x_t (Tensor): the input tensor
+            t (Tensor): the time tensor
+            padding_mask (Tensor): the padding mask
 
         Returns:
-            ``Tensor``: the conditional score
+            Tensor: the conditional score
         """
 
     @property
@@ -90,11 +90,11 @@ class LGDConditioner(Conditioner):
         r"""Compute the conditional loss
 
         Args:
-            p_gt_data (``Tensor``): predicted clean data.
-            padding_mask (``Tensor``): the padding mask
+            p_gt_data (Tensor): predicted clean data.
+            padding_mask (Tensor): the padding mask
 
         Returns:
-            ``Tensor``: the conditional loss
+            Tensor: the conditional loss
         """
 
     def get_conditional_score(
@@ -108,12 +108,12 @@ class LGDConditioner(Conditioner):
         r"""Get conditional score
 
         Args:
-            x_t (``Tensor``): the input tensor
-            t (``Tensor``): the time tensor
-            padding_mask (``Tensor``): the padding mask
+            x_t (Tensor): the input tensor
+            t (Tensor): the time tensor
+            padding_mask (Tensor): the padding mask
 
         Returns:
-            ``Tensor``: the conditional score
+            Tensor: the conditional score
         """
         if not self._enabled:
             return torch.zeros_like(x_t, device=x_t.device)

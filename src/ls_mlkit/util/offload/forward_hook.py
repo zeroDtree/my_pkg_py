@@ -43,7 +43,7 @@ class ForwardHookForDevice:
     def get_forward_hook(pre: bool, device=None, with_kwargs=False):
         """
         Returns a pre- or post-forward hook that moves the module and inputs to
-        ``device`` before the forward pass, and restores the module to its prior
+        `device` before the forward pass, and restores the module to its prior
         device after (post-forward hooks only).
         """
         origin_device = "cpu"

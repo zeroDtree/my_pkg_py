@@ -22,23 +22,23 @@ class Shape(object):
         self.config: ShapeConfig = config
 
     def get_macro_shape(self, x: Tensor) -> tuple[int, ...]:
-        r"""Get the macro shape of :math:`x`
+        r"""Get the macro shape of $x$
 
         Args:
-            x (``Tensor``): :math:`x`
+            x (Tensor): $x$
 
         Returns:
-            ``tuple[int, ...]``: the shape of the macro part of :math:`x`
+            tuple[int, ...]: the shape of the macro part of $x$
         """
         return x.shape[: -self.config.ndim_micro_shape]
 
     def complete_micro_shape(self, x: Tensor) -> Tensor:
-        """Complete the micro shape of :math:`x`, assuming the macro shape is already known
+        """Complete the micro shape of $x$, assuming the macro shape is already known
 
         Args:
-            x (``Tensor``): :math:`x`
+            x (Tensor): $x$
 
         Returns:
-            ``Tensor``: :math:`x` with the micro shape completed
+            Tensor: $x$ with the micro shape completed
         """
         return x.view(*x.shape, *([1] * self.config.ndim_micro_shape))

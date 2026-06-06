@@ -11,57 +11,62 @@ from ..decorators import inherit_docstrings
 class BaseTimeScheduler(ABC):
     r"""Base class for time schedulers in diffusion models.
 
-    Notation Convention
-    -------------------
-    Let the total diffusion time be :math:`T`, discretized into :math:`N` diffusion steps,
-    corresponding to :math:`N+1` continuous time points:
+    ### Notation Convention
 
-    .. math::
-        0 = t_0 < t_1 < \cdots < t_N = T
+    Let the total diffusion time be $T$, discretized into $N$ diffusion steps,
+    corresponding to $N+1$ continuous time points:
 
-    where :math:`\{t_i\}_{i=0}^N` represents continuous time. For uniform discretization:
+    $$
+    0 = t_0 < t_1 < \cdots < t_N = T
+    $$
 
-    .. math::
-        t_i = \frac{i}{N} \cdot T
+    where $\{t_i\}_{i=0}^N$ represents continuous time. For uniform discretization:
+
+    $$
+    t_i = \frac{i}{N} \cdot T
+    $$
 
     The corresponding discrete time steps are defined as:
 
-    .. math::
-        i \in \{0, 1, \ldots, N\}
+    $$
+    i \in \{0, 1, \ldots, N\}
+    $$
 
-    In diffusion models, :math:`t_0` corresponds to the clean data distribution :math:`q(x_0)`,
+    In diffusion models, $t_0$ corresponds to the clean data distribution $q(x_0)$,
     so training and sampling typically only consider:
 
-    .. math::
-        i \in \{1, \ldots, N\}
+    $$
+    i \in \{1, \ldots, N\}
+    $$
 
     For engineering convenience (0-based array indexing), we use:
 
-    .. math::
-        \text{idx} = i - 1
+    $$
+    \text{idx} = i - 1
+    $$
 
     Therefore:
 
-    - ``idx = 0`` corresponds to discrete step :math:`i=1`, i.e., continuous time :math:`t_1`
-    - ``idx = N-1`` corresponds to discrete step :math:`i=N`, i.e., continuous time :math:`t_N = T`
+    - `idx = 0` corresponds to discrete step $i=1$, i.e., continuous time $t_1$
+    - `idx = N-1` corresponds to discrete step $i=N$, i.e., continuous time $t_N = T$
 
     In this implementation:
 
-    - ``num_train_timesteps`` = :math:`N` (number of diffusion steps)
-    - ``timestep_index`` (or ``idx``) :math:`\in \{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}`
-    - ``continuous_time`` :math:`\in [t_1, t_N] = [\frac{T}{N}, T]` for training/sampling
+    - `num_train_timesteps` = $N$ (number of diffusion steps)
+    - `timestep_index` (or `idx`) $\in \{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}$
+    - `continuous_time` $\in [t_1, t_N] = [\frac{T}{N}, T]$ for training/sampling
 
-    The ``idx_start`` parameter controls the starting value of timestep indices:
+    The `idx_start` parameter controls the starting value of timestep indices:
 
-    - When ``idx_start = 0`` (default): :math:`\text{idx} = i - 1`, so :math:`\text{idx} \in \{0, \ldots, N-1\}`
-    - When ``idx_start = 1``: :math:`\text{idx} = i`, so :math:`\text{idx} \in \{1, \ldots, N\}`
+    - When `idx_start = 0` (default): $\text{idx} = i - 1$, so $\text{idx} \in \{0, \ldots, N-1\}$
+    - When `idx_start = 1`: $\text{idx} = i$, so $\text{idx} \in \{1, \ldots, N\}$
 
     Args:
-        continuous_time_start (``float``, *optional*): The start of continuous time range (typically 0). Defaults to 0.0.
-        continuous_time_end (``float``, *optional*): The end of continuous time range (i.e., :math:`T`). Defaults to 1.0.
-        num_train_timesteps (``int``, *optional*): Number of diffusion steps :math:`N`. Defaults to 1000.
-        num_inference_steps (``int``, *optional*): Number of inference steps. If None, uses ``num_train_timesteps``. Defaults to None.
-        idx_start (``int``, *optional*): The starting value for timestep indices.
+        continuous_time_start (`float`, *optional*): The start of continuous time range (typically 0). Defaults to 0.0.
+        continuous_time_end (`float`, *optional*): The end of continuous time range (i.e., $T$). Defaults to 1.0.
+        num_train_timesteps (`int`, *optional*): Number of diffusion steps $N$. Defaults to 1000.
+        num_inference_steps (`int`, *optional*): Number of inference steps. If None, uses `num_train_timesteps`. Defaults to None.
+        idx_start (`int`, *optional*): The starting value for timestep indices.
             Set to 1 if you prefer 1-based indexing where idx directly equals the discrete step i. Defaults to 0.
     """
 
@@ -105,21 +110,22 @@ class BaseTimeScheduler(ABC):
     def continuous_time_to_timestep_index(self, continuous_time: Tensor) -> Tensor:
         r"""Convert continuous time to timestep index.
 
-        Given continuous time :math:`t`, compute the timestep index:
+        Given continuous time $t$, compute the timestep index:
 
-        .. math::
-            \text{idx} = \text{round}\left(\frac{t - t_0}{T} \cdot N\right) - 1 + \text{idx\_start}
+        $$
+        \text{idx} = \text{round}\left(\frac{t - t_0}{T} \cdot N\right) - 1 + \text{idx\_start}
+        $$
 
-        where :math:`t_0` is ``continuous_time_start``, :math:`T` is the total time span,
-        :math:`N` is ``num_train_timesteps``, and :math:`\text{idx\_start}` is the starting index.
+        where $t_0$ is `continuous_time_start`, $T$ is the total time span,
+        $N$ is `num_train_timesteps`, and $\text{idx\_start}$ is the starting index.
 
-        The result is clamped to :math:`[\text{idx\_start}, \text{idx\_start} + N - 1]`.
+        The result is clamped to $[\text{idx\_start}, \text{idx\_start} + N - 1]$.
 
         Args:
-            continuous_time (``Tensor``): Continuous time values :math:`t \in [t_0, t_0 + T]`.
+            continuous_time (Tensor): Continuous time values $t \in [t_0, t_0 + T]$.
 
         Returns:
-            ``Tensor``: Timestep indices :math:`\text{idx} \in \{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}`.
+            Tensor: Timestep indices $\text{idx} \in \{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}$.
         """
         # Normalize time to [0, 1] range, then scale to [0, N]
         normalized = (continuous_time - self.continuous_time_start) / self.T
@@ -133,19 +139,20 @@ class BaseTimeScheduler(ABC):
     def timestep_index_to_continuous_time(self, timestep_index: Tensor) -> Tensor:
         r"""Convert timestep index to continuous time.
 
-        Given timestep index :math:`\text{idx}`, compute the continuous time:
+        Given timestep index $\text{idx}$, compute the continuous time:
 
-        .. math::
-            t = t_0 + \frac{\text{idx} + 1 - \text{idx\_start}}{N} \cdot T
+        $$
+        t = t_0 + \frac{\text{idx} + 1 - \text{idx\_start}}{N} \cdot T
+        $$
 
-        where :math:`t_0` is ``continuous_time_start``, :math:`T` is the total time span,
-        :math:`N` is ``num_train_timesteps``, and :math:`\text{idx\_start}` is the starting index.
+        where $t_0$ is `continuous_time_start`, $T$ is the total time span,
+        $N$ is `num_train_timesteps`, and $\text{idx\_start}$ is the starting index.
 
         Args:
-            timestep_index (``Tensor``): Timestep indices :math:`\text{idx} \in \{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}`.
+            timestep_index (Tensor): Timestep indices $\text{idx} \in \{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}$.
 
         Returns:
-            ``Tensor``: Continuous time values :math:`t \in [t_1, t_N]`.
+            Tensor: Continuous time values $t \in [t_1, t_N]$.
         """
         # t = t_0 + (idx + 1 - idx_start) / N * T
         return (
@@ -157,7 +164,7 @@ class BaseTimeScheduler(ABC):
         r"""Get the timestep indices schedule for sampling/inference.
 
         Returns:
-            ``Tensor``: 1D tensor of timestep indices :math:`\text{idx} \in \{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}`.
+            Tensor: 1D tensor of timestep indices $\text{idx} \in \{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}$.
         """
         assert self._timesteps_idx is not None, "timestep indices schedule is not set"
         assert isinstance(self._timesteps_idx, Tensor), "timestep indices must be a Tensor"
@@ -168,7 +175,7 @@ class BaseTimeScheduler(ABC):
         r"""Get the continuous timesteps schedule for sampling/inference.
 
         Returns:
-            ``Tensor``: 1D tensor of continuous time values :math:`t \in [t_1, t_N]`.
+            Tensor: 1D tensor of continuous time values $t \in [t_1, t_N]$.
         """
         assert self._continuous_timesteps is not None, "continuous timesteps schedule is not set"
         assert isinstance(self._continuous_timesteps, Tensor), "continuous timesteps must be a Tensor"
@@ -179,7 +186,7 @@ class BaseTimeScheduler(ABC):
         r"""Set the timestep indices schedule for sampling/inference.
 
         Args:
-            timestep_indices (``Tensor``): 1D tensor of timestep indices :math:`\text{idx} \in \{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}`.
+            timestep_indices (Tensor): 1D tensor of timestep indices $\text{idx} \in \{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}$.
         """
         self._timesteps_idx = timestep_indices
 
@@ -187,24 +194,24 @@ class BaseTimeScheduler(ABC):
         r"""Set the continuous timesteps schedule for sampling/inference.
 
         Args:
-            continuous_timesteps (``Tensor``): 1D tensor of continuous time values.
+            continuous_timesteps (Tensor): 1D tensor of continuous time values.
         """
         self._continuous_timesteps = continuous_timesteps
 
     def sample_timestep_index_uniformly(
         self, macro_shape: Tuple[int, ...], same_for_all_samples: bool = False
     ) -> Tensor:
-        r"""Sample timestep indices uniformly from :math:`\{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}`.
+        r"""Sample timestep indices uniformly from $\{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}$.
 
-        This corresponds to sampling discrete steps :math:`i` uniformly from :math:`\{1, \ldots, N\}`
-        and converting to index via :math:`\text{idx} = i - 1 + \text{idx\_start}`.
+        This corresponds to sampling discrete steps $i$ uniformly from $\{1, \ldots, N\}$
+        and converting to index via $\text{idx} = i - 1 + \text{idx\_start}$.
 
         Args:
-            macro_shape (``Tuple[int, ...]``): Shape of the output tensor.
-            same_for_all_samples (``bool``, *optional*): If True, use the same timestep index for all samples. Defaults to False.
+            macro_shape (Tuple[int, ...]): Shape of the output tensor.
+            same_for_all_samples (`bool`, *optional*): If True, use the same timestep index for all samples. Defaults to False.
 
         Returns:
-            ``Tensor``: Timestep indices with shape ``macro_shape``.
+            Tensor: Timestep indices with shape `macro_shape`.
         """
         idx_min = self.idx_start
         idx_max = self.idx_start + self.num_train_timesteps  # exclusive upper bound
@@ -216,17 +223,17 @@ class BaseTimeScheduler(ABC):
     def sample_continuous_time_uniformly(
         self, macro_shape: Tuple[int, ...], same_for_all_samples: bool = False
     ) -> Tensor:
-        r"""Sample continuous time uniformly from :math:`[t_1, t_N]`.
+        r"""Sample continuous time uniformly from $[t_1, t_N]$.
 
-        Note: This samples from :math:`[t_0 + \frac{T}{N}, t_0 + T]` to exclude :math:`t_0`
+        Note: This samples from $[t_0 + \frac{T}{N}, t_0 + T]$ to exclude $t_0$
         (the clean data point).
 
         Args:
-            macro_shape (``Tuple[int, ...]``): Shape of the output tensor.
-            same_for_all_samples (``bool``, *optional*): If True, use the same time for all samples. Defaults to False.
+            macro_shape (Tuple[int, ...]): Shape of the output tensor.
+            same_for_all_samples (`bool`, *optional*): If True, use the same time for all samples. Defaults to False.
 
         Returns:
-            ``Tensor``: Continuous time values with shape ``macro_shape``.
+            Tensor: Continuous time values with shape `macro_shape`.
         """
         # Sample from [t_1, t_N] = [t_0 + T/N, t_0 + T]
         t_min = self.continuous_time_start + self.T / self.num_train_timesteps  # t_1

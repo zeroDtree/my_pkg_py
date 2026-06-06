@@ -58,13 +58,13 @@ class ReverseDiffusionPredictor(Predictor):
     def update_fn(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
         r"""
 
-        .. math::
-
-            x_{t+\Delta t} &= x_t + f(x_t, t)(\Delta t) + g(x_t, t) \epsilon, \epsilon \sim \mathcal{N}(0,\sqrt{\Delta t}))
-
-            f &= f(x_t, t)|\Delta t|
-
+        $$
+        \begin{aligned}
+            x_{t+\Delta t} &= x_t + f(x_t, t)(\Delta t) + g(x_t, t) \epsilon, \quad \epsilon \sim \mathcal{N}(0,\sqrt{\Delta t}) \\
+            f &= f(x_t, t)|\Delta t| \\
             g &= g(x_t, t)\sqrt{|\Delta t|}
+        \end{aligned}
+        $$
 
         """
         f, g = self.rsde.get_discretized_drift_and_diffusion(x, t, mask=mask)

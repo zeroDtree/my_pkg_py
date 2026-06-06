@@ -96,8 +96,8 @@ class HookManager(Generic[HookStageType]):
         and returns either the final modified kwargs or a specific key's value.
 
         Args:
-            stage (``HookStageType``): _description_
-            tgt_key_name (``str``, *optional*): target key name. Defaults to None.
+            stage (HookStageType): _description_
+            tgt_key_name (`str`, *optional*): target key name. Defaults to None.
         """
         hook_output: Optional[Any] = None
 

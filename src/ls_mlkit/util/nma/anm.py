@@ -26,10 +26,10 @@ class ANM:
     Anisotropic Network Model.
 
     Args:
-        hessian : tensor, shape=``(..., n*3, n*3)``, dtype=float
+        hessian : tensor, shape=`(..., n*3, n*3)`, dtype=float
             The *Hessian* matrix for this model.
             Each dimension is partitioned in the form
-            ``[x1, y1, z1, ... xn, yn, zn]``.
+            `[x1, y1, z1, ... xn, yn, zn]`.
             This is not a copy: Create a copy before modifying this matrix.
         masses : tensor, shape=(..., n), dtype=float
             The mass for each atom, `None` if no mass weighting is applied.
@@ -207,7 +207,7 @@ class ANM:
             hessian : tensor, shape=(..., n*3, n*3), dtype=float
                 The computed *Hessian* matrix.
                 Each dimension is partitioned in the form
-                ``[x1, y1, z1, ... xn, yn, zn]``.
+                `[x1, y1, z1, ... xn, yn, zn]`.
             pairs : tensor, shape=(len(...) + 2, m), dtype=int
                 Indices for interacting atoms, i.e. atoms within
                 `cutoff_distance`.

@@ -8,7 +8,7 @@ class ForceField(metaclass=abc.ABCMeta):
     r"""
     Subclasses of this abstract base class define the force constants of
     the modeled springs between atoms in a *Elastic network model*.
-    ``...`` is arbitrary number of dimensions, for example, batch size.
+    `...` is arbitrary number of dimensions, for example, batch size.
 
 
     Args:
@@ -18,24 +18,24 @@ class ForceField(metaclass=abc.ABCMeta):
         cutoff_distance : float or None
             The interaction of two atoms is only considered, if the distance
             between them is smaller or equal to this value.
-            If ``None``, the interaction between all atoms is considered.
+            If `None`, the interaction between all atoms is considered.
         natoms : [...] or None
             The number of atoms in the model.
             If a :class:`ForceField` does not depend on the respective
             atoms, i.e. `atom_i` and `atom_j` is unused in
-            :meth:`force_constant()`, this attribute is ``None`` instead.
+            :meth:`force_constant()`, this attribute is `None` instead.
         contact_shutdown : Tensor, shape=(..., n), dtype=float, optional
             Indices that point to atoms, whose contacts to all other atoms
             are artificially switched off.
-            If ``None``, no contacts are switched off.
+            If `None`, no contacts are switched off.
         contact_pair_off : Tensor, shape=(..., m, 2), dtype=int, optional
             Indices that point to pairs of atoms, whose contacts
             are artificially switched off.
-            If ``None``, no contacts are switched off.
+            If `None`, no contacts are switched off.
         contact_pair_on : Tensor, shape=(..., m, 2), dtype=int, optional
             Indices that point to pairs of atoms, whose contacts
             are are established in any case.
-            If ``None``, no contacts are artificially switched on.
+            If `None`, no contacts are artificially switched on.
     """
 
     @abc.abstractmethod
@@ -61,7 +61,7 @@ class ForceField(metaclass=abc.ABCMeta):
             :class:`ForceField`:
             The given pairs of atoms are limited to pairs within cutoff
             distance of each other.
-            However, if `cutoff_distance` is ``None``, the atom indices
+            However, if `cutoff_distance` is `None`, the atom indices
             contain the Cartesian product of all atom indices, i.e. each
             possible combination.
         """
@@ -139,7 +139,7 @@ class HinsenForceField(ForceField):
     mid-/far-range pair interactions (r >= 4 Å).
     Force constants for these interactions are computed with two
     distinct formulas.
-    2.9 Å is the lowest accepted distance between ``CA`` atoms.
+    2.9 Å is the lowest accepted distance between `CA` atoms.
     Values below that threshold are set to 2.9 Å.
 
     Parameters:

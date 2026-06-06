@@ -32,9 +32,9 @@ class VPSDE(SDE):
     def get_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
         r"""continuous DDPM SDE
 
-        .. math::
-
-            dx &= -\frac{1}{2}\beta_t x dt + \sqrt{\beta_t} dw
+        $$
+        dx = -\frac{1}{2}\beta_t x dt + \sqrt{\beta_t} dw
+        $$
 
         Args:
             x:
@@ -54,9 +54,9 @@ class VPSDE(SDE):
     def get_score(self, x_t, mean, std) -> Tensor:
         r"""
 
-        .. math::
-
-            p_{0t} (x_t|x_0) = \nabla_{x_t} \ln p_{0t} (x_t|x_0)
+        $$
+        p_{0t} (x_t|x_0) = \nabla_{x_t} \ln p_{0t} (x_t|x_0)
+        $$
 
         """
         score = -(x_t - mean) / std**2
@@ -66,10 +66,10 @@ class VPSDE(SDE):
         """x_t = a * x_0 + b * epsilon, epsilon ~ N(0, 1)
 
         Args:
-            t (``Tensor``): continuous time
+            t (Tensor): continuous time
 
         Returns:
-            ``Tuple[Tensor, Tensor]``: a, b
+            Tuple[Tensor, Tensor]: a, b
         """
         macro_shape = t.shape
         log_mean_coeff = -0.25 * t**2 * (self.beta_1 - self.beta_0) - 0.5 * t * self.beta_0  # mcro_shape
@@ -81,17 +81,21 @@ class VPSDE(SDE):
     def forward_process(self, x_0: Tensor, t: Tensor, mask: Optional[Tensor] = None) -> Dict[str, Tensor]:
         r"""
 
-        .. math::
+        $$
+        p_{0t} (x_t|x_0)
+        $$
 
-            p_{0t} (x_t|x_0)
+        $$
+        \gamma = -\frac{1}{4}t^2 (\beta_1 - \beta_0) - \frac{1}{2} t  \beta_0
+        $$
 
-        .. math::
+        $$
+        \text{mean} = e^{\gamma} x
+        $$
 
-            \gamma = -\frac{1}{4}t^2 (\beta_1 - \beta_0) - \frac{1}{2} t  \beta_0
-
-            mean = e^{\gamma} * x
-
-            std = \sqrt{1 - e^{2 \gamma }}
+        $$
+        \text{std} = \sqrt{1 - e^{2 \gamma }}
+        $$
 
         """
         a, b = self.get_a_b(t)
@@ -116,8 +120,9 @@ class VPSDE(SDE):
 
     def prior_sampling(self, shape: Tuple) -> Tensor:
         r"""
-        .. math::
-            \epsilon \sim \mathbfcal{N}(0,1)
+        $$
+        \epsilon \sim \mathcal{N}(0,1)
+        $$
 
         """
         return torch.randn(*shape)
@@ -125,11 +130,11 @@ class VPSDE(SDE):
     def prior_logp(self, z: torch.Tensor) -> Tensor:
         r"""
 
-        .. math::
+        $$
+        (2\pi)^{-k/2} \det(\Sigma)^{-1/2} \exp\left( -\frac{1}{2} (\mathbf{x} - \boldsymbol{\mu})^\mathrm{T} \Sigma^{-1} (\mathbf{x} - \boldsymbol{\mu}) \right)
+        $$
 
-            (2\pi)^{-k/2} \det(\Sigma)^{-1/2} \exp\left( -\frac{1}{2} (\mathbf{x} - \boldsymbol{\mu})^\mathrm{T} \Sigma^{-1} (\mathbf{x} - \boldsymbol{\mu}) \right)
-
-        where :math:`\Sigma = I` and  :math:`\mathbf{\mu} = 0`
+        where $\Sigma = I$ and $\mathbf{\mu} = 0$
         """
         shape = z.shape
         N = np.prod(shape[1:])
@@ -237,12 +242,17 @@ class VESDE(SDE):
 
     def get_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
         r"""
-        .. math::
+        $$
+        dx = \sigma_{\min} \left(\frac{\sigma_{\max}}{\sigma_{\min}}\right)^t \sqrt{2 \log\left(\frac{\sigma_{\max}}{\sigma_{\min}}\right)} \, dw
+        $$
 
-            dx = 0 dt + \sigma_{min} \left(\frac{\sigma_{max}}{\sigma_{min}}\right)^t \sqrt{2 \log(\frac{\sigma_{max}}{\sigma_{min}})} dw
-            \sigma_t = \sigma_{min} \left(\frac{\sigma_{max}}{\sigma_{min}}\right)^t
+        $$
+        \sigma_t = \sigma_{\min} \left(\frac{\sigma_{\max}}{\sigma_{\min}}\right)^t
+        $$
 
-            diffusion = \sigma_t * \sqrt{2 \log(\frac{\sigma_{max}}{\sigma_{min}})}
+        $$
+        \text{diffusion} = \sigma_t \sqrt{2 \log\left(\frac{\sigma_{\max}}{\sigma_{\min}}\right)}
+        $$
 
         """
         sigma = self.sigma_min * (self.sigma_max / self.sigma_min) ** t
@@ -257,15 +267,15 @@ class VESDE(SDE):
 
     def get_discretized_drift_and_diffusion(self, x: Tensor, t: Tensor, mask=None) -> Tuple[Tensor, Tensor]:
         r"""SMLD(NCSN) discretization.
-        .. math::
 
-            x_t &= x_0 + g \epsilon
-
-            x_t &\sim \mathcal{N}(x_0, \sigma_t^2)
-
-            \sigma_t^2 &= \sigma_{t-1}^2 + g^2
-
+        $$
+        \begin{aligned}
+            x_t &= x_0 + g \epsilon \\
+            x_t &\sim \mathcal{N}(x_0, \sigma_t^2) \\
+            \sigma_t^2 &= \sigma_{t-1}^2 + g^2 \\
             g &= \sqrt{\sigma_t^2 - \sigma_{t-1}^2}
+        \end{aligned}
+        $$
 
         """
         timestep = (t * (self.n_discretization_steps - 1) / self.T).long()

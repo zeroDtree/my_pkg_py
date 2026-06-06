@@ -371,14 +371,14 @@ def calculate_igso3(
 def inverse_transform_sampling(shape: Tuple[int, ...], cdf: Tensor, discrete_omega: Tensor) -> Tensor:
     r"""
     Sample uses the inverse cdf to sample an angle of rotation from
-    ``IGSO(3)``
+    `IGSO(3)`
 
     Args:
         shape: shape of the sampled angles of rotation.
         cdf: (num_omega,), cdf of the IGSO(3) distribution
         discrete_omega: (num_omega, ), discrete angles of rotation
     Returns:
-        sampled angles of rotation. ``(*shape,)``
+        sampled angles of rotation. `(*shape,)`
     """
 
     result = interp(

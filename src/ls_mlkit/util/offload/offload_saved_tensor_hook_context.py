@@ -4,9 +4,9 @@ import torch
 
 
 def offload_condition(x: torch.Tensor) -> bool:
-    """Return True if ``x`` is a dense CUDA tensor suitable for pack/offload.
+    """Return True if `x` is a dense CUDA tensor suitable for pack/offload.
 
-    Requires the tensor to use a storage slice matching ``numel * element_size`` (typical
+    Requires the tensor to use a storage slice matching `numel * element_size` (typical
     for contiguous owned tensors). Views or tensors with shared/nonstandard storage may
     fail this check and are left unpacked so pack/unpack round-trips stay valid.
     """

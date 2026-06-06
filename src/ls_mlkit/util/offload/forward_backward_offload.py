@@ -23,8 +23,8 @@ class ForwardBackwardOffloadHookContext(ForwardHookForDevice):
             no_split_module_classes: Module class names that should not be split further.
             enable: If False, this context is a no-op.
             num_block: Number of blocks for the "block" strategy.
-            strategy: Only ``'block'`` is implemented: partition leaf boundary modules into
-                ``num_block`` groups.
+            strategy: Only `'block'` is implemented: partition leaf boundary modules into
+                `num_block` groups.
         """
         super().__init__()
         self.enable = enable

@@ -160,18 +160,18 @@ def inherit_docstrings(cls):
 
     Usage:
 
-        .. code-block:: python
+    ```python
+    @inherit_docstrings
+    class ChildClass(ParentClass):
+        def some_method(self):
+            # This method will inherit docstring from ParentClass.some_method
+            pass
 
-            @inherit_docstrings
-            class ChildClass(ParentClass):
-                def some_method(self):
-                    # This method will inherit docstring from ParentClass.some_method
-                    pass
-
-                @inherit_docstring_from_parent('parent_method')
-                def child_method(self):
-                    # This method will inherit docstring from ParentClass.parent_method
-                    pass
+        @inherit_docstring_from_parent('parent_method')
+        def child_method(self):
+            # This method will inherit docstring from ParentClass.parent_method
+            pass
+    ```
 
     Args:
         cls: The class to apply docstring inheritance to
@@ -230,16 +230,16 @@ def inherit_docstring_from_parent(method_name: str | None = None):
 
     Usage:
 
-        .. code-block:: python
+    ```python
+    class ChildClass(ParentClass):
+        @inherit_docstring_from_parent('parent_method_name')
+        def child_method(self):
+            pass
 
-            class ChildClass(ParentClass):
-                @inherit_docstring_from_parent('parent_method_name')
-                def child_method(self):
-                    pass
-
-                @inherit_docstring_from_parent()  # Uses same method name
-                def some_method(self):
-                    pass
+        @inherit_docstring_from_parent()  # Uses same method name
+        def some_method(self):
+            pass
+    ```
 
     Args:
         method_name: Name of the parent method to inherit docstring from.
