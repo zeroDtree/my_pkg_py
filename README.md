@@ -52,6 +52,8 @@ Verify with `uv run nbstripout --status`. Run `--install` once per clone (or aft
 
 ## 3. Docs
 
+Online documentation: [pymlkit.zerodtree.com](https://pymlkit.zerodtree.com/)
+
 ### 3.1. Generate documentation locally (uv is required)
 
 ```bash
