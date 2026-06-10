@@ -202,6 +202,7 @@ class EuclideanDiffuser(BaseDiffuser):
 
         x_list = [x_t]
         E_x0_xt_list = [x_t]
+        last_base_model_output = None
 
         timesteps = self.time_scheduler.get_timestep_indices_schedule().to(device)
         for i, t in enumerate(tqdm(timesteps)):
@@ -225,6 +226,8 @@ class EuclideanDiffuser(BaseDiffuser):
                 )
                 step_output = self.step(x_t, t, padding_mask, **kwargs)  # get x_tm1
                 x_t = step_output["x"]
+                if "base_model_output" in step_output:
+                    last_base_model_output = step_output["base_model_output"]
                 if "E_x0_xt" in step_output:
                     E_x0_xt_list.append(step_output["E_x0_xt"])
                 x_t = masker.apply_mask(x_t, padding_mask)
@@ -250,7 +253,12 @@ class EuclideanDiffuser(BaseDiffuser):
                 x_list.append(x_t)
         x_t = masker.apply_inpainting_mask(x_0, x_t, inpainting_mask)
 
-        return {"x": x_t, "x_list": x_list, "E_x0_xt_list": E_x0_xt_list}
+        return {
+            "x": x_t,
+            "x_list": x_list,
+            "E_x0_xt_list": E_x0_xt_list,
+            "base_model_output": last_base_model_output,
+        }
 
     def recover_bright_region(
         self,

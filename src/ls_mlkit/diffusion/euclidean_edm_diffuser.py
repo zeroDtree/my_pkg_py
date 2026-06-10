@@ -282,6 +282,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             dict:
                 - x: the sample at timestep t-1
                 - E_x0_xt: the predicted original sample
+                - base_model_output: full model forward output (optional, for auxiliary heads)
         """
         assert torch.all(t == t.view(-1)[0]).item(), "All timesteps in batch must be the same for EDM step"
         assert t.ndim == x_t.ndim, "Timestep and sample must have the same number of dimensions"
@@ -317,7 +318,9 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             **kwargs,
             "gm_kwargs": {"c_in": c_in_cur},
         }
-        F_x = self.model(**batch_dict)["x"]
+        model_output = self.model(**batch_dict)
+        F_x = model_output["x"]
+        base_model_output = model_output
         p_x_0 = self._compute_denoised(x_t, F_x, sigma_cur)
 
         # Clip predicted x_0 (following standard DDPM implementation)
@@ -346,7 +349,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
         # Final step: return denoised directly
         if is_final_step:
-            return {"x": p_x_0, "E_x0_xt": p_x_0}
+            return {"x": p_x_0, "E_x0_xt": p_x_0, "base_model_output": base_model_output}
 
         # Euler step
         sigma_next = config.sigma(t_next, is_continuous_time=False)
@@ -365,7 +368,9 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
                 **kwargs,
                 "gm_kwargs": {"c_in": c_in_next},
             }
-            F_x_next = self.model(**batch_dict_next)["x"]
+            model_output_next = self.model(**batch_dict_next)
+            F_x_next = model_output_next["x"]
+            base_model_output = model_output_next
             p_x_0_next = self._compute_denoised(x_next, F_x_next, sigma_next)
 
             hook_input = {
@@ -386,7 +391,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             d_prime = (x_next - p_x_0_next) / sigma_next.clamp(min=1e-8)
             x_next = x_t + 0.5 * (d_cur + d_prime) * delta_sigma
 
-        return {"x": x_next, "E_x0_xt": p_x_0}
+        return {"x": x_next, "E_x0_xt": p_x_0, "base_model_output": base_model_output}
 
     def get_posterior_mean_fn(self, score: Optional[Tensor] = None, score_fn: Optional[Callable] = None):
         r"""Get the posterior mean function for EDM.
