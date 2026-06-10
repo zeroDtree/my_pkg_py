@@ -231,8 +231,10 @@ class EuclideanDiffuser(BaseDiffuser):
                 if "E_x0_xt" in step_output:
                     E_x0_xt_list.append(step_output["E_x0_xt"])
                 x_t = masker.apply_mask(x_t, padding_mask)
-                if u < n_repaint_steps and (t > 0).all():
-                    prev_t = timesteps[i + 1].to(device)
+                if u < n_repaint_steps and (t > 0).all() and i + 1 < len(timesteps):
+                    prev_t = torch.ones(tuple(macro_shape), device=device, dtype=torch.long) * timesteps[
+                        i + 1
+                    ]
                     prev_t = self.hook_manager.run_hooks(
                         stage=GMHookStageType.POST_SAMPLING_TIME_STEP,
                         tgt_key_name="t",
