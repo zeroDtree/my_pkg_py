@@ -161,7 +161,7 @@ class BasePipeline(metaclass=ABCMeta):
         self.training_config = training_config
         self.log_config = log_config
         self.training_state = TrainingState()
-        self.logger = logger
+        self.logger = logger.getChild(type(self).__name__) if logger is not None else None
 
         self.dataloader = torch.utils.data.DataLoader(
             cast(torch.utils.data.Dataset, self.dataset),

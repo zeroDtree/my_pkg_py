@@ -1,6 +1,16 @@
+import copy
 import logging
 import os
 import time
+
+
+class StripParentFormatter(logging.Formatter):
+    """Display only the leaf segment of hierarchical logger names."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        record = copy.copy(record)
+        record.name = record.name.rsplit(".", 1)[-1]
+        return super().format(record)
 
 
 def get_logger(name="unnamed", log_dir: str | None = None) -> logging.Logger:
@@ -16,7 +26,9 @@ def get_logger(name="unnamed", log_dir: str | None = None) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.propagate = False
     logger.setLevel(logging.DEBUG)
-    formatter = logging.Formatter("[%(asctime)s::%(name)s::%(levelname)s] %(message)s")
+    formatter = StripParentFormatter(
+        fmt="[%(asctime)s::%(name)s::%(levelname)s] %(message)s",
+    )
 
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.DEBUG)
