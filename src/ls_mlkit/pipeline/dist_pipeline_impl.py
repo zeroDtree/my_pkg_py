@@ -263,7 +263,7 @@ class MyDistributedPipeline(DistributedPipeline):
             "std_eval_loss": std_eval_loss,
         }
         if self.accelerator.is_local_main_process and self.logger is not None:
-            self.logger.info(f"[Testing] {result}")
+            self.logger.info(f"[Eval] {result}")
             wandb.log(result, step=self.training_state.current_global_step)
 
         self.model.train()
