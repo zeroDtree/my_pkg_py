@@ -230,7 +230,7 @@ class BasePipeline(metaclass=ABCMeta):
 
         if self._can_log(flag="epochs") and self.logger is not None:
             self.logger.info(
-                f"[Training] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {result['loss']}"
+                f"[Train] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {result['loss']}"
             )
             wandb.log(result, step=self.training_state.current_epoch)
         self.training_state.current_step_in_epoch = 0
@@ -279,7 +279,7 @@ class BasePipeline(metaclass=ABCMeta):
 
         if self._can_log(flag="steps") and logger is not None:
             logger.info(
-                f"[Training] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {loss.item()}"
+                f"[Train] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {loss.item()}"
             )
         self.trigger_callbacks(event=CallbackEvent.STEP_END, batch=batch)
         return {

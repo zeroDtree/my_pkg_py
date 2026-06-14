@@ -207,7 +207,7 @@ class DistributedPipeline(BasePipeline):
         # Only log on local main process
         if self._can_log(flag="steps") and self.accelerator.is_local_main_process and logger is not None:
             logger.info(
-                f"[Training] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {loss.item()}"
+                f"[Train] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {loss.item()}"
             )
             wandb.log(result, step=self.training_state.current_global_step)
 
