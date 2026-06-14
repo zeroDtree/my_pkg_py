@@ -1,10 +1,11 @@
-import math
 import os
 
 import torch
 from accelerate import Accelerator
 from omegaconf import DictConfig
 from torch.nn import Module
+
+from ls_mlkit.util.training_steps import get_total_training_steps
 
 
 def get_run_name(cfg: DictConfig, prefix: str = "", suffix: str = "") -> str:
@@ -43,12 +44,14 @@ def get_learing_rate_scheduler(
     assert real_batch_size % effective_batch_size == 0, "real_batch_size must be divisible by effective_batch_size"
     gradient_accumulation_steps = real_batch_size // effective_batch_size
 
-    if cfg.train.train_strategy in ["epochs"]:
-        n_training_steps = math.ceil(1.0 * len(train_set) * cfg.train.n_epochs / effective_batch_size)
-    elif cfg.train.train_strategy in ["steps"]:
-        n_training_steps = cfg.train.n_steps
-    else:
-        raise ValueError(f"Train Strategy {cfg.train.train_strategy} is not supported")
+    n_training_steps = get_total_training_steps(
+        train_strategy=cfg.train.train_strategy,
+        dataset_len=len(train_set),
+        n_epochs=cfg.train.n_epochs,
+        n_steps=cfg.train.n_steps,
+        num_processes=accelerator.num_processes,
+        batch_size=cfg.train.batch_size,
+    )
     if inplace:
         cfg.train.n_steps = n_training_steps
         cfg.train.real_batch_size = real_batch_size
