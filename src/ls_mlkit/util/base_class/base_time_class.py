@@ -54,7 +54,22 @@ class BaseTimeScheduler(ABC):
 
     - `num_train_timesteps` = $N$ (number of diffusion steps)
     - `timestep_index` (or `idx`) $\in \{\text{idx\_start}, \ldots, \text{idx\_start} + N - 1\}$
-    - `continuous_time` $\in [t_1, t_N] = [\frac{T}{N}, T]$ for training/sampling
+    - `continuous_time` $\in [t_1, t_N] = [\frac{T}{N}, T]$ for training
+
+    ### Schedule Types
+
+    Two standard continuous-time conventions are exposed:
+
+    - **Interior knot convention** — `get_continuous_timesteps_schedule()`:
+      $N_{\text{inf}}$ knots in $[t_1, t_N]$, excluding $t_0$.
+      Matches the training/discrete-index domain ($i \in \{1, \ldots, N\}$).
+    - **Boundary convention** — `get_continuous_boundaries_schedule()`:
+      $N_{\text{inf}}+1$ endpoints $[t_0, \ldots, t_N]$ for ODE/Euler stepping,
+      where $N_{\text{inf}}$ is `num_inference_timesteps`.
+      Step $k$ integrates from boundary $k$ to $k+1$.
+
+    Subclasses build both from a single linspace source; the derived schedule
+    is an implementation detail, not a deprecated alias.
 
     The `idx_start` parameter controls the starting value of timestep indices:
 
@@ -87,7 +102,8 @@ class BaseTimeScheduler(ABC):
         self.idx_start: int = idx_start  # Starting value for timestep indices
         self.idx_end: int = idx_start + num_train_timesteps - 1  # Last value for timestep indices
         self._timesteps_idx: Optional[Tensor] = None  # Stores timestep indices
-        self._continuous_timesteps: Optional[Tensor] = None  # Stores continuous times
+        self._continuous_timesteps: Optional[Tensor] = None  # Interior knot convention: [t_1, t_N]
+        self._continuous_boundaries: Optional[Tensor] = None  # Boundary convention: [t_0, ..., t_N]
         self.T: float = continuous_time_end - continuous_time_start
         self.initialize_timesteps_schedule()
 
@@ -172,15 +188,32 @@ class BaseTimeScheduler(ABC):
         return self._timesteps_idx
 
     def get_continuous_timesteps_schedule(self) -> Tensor:
-        r"""Get the continuous timesteps schedule for sampling/inference.
+        r"""Get the interior-knot continuous-time schedule (training/discrete convention).
 
         Returns:
-            Tensor: 1D tensor of continuous time values $t \in [t_1, t_N]$.
+            Tensor: 1D tensor of $N_{\text{inf}}$ interior knots in $[t_1, t_N]$.
+            For ODE/Euler interval stepping, use `get_continuous_boundaries_schedule()`.
         """
         assert self._continuous_timesteps is not None, "continuous timesteps schedule is not set"
         assert isinstance(self._continuous_timesteps, Tensor), "continuous timesteps must be a Tensor"
         assert self._continuous_timesteps.ndim == 1, "continuous timesteps must be a 1D Tensor"
         return self._continuous_timesteps
+
+    def get_continuous_boundaries_schedule(self) -> Tensor:
+        r"""Get the boundary continuous-time schedule (ODE/Euler convention).
+
+        Returns:
+            Tensor: 1D tensor of $N_{\text{inf}}+1$ boundary points spanning
+            $[t_0, t_N]$. Step ``idx`` integrates from ``boundaries[idx]`` to
+            ``boundaries[idx + 1]``.
+        """
+        assert self._continuous_boundaries is not None, "continuous boundaries schedule is not set"
+        assert isinstance(self._continuous_boundaries, Tensor), "continuous boundaries must be a Tensor"
+        assert self._continuous_boundaries.ndim == 1, "continuous boundaries must be a 1D Tensor"
+        assert len(self._continuous_boundaries) == self.num_inference_timesteps + 1, (
+            "continuous boundaries must have num_inference_timesteps + 1 entries"
+        )
+        return self._continuous_boundaries
 
     def set_timestep_indices_schedule(self, timestep_indices: Tensor) -> None:
         r"""Set the timestep indices schedule for sampling/inference.
@@ -191,12 +224,24 @@ class BaseTimeScheduler(ABC):
         self._timesteps_idx = timestep_indices
 
     def set_continuous_timesteps_schedule(self, continuous_timesteps: Tensor) -> None:
-        r"""Set the continuous timesteps schedule for sampling/inference.
+        r"""Set the interior continuous timesteps schedule.
 
         Args:
-            continuous_timesteps (Tensor): 1D tensor of continuous time values.
+            continuous_timesteps (Tensor): 1D tensor of interior knots in $[t_1, t_N]$.
         """
         self._continuous_timesteps = continuous_timesteps
+
+    def set_continuous_boundaries_schedule(self, continuous_boundaries: Tensor) -> None:
+        r"""Set the continuous-time boundaries for ODE/Euler integration.
+
+        Args:
+            continuous_boundaries (Tensor): 1D tensor of $N_{\text{inf}}+1$ boundary points.
+        """
+        assert continuous_boundaries.ndim == 1, "continuous boundaries must be a 1D Tensor"
+        assert len(continuous_boundaries) == self.num_inference_timesteps + 1, (
+            "continuous boundaries must have num_inference_timesteps + 1 entries"
+        )
+        self._continuous_boundaries = continuous_boundaries
 
     def sample_timestep_index_uniformly(
         self, macro_shape: Tuple[int, ...], same_for_all_samples: bool = False
@@ -263,11 +308,12 @@ if __name__ == "__main__":
                 -1,
                 dtype=torch.int64,
             )
-            self._continuous_timesteps = torch.linspace(
+            self._continuous_boundaries = torch.linspace(
                 self.continuous_time_end,
-                self.continuous_time_start + self.T / self.num_train_timesteps,
-                self.num_inference_timesteps,
+                self.continuous_time_start,
+                self.num_inference_timesteps + 1,
             )
+            self._continuous_timesteps = self._continuous_boundaries[:-1]
 
     # Test parameters
     num_samples = 100000

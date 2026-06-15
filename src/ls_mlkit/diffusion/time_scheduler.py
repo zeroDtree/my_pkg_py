@@ -22,12 +22,15 @@ class DiffusionTimeScheduler(BaseTimeScheduler):
                 torch.linspace(idx_min, idx_max, self.num_inference_timesteps).round().flip(0).to(torch.int64)
             )
 
-        # Continuous times: [t_N, ..., t_1] (descending), excluding t_0
-        # t_1 = t_0 + T/N, t_N = t_0 + T
-        t_min = self.continuous_time_start + self.T / self.num_train_timesteps  # t_1
-        t_max = self.continuous_time_end  # t_N
-
-        self._continuous_timesteps = torch.linspace(t_max, t_min, self.num_inference_timesteps).to(torch.float32)
+        # ODE boundaries: [t_N, ..., t_0] (descending for reverse diffusion)
+        self._continuous_boundaries = torch.linspace(
+            self.continuous_time_end,
+            self.continuous_time_start,
+            self.num_inference_timesteps + 1,
+            dtype=torch.float32,
+        )
+        # Interior knot convention [t_N, ..., t_1], derived from boundaries
+        self._continuous_timesteps = self._continuous_boundaries[:-1]
 
 
 if __name__ == "__main__":
@@ -42,5 +45,6 @@ if __name__ == "__main__":
     )
     print(scheduler.get_timestep_indices_schedule())
     print(scheduler.get_continuous_timesteps_schedule())
+    print(scheduler.get_continuous_boundaries_schedule())
     print(scheduler.timestep_index_to_continuous_time(scheduler.get_timestep_indices_schedule()))
     print(scheduler.continuous_time_to_timestep_index(scheduler.get_continuous_timesteps_schedule()))

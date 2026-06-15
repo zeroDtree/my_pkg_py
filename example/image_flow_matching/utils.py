@@ -56,9 +56,9 @@ def get_dataset(cfg: DictConfig):
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from diffusers import UNet2DModel
 
-    from ls_mlkit.flow_matching.euclidean_ot_fm import (
-        EuclideanOTFlow,
-        EuclideanOTFlowConfig,
+    from ls_mlkit.flow_matching.rectified_flow import (
+        RectifiedFlow,
+        RectifiedFlowConfig,
     )
     from ls_mlkit.flow_matching.time_scheduler import FlowMatchingTimeScheduler
     from ls_mlkit.util.mask.image_masker import ImageMasker
@@ -116,12 +116,12 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         num_inference_steps=cfg.flow.n_inference_steps,
     )
 
-    flow_config = EuclideanOTFlowConfig(
+    flow_config = RectifiedFlowConfig(
         n_discretization_steps=cfg.flow.n_discretization_steps,
         ndim_micro_shape=3,
         n_inference_steps=cfg.flow.n_inference_steps,
     )
-    flow = EuclideanOTFlow(
+    flow = RectifiedFlow(
         config=flow_config,
         time_scheduler=time_scheduler,
         model=model4fm,
@@ -130,9 +130,9 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     )
 
     if final_model_ckpt_path is not None and final_model_ckpt_path != "":
-        from ls_mlkit.flow_matching.euclidean_ot_fm import EuclideanOTFlow
+        from ls_mlkit.flow_matching.rectified_flow import RectifiedFlow
 
-        flow = cast(EuclideanOTFlow, load_checkpoint(flow, final_model_ckpt_path))
+        flow = cast(RectifiedFlow, load_checkpoint(flow, final_model_ckpt_path))
 
     return flow
 

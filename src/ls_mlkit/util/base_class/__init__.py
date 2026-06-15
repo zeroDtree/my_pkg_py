@@ -9,6 +9,7 @@ from .base_gm_class import (
 )
 from .base_loss_class import BaseLoss, BaseLossConfig
 from .base_time_class import BaseTimeScheduler
+from .gm_conditioner import Conditioner, LossGuidanceConditioner, get_accumulated_guidance
 
 __all__ = [
     "DeviceConfig",
@@ -21,4 +22,7 @@ __all__ = [
     "BaseGenerativeModelConfig",
     "BaseGenerativeModel",
     "BaseTimeScheduler",
+    "Conditioner",
+    "LossGuidanceConditioner",
+    "get_accumulated_guidance",
 ]

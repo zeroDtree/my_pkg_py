@@ -7,7 +7,7 @@ from ...util.base_class.gm_conditioner.utils import get_accumulated_guidance as 
 from .conditioner import Conditioner
 
 
-def get_accumulated_conditional_score(
+def get_accumulated_guidance(
     conditioner_list: list[Conditioner],
     x_t: Tensor,
     t: Tensor | None,
@@ -15,7 +15,7 @@ def get_accumulated_conditional_score(
     *args: Any,
     **kwargs: Any,
 ) -> Tensor:
-    r"""Get the accumulated conditional score
+    r"""Get the accumulated guidance vector for flow matching.
 
     Args:
         x_t (Tensor): $x_t$
@@ -23,7 +23,7 @@ def get_accumulated_conditional_score(
         padding_mask (Tensor): the padding mask
 
     Returns:
-        Tensor: the accumulated conditional score
+        Tensor: the accumulated guidance vector
     """
     return _get_accumulated_guidance(
         cast(list[_GMConditioner], conditioner_list),

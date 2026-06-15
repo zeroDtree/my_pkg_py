@@ -56,9 +56,9 @@ def get_collate_fn(cfg: DictConfig):
 def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     from torch import nn
 
-    from ls_mlkit.flow_matching.euclidean_ot_fm import (
-        EuclideanOTFlow,
-        EuclideanOTFlowConfig,
+    from ls_mlkit.flow_matching.rectified_flow import (
+        RectifiedFlow,
+        RectifiedFlowConfig,
     )
     from ls_mlkit.flow_matching.time_scheduler import FlowMatchingTimeScheduler
     from ls_mlkit.model.model_for_pipeline import ModelForPipeline
@@ -107,12 +107,12 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
         num_inference_steps=cfg.flow.n_inference_steps,
     )
 
-    flow_config = EuclideanOTFlowConfig(
+    flow_config = RectifiedFlowConfig(
         n_discretization_steps=cfg.flow.n_discretization_steps,
         ndim_micro_shape=1,
         n_inference_steps=cfg.flow.n_inference_steps,
     )
-    flow = EuclideanOTFlow(
+    flow = RectifiedFlow(
         config=flow_config,
         time_scheduler=time_scheduler,
         model=model_for_pipeline,
@@ -121,7 +121,7 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
     )
 
     if final_model_ckpt_path is not None and final_model_ckpt_path != "":
-        flow = cast(EuclideanOTFlow, load_checkpoint(flow, final_model_ckpt_path))
+        flow = cast(RectifiedFlow, load_checkpoint(flow, final_model_ckpt_path))
 
     import torch.nn.functional as F
     from sklearn.datasets import make_moons
@@ -169,9 +169,9 @@ def get_model(cfg: DictConfig, model=None, final_model_ckpt_path=None):
 
     classifier_model = classifier_model.to(Accelerator().device)
 
-    from ls_mlkit.diffusion.conditioner.conditioner import LGDConditioner
+    from ls_mlkit.flow_matching.conditioner import LGFMConditioner
 
-    class ClassifierConditioner(LGDConditioner):
+    class ClassifierConditioner(LGFMConditioner):
         def __init__(self, classifier_model, guidance_scale: float = 1.0):
             super().__init__(guidance_scale)
             self.classifier_model = classifier_model

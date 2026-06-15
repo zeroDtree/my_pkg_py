@@ -192,7 +192,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         assert torch.all(t == t.view(-1)[0]).item()
         device = x_t.device
         idx = require(kwargs.get("idx"), "idx")
-        schedule = self.time_scheduler.get_continuous_timesteps_schedule().to(device)
+        schedule = self.time_scheduler.get_continuous_boundaries_schedule().to(device)
         ones = torch.ones_like(t)
         t_start = schedule[int(idx)] * ones
         t_end = schedule[int(idx) + 1] * ones

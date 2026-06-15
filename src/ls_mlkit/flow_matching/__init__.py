@@ -1,11 +1,14 @@
 from .base_fm import BaseFlow, BaseFlowConfig
-from .euclidean_ot_fm import EuclideanOTFlow, EuclideanOTFlowConfig
+from .independent_cfm import IndependentCFMFlow, IndependentCFMFlowConfig
+from .rectified_flow import RectifiedFlow, RectifiedFlowConfig
 from .time_scheduler import FlowMatchingTimeScheduler
 
 __all__ = [
     "BaseFlowConfig",
     "BaseFlow",
-    "EuclideanOTFlowConfig",
-    "EuclideanOTFlow",
+    "IndependentCFMFlowConfig",
+    "IndependentCFMFlow",
+    "RectifiedFlowConfig",
+    "RectifiedFlow",
     "FlowMatchingTimeScheduler",
 ]

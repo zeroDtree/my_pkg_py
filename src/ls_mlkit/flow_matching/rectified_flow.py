@@ -5,20 +5,20 @@ from torch import Tensor
 from torch.nn import Module
 from tqdm.auto import tqdm
 
-from ..diffusion.conditioner.conditioner import Conditioner
-from ..diffusion.conditioner.utils import get_accumulated_conditional_score
 from ..util.base_class.base_gm_class import GMHook, GMHookStageType
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from ..util.typing_utils import require
-from .base_fm import BaseFlow, BaseFlowConfig
+from .conditioner import Conditioner
+from .conditioner.utils import get_accumulated_guidance
+from .independent_cfm import IndependentCFMFlow, IndependentCFMFlowConfig
 from .time_scheduler import FlowMatchingTimeScheduler
 
 EPS = 1e-5
 
 
 @inherit_docstrings
-class EuclideanOTFlowConfig(BaseFlowConfig):
+class RectifiedFlowConfig(IndependentCFMFlowConfig):
     def __init__(
         self,
         n_discretization_steps: int,
@@ -36,20 +36,149 @@ class EuclideanOTFlowConfig(BaseFlowConfig):
 
 
 @inherit_docstrings
-class EuclideanOTFlow(BaseFlow):
+class RectifiedFlow(IndependentCFMFlow):
     def __init__(
         self,
-        config: EuclideanOTFlowConfig,
+        config: RectifiedFlowConfig,
         time_scheduler: FlowMatchingTimeScheduler,
         masker: MaskerInterface,
         model: Module,
         loss_fn: Callable,
     ) -> None:
         super().__init__(config=config, time_scheduler=time_scheduler)
-        self.config: EuclideanOTFlowConfig = config
+        self.config: RectifiedFlowConfig = config
         self.masker: MaskerInterface = masker
         self.model: Module = model
         self.loss_fn = loss_fn
+
+    def interpolate(self, x_0: Tensor, x_1: Tensor, t: Tensor) -> Tensor:
+        return x_0 * (1 - t) + x_1 * t
+
+    def conditional_velocity(self, x_0: Tensor, x_1: Tensor) -> Tensor:
+        return x_1 - x_0
+
+    def recover_bright_region(
+        self,
+        x_known,
+        x_t,
+        t,
+        padding_mask,
+        inpainting_mask,
+        x_prior,
+        *args,
+        **kwargs,
+    ) -> Tensor:
+        device = x_t.device
+        idx = require(kwargs.get("idx"), "idx")
+        schedule = self.time_scheduler.get_continuous_boundaries_schedule().to(device)
+        t_start = schedule[int(idx)]
+        t_start = self.complete_micro_shape(t_start)
+        x_1_t = t_start * x_known + (1 - t_start) * x_prior
+        x_t = self.masker.apply_inpainting_mask(x_1_t, x_t, inpainting_mask)
+        return x_t
+
+    def get_posterior_mean_fn(
+        self,
+        vf: Tensor | None,
+        vf_fn: Callable[[Tensor, Tensor, Tensor | None], Tensor] | None = None,
+    ):
+        def _rectified_flow_posterior_mean_fn(x_t: Tensor, t: Tensor, padding_mask: Tensor | None) -> Tensor:
+            nonlocal vf, vf_fn
+            assert vf is not None or vf_fn is not None, "Either vf or vf_fn must be provided"
+            if vf is None:
+                assert vf_fn is not None
+                vf = vf_fn(x_t, t, padding_mask)
+
+            t = t.view(*t.shape, *([1] * (vf.ndim - t.ndim)))
+            return x_t + (1 - t) * vf
+
+        return _rectified_flow_posterior_mean_fn
+
+    def get_condition_post_compute_loss_hook(self, conditioner_list: list[Conditioner]):
+        def _hook_fn(**kwargs: Any):
+            nonlocal conditioner_list
+
+            kwargs.get("loss")
+            x_0 = require(cast(Tensor | None, kwargs.get("x_0")), "x_0")
+            x_t = require(cast(Tensor | None, kwargs.get("x_t")), "x_t")
+            x_1 = require(cast(Tensor | None, kwargs.get("x_1")), "x_1")
+            t = require(cast(Tensor | None, kwargs.get("t")), "t")
+            padding_mask = require(cast(Tensor | None, kwargs.get("padding_mask")), "padding_mask")
+            p_dx_t = require(cast(Tensor | None, kwargs.get("p_dx_t")), "p_dx_t")
+            loss_fn = require(cast(Callable[..., Any] | None, kwargs.get("loss_fn")), "loss_fn")
+
+            tgt_mask = padding_mask
+            for conditioner in conditioner_list:
+                if not conditioner.is_enabled():
+                    continue
+                conditioner.set_condition(
+                    **{
+                        **conditioner.prepare_condition_dict(
+                            train=True,
+                            **{
+                                "tgt_mask": tgt_mask,
+                                "gt_data": x_1,
+                                "padding_mask": padding_mask,
+                                "posterior_mean_fn": self.get_posterior_mean_fn(vf=p_dx_t, vf_fn=None),
+                            },
+                        ),
+                    }
+                )
+
+            acc_guidance = get_accumulated_guidance(conditioner_list, x_t, t, padding_mask)
+            gt_vf = self.conditional_velocity(x_0, x_1) + acc_guidance
+
+            p_vf = p_dx_t
+            total_loss = loss_fn(p_vf, gt_vf, padding_mask)
+            kwargs["loss"] = total_loss
+            return kwargs
+
+        return GMHook(
+            name="rectified_flow_condition_post_compute_loss_hook",
+            stage=GMHookStageType.POST_COMPUTE_LOSS,
+            fn=_hook_fn,
+            priority=0,
+            enabled=True,
+        )
+
+    def get_condition_pre_update_in_step_fn_hook(self, conditioner_list: list[Conditioner]):
+        def _hook_fn(**kwargs: Any):
+            nonlocal conditioner_list
+            x_t = require(cast(Tensor | None, kwargs.get("x_t")), "x_t")
+            t = require(cast(Tensor | None, kwargs.get("t")), "t")
+            padding_mask = require(cast(Tensor | None, kwargs.get("padding_mask")), "padding_mask")
+            p_dx_t = require(cast(Tensor | None, kwargs.get("p_dx_t")), "p_dx_t")
+            sampling_condition = kwargs.get("sampling_condition")
+
+            tgt_mask = padding_mask
+            for conditioner in conditioner_list:
+                if not conditioner.is_enabled():
+                    continue
+                conditioner.set_condition(
+                    **{
+                        **conditioner.prepare_condition_dict(
+                            train=False,
+                            **{
+                                "tgt_mask": tgt_mask,
+                                "sampling_condition": sampling_condition,
+                                "padding_mask": padding_mask,
+                                "posterior_mean_fn": self.get_posterior_mean_fn(vf=p_dx_t, vf_fn=None),
+                            },
+                        ),
+                    }
+                )
+
+            acc_guidance = get_accumulated_guidance(conditioner_list, x_t, t, padding_mask)
+            vf = p_dx_t + acc_guidance
+            return vf
+
+        return GMHook(
+            name="rectified_flow_condition_pre_update_in_step_fn_hook",
+            stage=GMHookStageType.PRE_UPDATE_IN_STEP_FN,
+            fn=_hook_fn,
+            priority=0,
+            enabled=True,
+        )
 
     def compute_loss(self, **batch):
         x_1 = batch["gt_data"]
@@ -59,9 +188,9 @@ class EuclideanOTFlow(BaseFlow):
         padding_mask: Any | None = batch.get("padding_mask", None)
         copied_t = t.clone().detach()
         t: torch.Tensor = self.complete_micro_shape(t)
-        x_0: torch.Tensor = torch.randn_like(x_1, device=device)
-        x_t = x_0 * (1 - t) + x_1 * t
-        dx_t = x_1 - x_0
+        x_0: torch.Tensor = self.sample_x_0(x_1)
+        x_t = self.interpolate(x_0, x_1, t)
+        dx_t = self.conditional_velocity(x_0, x_1)
         model_input_dict = batch
         model_input_dict.pop("gt_data")
         model_input_dict.pop("padding_mask")
@@ -97,7 +226,7 @@ class EuclideanOTFlow(BaseFlow):
     ) -> dict:
         device = x_t.device
         idx = require(kwargs.get("idx"), "idx")
-        schedule = self.time_scheduler.get_continuous_timesteps_schedule().to(device)
+        schedule = self.time_scheduler.get_continuous_boundaries_schedule().to(device)
         ones = torch.ones_like(t)
         t_start = schedule[int(idx)] * ones
         t_end = schedule[int(idx) + 1] * ones
@@ -215,131 +344,3 @@ class EuclideanOTFlow(BaseFlow):
                 x_list.append(x_t)
         x_t = masker.apply_inpainting_mask(x_1, x_t, inpainting_mask)
         return {"x": x_t, "x_list": x_list}
-
-    def prior_sampling(self, shape) -> torch.Tensor:
-        return torch.randn(shape)
-
-    def recover_bright_region(
-        self,
-        x_known,
-        x_t,
-        t,
-        padding_mask,
-        inpainting_mask,
-        x_prior,
-        *args,
-        **kwargs,
-    ) -> Tensor:
-        device = x_t.device
-        idx = require(kwargs.get("idx"), "idx")
-        schedule = self.time_scheduler.get_continuous_timesteps_schedule().to(device)
-        t_start = schedule[int(idx)]
-        t_start = self.complete_micro_shape(t_start)
-        x_1_t = t_start * x_known + (1 - t_start) * x_prior
-        x_t = self.masker.apply_inpainting_mask(x_1_t, x_t, inpainting_mask)
-        return x_t
-
-    def get_posterior_mean_fn(
-        self,
-        vf: Tensor | None,
-        vf_fn: Callable[[Tensor, Tensor, Tensor | None], Tensor] | None = None,
-    ):
-        def _otfm_posterior_mean_fn(x_t: Tensor, t: Tensor, padding_mask: Tensor | None) -> Tensor:
-            nonlocal vf, vf_fn
-            assert vf is not None or vf_fn is not None, "Either vf or vf_fn must be provided"
-            if vf is None:
-                assert vf_fn is not None
-                vf = vf_fn(x_t, t, padding_mask)
-
-            t = t.view(*t.shape, *([1] * (vf.ndim - t.ndim)))
-            x_1 = (1 - t) / (t + EPS) * (t * vf - x_t) + 1 / (t + EPS) * x_t
-            return x_1
-
-        return _otfm_posterior_mean_fn
-
-    def get_condition_post_compute_loss_hook(self, conditioner_list: list[Conditioner]):
-        def _hook_fn(**kwargs: Any):
-            nonlocal conditioner_list
-
-            kwargs.get("loss")
-            x_0 = require(cast(Tensor | None, kwargs.get("x_0")), "x_0")
-            x_t = require(cast(Tensor | None, kwargs.get("x_t")), "x_t")
-            x_1 = require(cast(Tensor | None, kwargs.get("x_1")), "x_1")
-            t = require(cast(Tensor | None, kwargs.get("t")), "t")
-            padding_mask = require(cast(Tensor | None, kwargs.get("padding_mask")), "padding_mask")
-            p_dx_t = require(cast(Tensor | None, kwargs.get("p_dx_t")), "p_dx_t")
-            loss_fn = require(cast(Callable[..., Any] | None, kwargs.get("loss_fn")), "loss_fn")
-
-            tgt_mask = padding_mask
-            for conditioner in conditioner_list:
-                if not conditioner.is_enabled():
-                    continue
-                conditioner.set_condition(
-                    **{
-                        **conditioner.prepare_condition_dict(
-                            train=True,
-                            **{
-                                "tgt_mask": tgt_mask,
-                                "gt_data": x_1,
-                                "padding_mask": padding_mask,
-                                "posterior_mean_fn": self.get_posterior_mean_fn(vf=p_dx_t, vf_fn=None),
-                            },
-                        ),
-                    }
-                )
-
-            acc_c_score = get_accumulated_conditional_score(conditioner_list, x_t, t, padding_mask)
-            gt_vf = (x_1 - x_0) + acc_c_score
-            # Scale and compute conditioned loss
-
-            p_vf = p_dx_t
-            total_loss = loss_fn(p_vf, gt_vf, padding_mask)
-            kwargs["loss"] = total_loss
-            return kwargs
-
-        return GMHook(
-            name="OTFM_condition_post_compute_loss_hook",
-            stage=GMHookStageType.POST_COMPUTE_LOSS,
-            fn=_hook_fn,
-            priority=0,
-            enabled=True,
-        )
-
-    def get_condition_pre_update_in_step_fn_hook(self, conditioner_list: list[Conditioner]):
-        def _hook_fn(**kwargs: Any):
-            nonlocal conditioner_list
-            x_t = require(cast(Tensor | None, kwargs.get("x_t")), "x_t")
-            t = require(cast(Tensor | None, kwargs.get("t")), "t")
-            padding_mask = require(cast(Tensor | None, kwargs.get("padding_mask")), "padding_mask")
-            p_dx_t = require(cast(Tensor | None, kwargs.get("p_dx_t")), "p_dx_t")
-            sampling_condition = kwargs.get("sampling_condition")
-
-            tgt_mask = padding_mask
-            for conditioner in conditioner_list:
-                if not conditioner.is_enabled():
-                    continue
-                conditioner.set_condition(
-                    **{
-                        **conditioner.prepare_condition_dict(
-                            train=False,
-                            **{
-                                "tgt_mask": tgt_mask,
-                                "sampling_condition": sampling_condition,
-                                "padding_mask": padding_mask,
-                                "posterior_mean_fn": self.get_posterior_mean_fn(vf=p_dx_t, vf_fn=None),
-                            },
-                        ),
-                    }
-                )
-
-            acc_c_score = get_accumulated_conditional_score(conditioner_list, x_t, t, padding_mask)
-            vf = p_dx_t + acc_c_score
-            return vf
-
-        return GMHook(
-            name="OTFM_condition_pre_update_in_step_fn_hook",
-            stage=GMHookStageType.PRE_UPDATE_IN_STEP_FN,
-            fn=_hook_fn,
-            priority=0,
-            enabled=True,
-        )

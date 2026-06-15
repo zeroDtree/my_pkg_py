@@ -16,9 +16,12 @@ class FlowMatchingTimeScheduler(BaseTimeScheduler):
         else:
             self._timesteps_idx = torch.linspace(idx_min, idx_max, self.num_inference_timesteps).round().to(torch.int64)
 
-        # Continuous times: [t_1, ..., t_N] (ascending), excluding t_0
-        # t_1 = t_0 + T/N, t_N = t_0 + T
-        t_min = self.continuous_time_start + self.T / self.num_train_timesteps  # t_1
-        t_max = self.continuous_time_end  # t_N
-
-        self._continuous_timesteps = torch.linspace(t_min, t_max, self.num_inference_timesteps, dtype=torch.float32)
+        # ODE boundaries: [t_0, ..., t_N] (ascending)
+        self._continuous_boundaries = torch.linspace(
+            self.continuous_time_start,
+            self.continuous_time_end,
+            self.num_inference_timesteps + 1,
+            dtype=torch.float32,
+        )
+        # Interior knot convention [t_1, ..., t_N], derived from boundaries
+        self._continuous_timesteps = self._continuous_boundaries[1:]
