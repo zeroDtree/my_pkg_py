@@ -229,6 +229,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             "loss_fn": self.loss_fn,
             "config": self.config,
             "base_model_output": model_output,
+            "batch": batch,
         }
 
     def forward_process(
@@ -393,7 +394,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
         return {"x": x_next, "E_x0_xt": p_x_0, "base_model_output": base_model_output}
 
-    def get_posterior_mean_fn(self, score: Optional[Tensor] = None, score_fn: Optional[Callable] = None):
+    def get_posterior_mean_fn(self, score: Optional[Tensor] = None, score_fn: Optional[Callable] = None, batch: Optional[dict] = None):
         r"""Get the posterior mean function for EDM.
 
         For EDM, the posterior mean is:
@@ -436,6 +437,8 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
                 "padding_mask": padding_mask,
                 "gm_kwargs": {"c_in": c_in},
             }
+            if batch is not None and "features" in batch:
+                batch_dict["features"] = batch["features"]
             F_x = self.model(**batch_dict)["x"]
             return self._compute_denoised(x_t, F_x, sigma)
 
@@ -465,6 +468,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
         p_uc_score: Tensor,
         gt_data: Optional[Tensor] = None,
         sampling_condition: Optional[Tensor] = None,
+        batch: Optional[dict] = None,
     ) -> None:
         """Setup conditioners with common parameters.
 
@@ -476,8 +480,9 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             p_uc_score: unconditional predicted score
             gt_data: ground truth data (for training)
             sampling_condition: sampling condition (for inference)
+            batch: full batch dict (carries features, atom maps, etc.)
         """
-        posterior_mean_fn = self.get_posterior_mean_fn(score=p_uc_score, score_fn=None)
+        posterior_mean_fn = self.get_posterior_mean_fn(score=p_uc_score, score_fn=None, batch=batch)
 
         for conditioner in conditioner_list:
             if not conditioner.is_enabled():
@@ -490,6 +495,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
                     gt_data=gt_data,
                     padding_mask=padding_mask,
                     posterior_mean_fn=posterior_mean_fn,
+                    batch=batch,
                 )
             else:
                 condition_dict = conditioner.prepare_condition_dict(
@@ -498,6 +504,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
                     sampling_condition=sampling_condition,
                     padding_mask=padding_mask,
                     posterior_mean_fn=posterior_mean_fn,
+                    batch=batch,
                 )
             conditioner.set_condition(**condition_dict)
 
@@ -520,6 +527,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             t = kwargs["t"]
             padding_mask = kwargs["padding_mask"]
             loss_fn = kwargs["loss_fn"]
+            batch = kwargs.get("batch")
 
             # Use p_x_0 if available, otherwise compute from raw output
             p_x_0 = kwargs.get("p_x_0")
@@ -538,10 +546,21 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
                 padding_mask=padding_mask,
                 p_uc_score=p_uc_score,
                 gt_data=x_0,
+                batch=batch,
             )
             acc_c_score = get_accumulated_conditional_score(
                 conditioner_list, x_t, t, padding_mask, is_continuous_time=True
             )
+
+            # Collect per-conditioner metrics for monitoring
+            conditioner_metrics: dict[str, float] = {
+                "LGD-acc_cond_score_norm": float(acc_c_score.detach().norm()),
+            }
+            for cond in conditioner_list:
+                if cond.is_enabled() and hasattr(cond, "last_step_metrics"):
+                    for k, v in cond.last_step_metrics.items():
+                        conditioner_metrics[f"LGD-{k}"] = v
+            kwargs["conditioner_metrics"] = conditioner_metrics
 
             # Compute conditioned loss with EDM weighting
             gt_score = gt_uc_score + acc_c_score

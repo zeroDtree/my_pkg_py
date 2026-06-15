@@ -84,6 +84,7 @@ class LGDConditioner(Conditioner):
     ):
         super().__init__(guidance_scale)
         self.posterior_mean_fn = None
+        self.last_step_metrics: dict[str, float] = {}
 
     @abc.abstractmethod
     def compute_conditional_loss(self, p_gt_data: Tensor, padding_mask: Tensor) -> Tensor:
@@ -125,5 +126,10 @@ class LGDConditioner(Conditioner):
                 p_gt_data = self.posterior_mean_fn(x_t, t, padding_mask, *args, **kwargs)
                 conditional_loss = self.compute_conditional_loss(p_gt_data, padding_mask)
                 grad = torch.autograd.grad(conditional_loss, x_t)[0]
-        score = -grad
-        return score * self.guidance_scale
+        score = -grad * self.guidance_scale
+        self.last_step_metrics = {
+            "conditional_loss": float(conditional_loss.detach()),
+            "cond_score_norm": float(score.detach().norm()),
+            "guidance_scale": float(self.guidance_scale),
+        }
+        return score
