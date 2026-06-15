@@ -4,11 +4,12 @@ from typing import Any, Callable, List, Literal, Optional, cast
 import datasets
 import numpy as np
 import torch
-import wandb
 from accelerate import Accelerator
 from overrides import override
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
+
+import wandb
 
 from ..util.decorators import inherit_docstrings
 from ..util.iterator import inf_iterator

@@ -210,9 +210,9 @@ class BaseTimeScheduler(ABC):
         assert self._continuous_boundaries is not None, "continuous boundaries schedule is not set"
         assert isinstance(self._continuous_boundaries, Tensor), "continuous boundaries must be a Tensor"
         assert self._continuous_boundaries.ndim == 1, "continuous boundaries must be a 1D Tensor"
-        assert len(self._continuous_boundaries) == self.num_inference_timesteps + 1, (
-            "continuous boundaries must have num_inference_timesteps + 1 entries"
-        )
+        assert (
+            len(self._continuous_boundaries) == self.num_inference_timesteps + 1
+        ), "continuous boundaries must have num_inference_timesteps + 1 entries"
         return self._continuous_boundaries
 
     def set_timestep_indices_schedule(self, timestep_indices: Tensor) -> None:
@@ -238,9 +238,9 @@ class BaseTimeScheduler(ABC):
             continuous_boundaries (Tensor): 1D tensor of $N_{\text{inf}}+1$ boundary points.
         """
         assert continuous_boundaries.ndim == 1, "continuous boundaries must be a 1D Tensor"
-        assert len(continuous_boundaries) == self.num_inference_timesteps + 1, (
-            "continuous boundaries must have num_inference_timesteps + 1 entries"
-        )
+        assert (
+            len(continuous_boundaries) == self.num_inference_timesteps + 1
+        ), "continuous boundaries must have num_inference_timesteps + 1 entries"
         self._continuous_boundaries = continuous_boundaries
 
     def sample_timestep_index_uniformly(

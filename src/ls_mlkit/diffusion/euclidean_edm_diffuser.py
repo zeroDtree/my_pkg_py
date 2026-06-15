@@ -9,7 +9,7 @@ from ..util.base_class.base_gm_class import GMHook, GMHookStageType
 from ..util.context.temp_remove import TemporaryKeyRemover
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
-from .conditioner import Conditioner
+from .conditioner import Conditioner, LGDConditioner
 from .conditioner.utils import get_accumulated_conditional_score
 from .euclidean_diffuser import EuclideanDiffuser, EuclideanDiffuserConfig
 from .time_scheduler import DiffusionTimeScheduler
@@ -394,7 +394,9 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
         return {"x": x_next, "E_x0_xt": p_x_0, "base_model_output": base_model_output}
 
-    def get_posterior_mean_fn(self, score: Optional[Tensor] = None, score_fn: Optional[Callable] = None, batch: Optional[dict] = None):
+    def get_posterior_mean_fn(
+        self, score: Optional[Tensor] = None, score_fn: Optional[Callable] = None, batch: Optional[dict] = None
+    ):
         r"""Get the posterior mean function for EDM.
 
         For EDM, the posterior mean is:
@@ -557,7 +559,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
                 "LGD-acc_cond_score_norm": float(acc_c_score.detach().norm()),
             }
             for cond in conditioner_list:
-                if cond.is_enabled() and hasattr(cond, "last_step_metrics"):
+                if cond.is_enabled() and isinstance(cond, LGDConditioner):
                     for k, v in cond.last_step_metrics.items():
                         conditioner_metrics[f"LGD-{k}"] = v
             kwargs["conditioner_metrics"] = conditioner_metrics

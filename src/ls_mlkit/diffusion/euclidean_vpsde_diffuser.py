@@ -197,9 +197,7 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         t_start = schedule[int(idx)] * ones
         t_end = schedule[int(idx) + 1] * ones
         config = cast(EuclideanVPSDEConfig, self.config.to(device))
-        model_output = self.model(
-            **{"x_t": x_t, "t": t.long(), "padding_mask": padding_mask, **kwargs}
-        )
+        model_output = self.model(**{"x_t": x_t, "t": t.long(), "padding_mask": padding_mask, **kwargs})
         p_uc_score = model_output["x"]
 
         # score hook start=====================================================

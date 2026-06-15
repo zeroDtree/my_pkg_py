@@ -276,9 +276,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         t_scalar = t.view(-1)[0].long()
 
         # Get model prediction
-        model_output = self.model(
-            **{"x_t": x_t, "t": t.long(), "padding_mask": padding_mask, **kwargs}
-        )
+        model_output = self.model(**{"x_t": x_t, "t": t.long(), "padding_mask": padding_mask, **kwargs})
 
         if mode == "epsilon":
             model_pred = model_output["x"]
