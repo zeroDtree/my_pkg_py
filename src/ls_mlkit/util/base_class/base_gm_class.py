@@ -16,6 +16,7 @@ class GMHookStageType(Enum):
     POST_COMPUTE_LOSS = "post_compute_loss"
     POST_SAMPLING_TIME_STEP = "post_sampling_time_step"
     POST_GET_MACRO_SHAPE = "get_macro_shape"
+    RESOLVE_LOSS_MASK = "resolve_loss_mask"
 
 
 class GMHookHandler(HookHandler[GMHookStageType]):

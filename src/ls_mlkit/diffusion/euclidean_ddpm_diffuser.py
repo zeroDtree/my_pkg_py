@@ -6,6 +6,7 @@ from torch import Tensor
 from torch.nn import Module
 
 from ..util.base_class.base_gm_class import GMHook, GMHookStageType
+from ..util.base_class.loss_mask import resolve_loss_mask
 from ..util.context.temp_remove import TemporaryKeyRemover
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
@@ -141,17 +142,19 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         with TemporaryKeyRemover(mapping=batch, keys=["gt_data", "mode"]):
             model_output = self.model(**batch)
 
+        loss_mask = resolve_loss_mask(self.hook_manager, padding_mask=padding_mask, batch=batch)
+
         # Simplified loss calculation following standard DDPM
         if mode == "epsilon":
             p_noise = model_output["x"]
             # Standard DDPM loss: MSE between predicted and actual noise
-            loss = self.loss_fn(p_noise, noise, padding_mask)
+            loss = self.loss_fn(p_noise, noise, loss_mask)
             p_x_0 = (x_t - b * p_noise) / a
         elif mode == "x_0":
             p_x_0 = model_output["x"]
             # Convert to noise prediction for consistent loss calculation
             p_noise = (x_t - a * p_x_0) / b
-            loss = self.loss_fn(p_noise, noise, padding_mask)
+            loss = self.loss_fn(p_noise, noise, loss_mask)
         elif mode == "score":
             raise ValueError(f"Currently not supported mode: {mode}")
         else:
@@ -167,6 +170,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             "p_noise": p_noise,
             "p_x_0": p_x_0,
             "padding_mask": padding_mask,
+            "loss_mask": loss_mask,
             "a": a,
             "b": b,
             "loss_fn": self.loss_fn,
@@ -174,6 +178,7 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             "config": self.config,
             # ======================================
             "base_model_output": model_output,
+            "batch": batch,
         }
 
     def q_xt_x_0(self, x_0: Tensor, t: Tensor, mask: Tensor) -> Tuple[Tensor, Tensor]:
@@ -509,7 +514,8 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
             # Scale and compute conditioned loss
             p_uc_score = b * p_uc_score
             gt_score = b * gt_score
-            new_loss = loss_fn(p_uc_score, gt_score, padding_mask)
+            loss_mask = kwargs.get("loss_mask", padding_mask)
+            new_loss = loss_fn(p_uc_score, gt_score, loss_mask)
             kwargs["loss"] = new_loss
             return kwargs
 

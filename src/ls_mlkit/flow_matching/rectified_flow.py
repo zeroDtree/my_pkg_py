@@ -6,6 +6,7 @@ from torch.nn import Module
 from tqdm.auto import tqdm
 
 from ..util.base_class.base_gm_class import GMHook, GMHookStageType
+from ..util.base_class.loss_mask import resolve_loss_mask
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
 from ..util.typing_utils import require
@@ -129,7 +130,8 @@ class RectifiedFlow(IndependentCFMFlow):
             gt_vf = self.conditional_velocity(x_0, x_1) + acc_guidance
 
             p_vf = p_dx_t
-            total_loss = loss_fn(p_vf, gt_vf, padding_mask)
+            loss_mask = kwargs.get("loss_mask", padding_mask)
+            total_loss = loss_fn(p_vf, gt_vf, loss_mask)
             kwargs["loss"] = total_loss
             return kwargs
 
@@ -202,7 +204,8 @@ class RectifiedFlow(IndependentCFMFlow):
             **model_input_dict,
         }
         p_dx_t = self.model(**model_batch)["x"]
-        loss = self.loss_fn(p_dx_t, dx_t, padding_mask)
+        loss_mask = resolve_loss_mask(self.hook_manager, padding_mask=padding_mask, batch=model_input_dict)
+        loss = self.loss_fn(p_dx_t, dx_t, loss_mask)
         result = {
             "loss": loss,
             "x_1": x_1,
@@ -211,8 +214,10 @@ class RectifiedFlow(IndependentCFMFlow):
             "t": t,
             "p_dx_t": p_dx_t,
             "padding_mask": padding_mask,
+            "loss_mask": loss_mask,
             "config": self.config,
             "loss_fn": self.loss_fn,
+            "batch": model_input_dict,
         }
         return result
 

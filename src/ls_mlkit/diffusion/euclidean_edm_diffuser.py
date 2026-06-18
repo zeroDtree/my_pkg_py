@@ -6,6 +6,7 @@ from torch import Tensor
 from torch.nn import Module
 
 from ..util.base_class.base_gm_class import GMHook, GMHookStageType
+from ..util.base_class.loss_mask import resolve_loss_mask
 from ..util.context.temp_remove import TemporaryKeyRemover
 from ..util.decorators import inherit_docstrings
 from ..util.mask.masker_interface import MaskerInterface
@@ -213,7 +214,8 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
         # EDM loss weight: lambda(sigma) = (sigma^2 + sigma_data^2) / (sigma * sigma_data)^2
         weight = self.config.compute_loss_weight(sigma)
         sqrt_weight = weight.sqrt()
-        loss = self.loss_fn(sqrt_weight * D_yn, sqrt_weight * x_0, padding_mask)
+        loss_mask = resolve_loss_mask(self.hook_manager, padding_mask=padding_mask, batch=batch)
+        loss = self.loss_fn(sqrt_weight * D_yn, sqrt_weight * x_0, loss_mask)
         p_x_0 = D_yn
 
         return {
@@ -226,6 +228,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             "p_raw": p_raw,
             "p_x_0": p_x_0,
             "padding_mask": padding_mask,
+            "loss_mask": loss_mask,
             "loss_fn": self.loss_fn,
             "config": self.config,
             "base_model_output": model_output,
@@ -569,7 +572,8 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             gt_x_0 = x_t + sigma**2 * gt_score
             weight = self.config.compute_loss_weight(sigma)
             sqrt_weight = weight.sqrt()
-            kwargs["loss"] = loss_fn(sqrt_weight * gt_x_0, sqrt_weight * p_x_0, padding_mask)
+            loss_mask = kwargs.get("loss_mask", padding_mask)
+            kwargs["loss"] = loss_fn(sqrt_weight * gt_x_0, sqrt_weight * p_x_0, loss_mask)
             return kwargs
 
         return GMHook(
