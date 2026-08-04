@@ -1,0 +1,123 @@
+[project]
+name = "mlkit"
+version = "0.0.1"
+authors = [{ name = "zengls", email = "3186428803@qq.com" }]
+description = "Python package for machine learning"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+dependencies = [
+    "torch; sys_platform == 'linux'",
+    "torch; sys_platform != 'linux'",
+    "torchvision; sys_platform == 'linux'",
+    "torchvision ; sys_platform != 'linux'",
+    "torchaudio; sys_platform == 'linux'",
+    "torchaudio ; sys_platform != 'linux'",
+]
+
+
+[dependency-groups]
+utils = [
+    "ipywidgets",
+    "overrides",
+    "tabulate",
+    "fire",
+    "wandb",
+    "psutil",
+    "exrex",
+    "setuptools",
+    "graphviz",
+    "PyQt6",
+    "matplotlib",
+    "ipykernel",
+    "hydra-core",
+    "tqdm",
+    "omegaconf",
+    "pandas",
+    "seaborn",
+    "easydict",
+    "chardet",
+    "multiprocess",
+    "sphinx",
+    "nbstripout",
+]
+lint = ["ruff", "ty"]
+dl = [
+    "tensorboard",
+    "opt_einsum",
+    "datasets",
+    "peft",
+    "torchdiffeq",
+    "transformers==4.48.3",
+    "einops",
+    "bitsandbytes",
+    "torchviz",
+    "flow_matching",
+    "numpy",
+    "safetensors",
+    "diffusers",
+    "timm",
+    "scikit-learn",
+    { include-group = "utils" },
+]
+
+hard = ["deepspeed", "flash-attn"]
+
+bio = ["biotite"]
+
+doc = [
+    "mkdocs-gen-files>=0.6.1",
+    "mkdocs-material>=9.7.6",
+    "mkdocstrings[python]>=1.0.4",
+]
+
+dev = [
+    { include-group = "lint" },
+    { include-group = "dl" },
+    { include-group = "bio" },
+    { include-group = "doc" },
+]
+
+[project.optional-dependencies]
+bio = ["biotite"]
+
+[tool.uv.extra-build-dependencies]
+deepspeed = [{ requirement = "torch", match-runtime = true }]
+flash-attn = [{ requirement = "torch", match-runtime = true }]
+torch-cluster = ["torch"]
+torch-scatter = ["torch"]
+cchardet = ["cython"]
+
+[tool.uv.extra-build-variables]
+flash-attn = { FLASH_ATTENTION_SKIP_CUDA_BUILD = "TRUE" }
+
+# [[tool.uv.index]]
+# name = "pytorch"
+# url = "https://download.pytorch.org/whl/cu124"
+# explicit = true
+
+
+[tool.uv.sources]
+# torch = [{ index = "pytorch", marker = "sys_platform == 'linux'" }]
+# torchvision = [{ index = "pytorch", marker = "sys_platform == 'linux'" }]
+# torchaudio = [{ index = "pytorch", marker = "sys_platform == 'linux'" }]
+# torch-scatter = [
+#     { url = "https://data.pyg.org/whl/torch-2.6.0%2Bcu124/torch_scatter-2.1.2%2Bpt26cu124-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'" },
+# ]
+# torch-cluster = [
+#     { url = "https://data.pyg.org/whl/torch-2.6.0%2Bcu124/torch_cluster-1.6.3%2Bpt26cu124-cp312-cp312-linux_x86_64.whl", marker = "sys_platform == 'linux'" },
+# ]
+
+
+[project.urls]
+Homepage = "https://github.com/zeroDtree/my_pkg_py"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
