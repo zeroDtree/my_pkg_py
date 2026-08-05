@@ -330,39 +330,40 @@ class BasePipeline(metaclass=ABCMeta):
 
     def _can_save(self, flag: Literal["epochs", "steps"]):
         if (
-            self.training_config.save_strategy is None
+            self.training_config.save_strategy != flag
             or self.training_config.save_dir is None
             or self.training_config.save_dir == ""
         ):
             return False
         if flag == "epochs":
             return (self.training_state.current_epoch + 1) % self.training_config.save_epochs == 0
-        elif flag == "steps":
+        if flag == "steps":
             return (self.training_state.current_global_step + 1) % self.training_config.save_steps == 0
-        else:
-            return False
+        return False
 
     def _can_log(self, flag: Literal["epochs", "steps"]):
         if self.logger is None:
             return False
-        if self.log_config.log_strategy is None or self.log_config.log_dir is None or self.log_config.log_dir == "":
+        if (
+            self.log_config.log_strategy != flag
+            or self.log_config.log_dir is None
+            or self.log_config.log_dir == ""
+        ):
             return False
         if flag == "epochs":
             return (self.training_state.current_epoch + 1) % self.log_config.log_epochs == 0
-        elif flag == "steps":
+        if flag == "steps":
             return (self.training_state.current_global_step + 1) % self.log_config.log_steps == 0
-        else:
-            return False
+        return False
 
     def _can_eval(self, flag: Literal["epochs", "steps"]):
-        if self.training_config.eval_strategy is None:
+        if self.training_config.eval_strategy != flag:
             return False
         if flag == "epochs":
             return (self.training_state.current_epoch + 1) % self.training_config.eval_epochs == 0
-        elif flag == "steps":
+        if flag == "steps":
             return (self.training_state.current_global_step + 1) % self.training_config.eval_steps == 0
-        else:
-            return False
+        return False
 
     def save(self) -> None:
         """Save the checkpoint
