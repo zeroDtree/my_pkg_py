@@ -363,7 +363,11 @@ class BasePipeline(metaclass=ABCMeta):
         ):
             return False
         if flag == "epochs":
-            return (self.training_state.current_epoch + 1) % self.training_config.save_epochs == 0
+            # current_epoch is already incremented after train_an_epoch() completes.
+            return (
+                self.training_state.current_epoch > 0
+                and self.training_state.current_epoch % self.training_config.save_epochs == 0
+            )
         if flag == "steps":
             step = self.training_state.current_global_step
             return step > 0 and step % self.training_config.save_steps == 0
@@ -384,7 +388,11 @@ class BasePipeline(metaclass=ABCMeta):
         if self.training_config.eval_strategy != flag:
             return False
         if flag == "epochs":
-            return (self.training_state.current_epoch + 1) % self.training_config.eval_epochs == 0
+            # current_epoch is already incremented after train_an_epoch() completes.
+            return (
+                self.training_state.current_epoch > 0
+                and self.training_state.current_epoch % self.training_config.eval_epochs == 0
+            )
         if flag == "steps":
             step = self.training_state.current_global_step
             return step > 0 and step % self.training_config.eval_steps == 0

@@ -18,7 +18,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from mlkit.pipeline.pipeline import BasePipeline, LogConfig, TrainingConfig  # noqa: E402
 
 
-class CountingDataset:
+class CountingDataset(torch.utils.data.Dataset):
     def __init__(self, n: int):
         self.n = n
         self.access_log: list[int] = []

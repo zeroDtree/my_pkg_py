@@ -2,7 +2,6 @@ import logging
 from typing import Any, Callable, List, Literal, Optional, cast
 
 import datasets
-import numpy as np
 import torch
 import wandb
 from accelerate import Accelerator, skip_first_batches
@@ -258,6 +257,7 @@ class MyDistributedPipeline(DistributedPipeline):
         self.trigger_callbacks(event=CallbackEvent.PRE_EVAL, eval_dataloader=self.eval_dataloader)
         self.model.eval()
         eval_results = []
+        gathered_losses = []
         for batch in self.eval_dataloader:
             if disable_grad:
                 with torch.no_grad():
@@ -266,16 +266,27 @@ class MyDistributedPipeline(DistributedPipeline):
                 result = self.eval_a_step(batch)
             eval_results.append(result)
 
-        mean_eval_loss = sum([result["eval_loss"] for result in eval_results]) / len(eval_results)
-        max_eval_loss = max([result["eval_loss"] for result in eval_results])
-        min_eval_loss = min([result["eval_loss"] for result in eval_results])
-        std_eval_loss = np.std([result["eval_loss"] for result in eval_results]).item()
-        result = {
-            "mean_eval_loss": mean_eval_loss,
-            "max_eval_loss": max_eval_loss,
-            "min_eval_loss": min_eval_loss,
-            "std_eval_loss": std_eval_loss,
-        }
+            # Replicate the batch scalar across the batch dim so gather_for_metrics
+            # can trim padded duplicates on the final incomplete batch.
+            batch_size = next(v.shape[0] for v in batch.values() if isinstance(v, torch.Tensor))
+            loss_tensor = torch.tensor(result["eval_loss"], device=self.accelerator.device).repeat(batch_size)
+            gathered_losses.append(self.accelerator.gather_for_metrics(loss_tensor))
+
+        if len(gathered_losses) == 0:
+            result = {
+                "mean_eval_loss": float("nan"),
+                "max_eval_loss": float("nan"),
+                "min_eval_loss": float("nan"),
+                "std_eval_loss": float("nan"),
+            }
+        else:
+            all_losses = torch.cat(gathered_losses)
+            result = {
+                "mean_eval_loss": all_losses.mean().item(),
+                "max_eval_loss": all_losses.max().item(),
+                "min_eval_loss": all_losses.min().item(),
+                "std_eval_loss": all_losses.std().item() if all_losses.numel() > 1 else 0.0,
+            }
         if self.accelerator.is_local_main_process and self.logger is not None:
             self.logger.info(f"[Eval] {result}")
             wandb.log(result, step=self.training_state.current_global_step)

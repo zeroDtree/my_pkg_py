@@ -216,13 +216,9 @@ class DistributedPipeline(BasePipeline):
 
     def save(self) -> None:
         self.trigger_callbacks(event=CallbackEvent.PRE_SAVE)
-        if not self.accelerator.is_main_process:
-            return
-
         save_dir = self.training_config.save_dir
         if save_dir is None or save_dir == "":
             return
-        os.makedirs(save_dir, exist_ok=True)
 
         epoch = self.training_state.current_epoch
         step = self.training_state.current_step_in_epoch
@@ -233,30 +229,37 @@ class DistributedPipeline(BasePipeline):
         if os.path.exists(final_checkpoint_dir):
             return
 
-        os.makedirs(temp_checkpoint_dir, exist_ok=True)
+        # Directory creation is main-process only, but save_state must run on all ranks
+        # (FSDP/DeepSpeed use collectives inside accelerator.save_state).
+        if self.accelerator.is_main_process:
+            os.makedirs(save_dir, exist_ok=True)
+            os.makedirs(temp_checkpoint_dir, exist_ok=True)
+        self.accelerator.wait_for_everyone()
+
         try:
-            # Save accelerator state (this includes model, optimizer, and scheduler)
             self.accelerator.save_state(temp_checkpoint_dir)
 
-            # Save training metadata separately
-            for base_name in [
-                "training_state",
-                "training_config",
-                "log_config",
-            ]:
-                file_path = os.path.join(temp_checkpoint_dir, f"{base_name}.pth")
-                torch.save(getattr(self, base_name), file_path)
+            if self.accelerator.is_main_process:
+                for base_name in [
+                    "training_state",
+                    "training_config",
+                    "log_config",
+                ]:
+                    file_path = os.path.join(temp_checkpoint_dir, f"{base_name}.pth")
+                    torch.save(getattr(self, base_name), file_path)
 
-            os.rename(temp_checkpoint_dir, final_checkpoint_dir)
-            self._cleanup_old_checkpoints(save_dir=save_dir)
-            if self.accelerator.is_local_main_process and self.logger is not None:
-                self.logger.info(f"Model saved to {final_checkpoint_dir}")
+                os.rename(temp_checkpoint_dir, final_checkpoint_dir)
+                self._cleanup_old_checkpoints(save_dir=save_dir)
+                if self.accelerator.is_local_main_process and self.logger is not None:
+                    self.logger.info(f"Model saved to {final_checkpoint_dir}")
 
         except Exception as e:
-            if self.accelerator.is_local_main_process and self.logger is not None:
-                self.logger.error(f"Failed to save checkpoint: {e}")
-            shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
+            if self.accelerator.is_main_process:
+                if self.accelerator.is_local_main_process and self.logger is not None:
+                    self.logger.error(f"Failed to save checkpoint: {e}")
+                shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
             raise
+        self.accelerator.wait_for_everyone()
         self.trigger_callbacks(event=CallbackEvent.POST_SAVE)
 
     def load(self) -> None:
