@@ -21,7 +21,7 @@ from .decorators import (
     timer,
 )
 from .hook import Hook, HookHandler, HookManager, ModelHook, ModelHookHandler, ModelHookManager, ModelHookStageType
-from .iterator import inf_iterator
+from .iterator import inf_iterator, inf_iterator_with_prefix
 from .log import get_and_create_new_log_dir, get_logger
 from .lora import find_linear_modules, get_lora_model
 from .manifold import SO3, LieGroup, RiemannianManifold
@@ -143,6 +143,7 @@ __all__ = [
     "show_info",
     "find_tensor_devices",
     "inf_iterator",
+    "inf_iterator_with_prefix",
     "load_pickle_file",
     "save_pickle_file",
     "find_linear_modules",

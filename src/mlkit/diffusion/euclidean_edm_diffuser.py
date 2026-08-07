@@ -227,18 +227,14 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             t = cast(Tensor, t)
             t = self.complete_micro_shape(t)
 
-            forward_result = self.forward_process(
-                x_0, torch.zeros_like(t), t, padding_mask, is_continuous_time=True
-            )
+            forward_result = self.forward_process(x_0, torch.zeros_like(t), t, padding_mask, is_continuous_time=True)
             x_t = forward_result["x_t"]
             noise = forward_result["noise"]
             sigma = forward_result["sigma_diff"]
             return x_t, t, sigma, noise
 
         if "x_t" not in batch or "t" not in batch:
-            raise KeyError(
-                "When do_forward_process=False, batch must provide physical 'x_t' and 't'."
-            )
+            raise KeyError("When do_forward_process=False, batch must provide physical 'x_t' and 't'.")
         t = cast(Tensor, batch["t"]).to(device)
         t = self.hook_manager.run_hooks(
             stage=GMHookStageType.POST_SAMPLING_TIME_STEP,
@@ -330,20 +326,19 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
     def forward_process(
         self,
-        x_0: Tensor,
+        x_start: Tensor,
         t_a: Tensor,
         t_b: Tensor,
         mask: Tensor,
-        is_continuous_time: bool = True,
-        *args: Any,
+        is_continuous_time: bool = False,
         **kwargs: Any,
     ) -> dict:
         assert (t_b >= t_a).all()
         sigma_a = self.config.sigma(t_a, is_continuous_time)
         sigma_b = self.config.sigma(t_b, is_continuous_time)
         sigma_diff = (sigma_b**2 - sigma_a**2).clamp(min=0).sqrt()
-        noise = torch.randn_like(x_0)
-        x_t = x_0 + sigma_diff * noise
+        noise = torch.randn_like(x_start)
+        x_t = x_start + sigma_diff * noise
         return {"x_t": x_t, "noise": noise, "sigma_diff": sigma_diff}
 
     def _compute_denoised(self, x: Tensor, F_x: Tensor, sigma_expanded: Tensor) -> Tensor:

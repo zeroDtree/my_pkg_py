@@ -6,7 +6,6 @@ import torch
 from sklearn.datasets import make_moons
 from torch import Tensor, nn
 
-
 OUTPUT_DIR = Path(__file__).resolve().parent
 
 
@@ -15,6 +14,7 @@ def save_figure(fig: plt.Figure, filename: str) -> None:
     fig.savefig(output_path, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved figure to {output_path}")
+
 
 # %%
 class Flow(nn.Module):
@@ -32,6 +32,7 @@ class Flow(nn.Module):
 
     def forward(self, x_t: Tensor, t: Tensor) -> Tensor:
         return self.net(torch.cat((t, x_t), -1))
+
 
 # %% [markdown]
 # # Training
@@ -86,11 +87,6 @@ save_figure(fig, "fm_unconditional_sampling.png")
 # # Conditional Flow Matching
 # We now train a simple conditional model using class labels.
 
-# %%
-import matplotlib.pyplot as plt
-import torch
-from sklearn.datasets import make_moons
-from torch import Tensor, nn
 
 # %%
 class Flow(nn.Module):
@@ -117,6 +113,7 @@ class Flow(nn.Module):
             c=c,
             x_t=x_t + self(c=c, x_t=x_t, t=t_start) * (t_end - t_start) / 2,
         )
+
 
 # %% [markdown]
 # # Training
@@ -198,6 +195,3 @@ fig.tight_layout()
 save_figure(fig, "fm_conditional_sampling.png")
 
 # %%
-
-
-

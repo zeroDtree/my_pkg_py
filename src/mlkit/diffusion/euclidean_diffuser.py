@@ -49,6 +49,32 @@ class EuclideanDiffuser(BaseDiffuser):
         self.masker = masker
 
     @abstractmethod
+    def forward_process(
+        self,
+        x_start: Tensor,
+        t_a: Tensor,
+        t_b: Tensor,
+        mask: Tensor,
+        is_continuous_time: bool = False,
+        **kwargs: Any,
+    ) -> dict:
+        """Diffuse ``x_start`` (valid at noise level ``t_a``) forward to ``t_b``.
+
+        This is the canonical contract used by ``sampling``, ``inpainting``, and
+        ``recover_bright_region``. Must return at least ``{"x_t": Tensor}``.
+
+        Args:
+            x_start: sample at noise level ``t_a``
+            t_a: starting timestep (discrete index or continuous time)
+            t_b: target timestep (``t_b > t_a``)
+            mask: padding / validity mask
+            is_continuous_time: whether ``t_a``/``t_b`` are continuous times
+
+        Returns:
+            dict containing at least ``x_t``
+        """
+
+    @abstractmethod
     def get_posterior_mean_fn(
         self,
         score: Optional[Tensor] = None,

@@ -187,7 +187,9 @@ class RectifiedFlow(IndependentCFMFlow):
         device = x_1.device
         macro_shape: tuple[int, ...] = self.get_macro_shape(x_1)
         t = batch.get("t", torch.rand(macro_shape, device=device))
-        padding_mask: Any | None = batch.get("padding_mask", None)
+        padding_mask = batch.get("padding_mask")
+        if not isinstance(padding_mask, Tensor):
+            raise TypeError("padding_mask must be a Tensor")
         copied_t = t.clone().detach()
         t: torch.Tensor = self.complete_micro_shape(t)
         x_0: torch.Tensor = self.sample_x_0(x_1)

@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union, c
 import datasets
 import torch
 import wandb
+from accelerate import skip_first_batches
 from torch import Tensor
 from tqdm.auto import tqdm
 
@@ -196,7 +197,12 @@ class BasePipeline(metaclass=ABCMeta):
         self.trigger_callbacks(event=CallbackEvent.TRAINING_START)
         n_epochs = self.training_config.n_epochs
 
-        for epoch in tqdm(range(n_epochs), desc="training", mininterval=0):
+        for epoch in tqdm(
+            range(n_epochs),
+            desc="training",
+            mininterval=0,
+            disable=not self._is_local_main_process(),
+        ):
             if epoch < self.training_state.current_epoch:
                 continue
             self.train_an_epoch()
@@ -216,19 +222,31 @@ class BasePipeline(metaclass=ABCMeta):
             None
         """
         self.trigger_callbacks(event=CallbackEvent.EPOCH_START)
-        for step, batch in enumerate(self.dataloader):
-            if step < self.training_state.current_step_in_epoch:
-                continue
-            result = self.train_a_step(batch)
+        resume_step = self.training_state.current_step_in_epoch
+        active_dataloader = skip_first_batches(self.dataloader, resume_step) if resume_step > 0 else self.dataloader
+        result = None
+        with tqdm(
+            active_dataloader,
+            desc=f"epoch {self.training_state.current_epoch}",
+            total=len(self.dataloader),
+            initial=resume_step,
+            position=1,
+            leave=False,
+            mininterval=0,
+            disable=not self._is_local_main_process(),
+        ) as pbar:
+            for batch in pbar:
+                result = self.train_a_step(batch)
+                self.training_state.current_step_in_epoch += 1
+                self.training_state.current_global_step += 1
 
-            if self._can_eval(flag="steps"):
-                self.eval()
-            if self._can_save(flag="steps"):
-                self.save()
-            self.training_state.current_step_in_epoch += 1
-            self.training_state.current_global_step += 1
+                if self._can_eval(flag="steps"):
+                    self.eval()
+                if self._can_save(flag="steps"):
+                    self.save()
+                pbar.set_postfix(loss=result["loss"])
 
-        if self._can_log(flag="epochs") and self.logger is not None:
+        if result is not None and self._can_log(flag="epochs") and self.logger is not None:
             self.logger.info(
                 f"[Train] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {result['loss']}"
             )
@@ -309,6 +327,15 @@ class BasePipeline(metaclass=ABCMeta):
     def eval(self):
         """Evaluate the model"""
 
+    def _is_local_main_process(self) -> bool:
+        """Return True if this process should emit UI output (e.g. progress bars).
+
+        Plain BasePipeline has no accelerator and is always the local main process.
+        DistributedPipeline subclasses expose ``self.accelerator``.
+        """
+        accelerator = getattr(self, "accelerator", None)
+        return True if accelerator is None else accelerator.is_local_main_process
+
     def _cleanup_old_checkpoints(self, save_dir):
         checkpoints = [d for d in os.listdir(save_dir) if d.startswith("checkpoint_")]
 
@@ -338,17 +365,14 @@ class BasePipeline(metaclass=ABCMeta):
         if flag == "epochs":
             return (self.training_state.current_epoch + 1) % self.training_config.save_epochs == 0
         if flag == "steps":
-            return (self.training_state.current_global_step + 1) % self.training_config.save_steps == 0
+            step = self.training_state.current_global_step
+            return step > 0 and step % self.training_config.save_steps == 0
         return False
 
     def _can_log(self, flag: Literal["epochs", "steps"]):
         if self.logger is None:
             return False
-        if (
-            self.log_config.log_strategy != flag
-            or self.log_config.log_dir is None
-            or self.log_config.log_dir == ""
-        ):
+        if self.log_config.log_strategy != flag or self.log_config.log_dir is None or self.log_config.log_dir == "":
             return False
         if flag == "epochs":
             return (self.training_state.current_epoch + 1) % self.log_config.log_epochs == 0
@@ -362,7 +386,8 @@ class BasePipeline(metaclass=ABCMeta):
         if flag == "epochs":
             return (self.training_state.current_epoch + 1) % self.training_config.eval_epochs == 0
         if flag == "steps":
-            return (self.training_state.current_global_step + 1) % self.training_config.eval_steps == 0
+            step = self.training_state.current_global_step
+            return step > 0 and step % self.training_config.eval_steps == 0
         return False
 
     def save(self) -> None:

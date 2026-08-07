@@ -248,8 +248,8 @@ class KFAOptimizer(Optimizer):
                     something_norm += torch.sum(p.data * p.data).item()
         return math.sqrt(something_norm)
 
-    def zero_grad(self):
-        self.base_optimizer.zero_grad()
+    def zero_grad(self, set_to_none: bool = True) -> None:
+        self.base_optimizer.zero_grad(set_to_none=set_to_none)
 
     def state_dict(self):
         return self.base_optimizer.state_dict()

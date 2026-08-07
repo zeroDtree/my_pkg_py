@@ -5,13 +5,13 @@ import datasets
 import numpy as np
 import torch
 import wandb
-from accelerate import Accelerator
+from accelerate import Accelerator, skip_first_batches
 from overrides import override
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
 from ..util.decorators import inherit_docstrings
-from ..util.iterator import inf_iterator
+from ..util.iterator import inf_iterator_with_prefix
 from .callback import BaseCallback, CallbackEvent
 from .distributed_pipeline import (
     DistributedPipeline,
@@ -220,26 +220,35 @@ class MyDistributedPipeline(DistributedPipeline):
         if training_config.train_strategy in ["epochs"]:
             return super().train()
         self.trigger_callbacks(event=CallbackEvent.TRAINING_START)
-        if training_config.n_steps is not None:
-            self.training_set_iterator = inf_iterator(self.dataloader)
-        else:
+        if training_config.n_steps is None:
             raise ValueError("n_steps must be specified")
-        i = 0
-        result = None
-        for _ in tqdm(range(training_config.n_steps), desc="training", mininterval=0):
-            if i < self.training_state.current_global_step:
-                i += 1
-                continue
-            batch = next(self.training_set_iterator)
-            result = self.train_a_step(batch)
 
-            if self._can_eval(flag="steps"):
-                self.eval()
-            if self._can_save(flag="steps"):
-                self.save()
-            self.training_state.current_step_in_epoch += 1
-            self.training_state.current_global_step += 1
-            i += 1
+        num_batches_per_pass = len(self.dataloader)
+        resume_offset = self.training_state.current_global_step % num_batches_per_pass
+        first_pass_dataloader = skip_first_batches(self.dataloader, resume_offset) if resume_offset > 0 else None
+        self.training_set_iterator = inf_iterator_with_prefix(self.dataloader, prefix_iterable=first_pass_dataloader)
+
+        result = None
+        remaining_steps = training_config.n_steps - self.training_state.current_global_step
+        with tqdm(
+            range(remaining_steps),
+            desc="training",
+            mininterval=0,
+            initial=self.training_state.current_global_step,
+            total=training_config.n_steps,
+            disable=not self.accelerator.is_local_main_process,
+        ) as pbar:
+            for _ in pbar:
+                batch = next(self.training_set_iterator)
+                result = self.train_a_step(batch)
+                self.training_state.current_step_in_epoch += 1
+                self.training_state.current_global_step += 1
+
+                if self._can_eval(flag="steps"):
+                    self.eval()
+                if self._can_save(flag="steps"):
+                    self.save()
+                pbar.set_postfix(loss=result["loss"], lr=result["lr"])
         self.save()
         self.trigger_callbacks(event=CallbackEvent.TRAINING_END)
         return result

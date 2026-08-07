@@ -134,7 +134,8 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         b = sqrt_1m_alphas_cumprod
         a = sqrt_alphas_cumprod
 
-        forward_result = self.forward_process(x_0, t, padding_mask)
+        t_a = torch.full_like(t, self.time_scheduler.get_timestep_index_start() - 1)
+        forward_result = self.forward_process(x_0, t_a, t, padding_mask)
         x_t, noise = (forward_result["x_t"], forward_result["noise"])
         batch["t"] = t
         batch["x_t"] = x_t
@@ -200,45 +201,48 @@ class EuclideanDDPMDiffuser(EuclideanDiffuser):
         standard_deviation = self.complete_micro_shape(config.sqrt_1m_alphas_cumprod[t])
         return expectation, standard_deviation
 
-    def forward_process_n_step(
-        self,
-        x: Tensor,
-        t: Tensor,
-        next_t: Tensor,
-        padding_mask: Tensor,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Tensor:
-        assert (next_t > t).all()
-        assert (t >= 0).all()
-        assert (next_t < self.config.n_discretization_steps).all()
+    def _alpha_bar(self, t: Tensor) -> Tensor:
+        """Cumulative alpha_bar at index t.
+
+        Indices < 0 (the "no diffusion yet" sentinel used by EuclideanDiffuser)
+        map to alpha_bar = 1 (clean reference).
+        """
         config = cast(EuclideanDDPMConfig, self.config.to(t))
-        a_square = config.alphas_cumprod[next_t] / config.alphas_cumprod[t]
-        a = a_square**0.5
-        b = (1 - a_square) ** 0.5
-        a = self.complete_micro_shape(a)
-        b = self.complete_micro_shape(b)
-        noise = torch.randn_like(x)
-        x_next = a * x + b * noise
-        return x_next
+        alpha_bar = config.alphas_cumprod[t.clamp(min=0)]
+        return torch.where(t < 0, torch.ones_like(alpha_bar), alpha_bar)
 
     def forward_process(
         self,
-        x_0: Tensor,
-        discrete_t: Tensor,
+        x_start: Tensor,
+        t_a: Tensor,
+        t_b: Tensor,
         mask: Tensor,
+        is_continuous_time: bool = False,
         **kwargs: Any,
     ) -> dict:
-        device = x_0.device
-        expectation, standard_deviation = self.q_xt_x_0(x_0, discrete_t, mask)
-        noise = torch.randn_like(expectation, device=device)
-        x_t = expectation + standard_deviation * noise
-        return {
-            "x_t": x_t,
-            "noise": noise,
-            "expectation": expectation,
-            "standard_deviation": standard_deviation,
-        }
+        """Diffuse ``x_start`` (valid at noise level ``t_a``) forward to ``t_b``.
+
+        Args:
+            x_start: sample at noise level ``t_a``
+            t_a: starting discrete timestep (may be ``idx_start - 1`` for clean data)
+            t_b: target discrete timestep (``t_b > t_a``)
+            mask: padding mask (unused by the closed-form transition, kept for API parity)
+            is_continuous_time: must be False; DDPM only supports discrete timesteps
+
+        Returns:
+            dict with ``x_t``, ``noise``, ``a``, ``b``
+        """
+        if is_continuous_time:
+            raise NotImplementedError("EuclideanDDPMDiffuser only supports discrete timesteps")
+        assert (t_b > t_a).all()
+        alpha_bar_a = self.complete_micro_shape(self._alpha_bar(t_a))
+        alpha_bar_b = self.complete_micro_shape(self._alpha_bar(t_b))
+        a_square = alpha_bar_b / alpha_bar_a
+        a = a_square.sqrt()
+        b = (1 - a_square).clamp(min=0).sqrt()
+        noise = torch.randn_like(x_start)
+        x_t = a * x_start + b * noise
+        return {"x_t": x_t, "noise": noise, "a": a, "b": b}
 
     def step(
         self,

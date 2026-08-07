@@ -123,21 +123,35 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
 
     def forward_process(
         self,
-        x_0: Tensor,
-        discrete_t: Tensor,
+        x_start: Tensor,
+        t_a: Tensor,
+        t_b: Tensor,
         mask: Tensor,
-        *args: Any,
+        is_continuous_time: bool = False,
         **kwargs: Any,
     ) -> dict:
-        t = self.time_scheduler.timestep_index_to_continuous_time(discrete_t)
-        forward_result = self.sde.forward_process(x_0, t, mask)
-        return {
-            "x_t": forward_result["x_t"],
-            "mean": forward_result["mean"],
-            "std": forward_result["std"],
-            "a": forward_result["a"],
-            "b": forward_result["b"],
-        }
+        """Diffuse ``x_start`` (valid at noise level ``t_a``) forward to ``t_b``.
+
+        Args:
+            x_start: sample at noise level ``t_a``
+            t_a: starting timestep (discrete index or continuous time)
+            t_b: target timestep (``t_b >= t_a``)
+            mask: padding mask (unused by the closed-form transition, kept for API parity)
+            is_continuous_time: if True, ``t_a``/``t_b`` are continuous times in [0, 1]
+
+        Returns:
+            dict with ``x_t``, ``mean``, ``std``, ``a``, ``b``
+        """
+        if is_continuous_time:
+            continuous_t_a, continuous_t_b = t_a, t_b
+        else:
+            continuous_t_a = self.time_scheduler.timestep_index_to_continuous_time(t_a)
+            continuous_t_b = self.time_scheduler.timestep_index_to_continuous_time(t_b)
+        assert (continuous_t_b >= continuous_t_a).all()
+        x_t = self.sde.forward_from_t1_to_t2(x_start, continuous_t_a, continuous_t_b)
+        a, b = self.sde.get_a_b(continuous_t_b)
+        mean = a * x_start  # only meaningful when t_a is the clean sentinel (a_a=1)
+        return {"x_t": x_t, "mean": mean, "std": b, "a": a, "b": b}
 
     def compute_loss(self, **batch: Any) -> dict:
         """Compute the VPSDE score-matching loss.
@@ -175,7 +189,8 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
         t = cast(Tensor, t)
         self.config = cast(EuclideanVPSDEConfig, self.config.to(t))
 
-        forward_result = self.forward_process(x_0, t, padding_mask)
+        t_a = torch.full_like(t, self.time_scheduler.get_timestep_index_start() - 1)
+        forward_result = self.forward_process(x_0, t_a, t, padding_mask)
         x_t = forward_result["x_t"]
         mean = forward_result["mean"]
         std = forward_result["std"]
@@ -211,24 +226,6 @@ class EuclideanVPSDEDiffuser(EuclideanDiffuser):
             "base_model_output": model_output,
             "batch": batch,
         }
-
-    def forward_process_n_step(
-        self,
-        x: Tensor,
-        t: Tensor,
-        next_t: Tensor,
-        padding_mask: Tensor,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Tensor:
-        assert (next_t > t).all()
-        assert (t >= 0).all()
-        assert (next_t < self.config.n_discretization_steps).all()
-
-        continuous_t1 = self.time_scheduler.timestep_index_to_continuous_time(t)
-        continuous_t2 = self.time_scheduler.timestep_index_to_continuous_time(next_t)
-        x_t2 = self.sde.forward_from_t1_to_t2(x, continuous_t1, continuous_t2)
-        return x_t2
 
     def step(
         self,

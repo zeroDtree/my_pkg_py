@@ -174,5 +174,7 @@ if __name__ == "__main__":
     result["loss"].backward()
 
     samples = vae.sampling((4, data_dim), device=x.device)
-    print(f"loss={result['loss'].item():.4f}, recon={result['recon_loss'].item():.4f}, kl={result['kl_loss'].item():.4f}")
+    print(
+        f"loss={result['loss'].item():.4f}, recon={result['recon_loss'].item():.4f}, kl={result['kl_loss'].item():.4f}"
+    )
     print(f"sample shape={samples['x'].shape}")

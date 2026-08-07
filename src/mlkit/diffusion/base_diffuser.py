@@ -55,4 +55,15 @@ class BaseDiffuser(BaseGenerativeModel):
         *args: Any,
         **kwargs: Any,
     ) -> dict:
+        """Diffuse a sample forward in time.
+
+        Euclidean subclasses must implement the two-time contract::
+
+            forward_process(x_start, t_a, t_b, mask, is_continuous_time=False, **kwargs)
+                -> dict with at least {"x_t": Tensor}
+
+        where ``x_start`` is a valid sample at noise level ``t_a`` and the
+        result is the sample at noise level ``t_b`` (``t_b > t_a``).
+        Other manifold backends may use a different signature.
+        """
         return {}
