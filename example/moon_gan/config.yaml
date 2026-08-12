@@ -1,0 +1,69 @@
+model:
+  name: MoonsGAN
+
+dataset:
+  id: moons
+  name: moon_gan
+  n_samples: 2048
+
+optimizer:
+  name: AdamW
+  lr: 1.0e-4
+  g:
+    lr: 1.0e-4
+    betas: [0.0, 0.99]
+  d:
+    lr: 4.0e-4
+    betas: [0.0, 0.99]
+
+train:
+  seed: 97
+  train_strategy: steps
+  n_epochs: 10000
+  n_steps: 10000
+  num_workers: 0
+  train_shuffle: true
+  n_warmup_steps: 0
+  lr_scheduler_type: constant
+  batch_size: 64
+  device: cuda
+  grad_clip_strategy: null
+  max_grad_norm: 1.0
+  max_grad_value: 1.0
+  gradient_accumulation_steps: 1
+  real_batch_size: 64
+  save_strategy: null
+  save_dir: checkpoints
+  save_steps: 1000
+  save_epochs: 100
+  save_total_limit: 3
+  eval_strategy: null
+  eval_steps: 500
+  eval_epochs: 1
+  mixed_precision: null
+
+log:
+  log_dir: logs
+  log_steps: 100
+  log_epochs: 999999
+  log_strategy: steps
+
+wandb:
+  reinit: true
+  mode: offline
+  project: test
+  group: default
+  entity: superposed-tree
+
+gan:
+  latent_dim: 2
+  ndim_micro_shape: 1
+  hidden_dim: 128
+  n_critic: 1
+  r1_gamma: 1.0
+  ema_decay: 0.999
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
