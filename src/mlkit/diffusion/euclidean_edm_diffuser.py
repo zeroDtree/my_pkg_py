@@ -638,6 +638,9 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
             t = kwargs["t"]
             padding_mask = kwargs["padding_mask"]
             sampling_condition = kwargs.get("sampling_condition")
+            batch = kwargs.get("batch")
+            if batch is None:
+                batch = kwargs
 
             # Use p_x_0 if available, otherwise compute from raw output
             p_x_0 = kwargs.get("p_x_0")
@@ -654,6 +657,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
                 padding_mask=padding_mask,
                 p_uc_score=p_uc_score,
                 sampling_condition=sampling_condition,
+                batch=batch,
             )
             acc_c_score = get_accumulated_conditional_score(
                 conditioner_list, x_t, t, padding_mask, is_continuous_time=True
