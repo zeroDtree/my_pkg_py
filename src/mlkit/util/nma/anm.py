@@ -1,4 +1,4 @@
-import biotite.structure as struc
+import biotite.structure as struc  # ty: ignore[unresolved-import]  # optional extra: mlkit[bio]
 import einops
 import torch
 from torch import Tensor

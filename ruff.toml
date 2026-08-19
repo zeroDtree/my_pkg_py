@@ -26,7 +26,11 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
+    "pyproject.toml",
 ]
+
+# Editor lint requests pass the open file explicitly; honor exclude anyway.
+force-exclude = true
 
 # Same as Black.
 line-length = 120

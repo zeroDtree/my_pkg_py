@@ -35,7 +35,12 @@ uv add git+https://github.com/zeroDtree/my_pkg_py
 
 ```bash
 uv add "git+https://github.com/zeroDtree/my_pkg_py[bio]"
+uv add "git+https://github.com/zeroDtree/my_pkg_py[hard]"
+uv add "git+https://github.com/zeroDtree/my_pkg_py[bio,hard]"
 ```
+
+- `bio`: Biotite (NMA / structure tools)
+- `hard`: deepspeed, flash-attn, bitsandbytes (CUDA / quantization)
 
 <details>
 <summary>Other install options</summary>
@@ -53,6 +58,7 @@ uv add --editable my_pkg_py
 pip install "mlkit @ git+https://github.com/zeroDtree/my_pkg_py.git"
 # with optional deps:
 pip install "mlkit[bio] @ git+https://github.com/zeroDtree/my_pkg_py.git"
+pip install "mlkit[hard] @ git+https://github.com/zeroDtree/my_pkg_py.git"
 ```
 
 </details>
@@ -60,10 +66,13 @@ pip install "mlkit[bio] @ git+https://github.com/zeroDtree/my_pkg_py.git"
 ## Development
 
 ```bash
-uv sync --group dev
+uv sync
+# optional extras for bio / CUDA tooling:
+uv sync --extra bio --extra hard
 uv run nbstripout --install --attributes .gitattributes
 ```
 
+`uv sync` installs package dependencies plus the `dev` group (lint, docs, notebooks).
 `nbstripout` strips notebook cell outputs on commit. Run `--install` once per clone.
 Verify with `uv run nbstripout --status`.
 

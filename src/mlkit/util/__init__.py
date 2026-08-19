@@ -26,7 +26,6 @@ from .log import get_and_create_new_log_dir, get_logger
 from .lora import find_linear_modules, get_lora_model
 from .manifold import SO3, LieGroup, RiemannianManifold
 from .mask import ImageMasker, Masker, MaskerInterface
-from .nma import get_nma_displacement_from_node_coordinates
 from .observer import Observer, gradient_norm_fn, gradients_fn, weight_norm_fn, weights_fn
 from .offload import (
     ForwardBackwardOffloadHookContext,
@@ -66,6 +65,16 @@ from .sde import (
 from .seed import seed_everything
 from .show import find_tensor_devices, show_info, table_print_dict
 from .sniffer import Sniffer
+
+
+def __getattr__(name: str):
+    # Lazy: biotite is an optional extra (mlkit[bio]).
+    if name == "get_nma_displacement_from_node_coordinates":
+        from .nma import get_nma_displacement_from_node_coordinates
+
+        return get_nma_displacement_from_node_coordinates
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     # base_class
