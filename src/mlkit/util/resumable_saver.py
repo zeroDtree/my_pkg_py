@@ -78,14 +78,6 @@ class RecoveryReport:
     failed_to_pending: int = 0
 
 
-def build_sample_id(*parts: str | int, config_hash: str | None = None) -> str:
-    """Build a stable filesystem-safe sample identifier from key parts."""
-    normalized = "|".join(str(part) for part in parts)
-    if config_hash:
-        normalized = f"{normalized}|{config_hash}"
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-
-
 def _utc_now() -> float:
     return time.time()
 
@@ -360,6 +352,13 @@ class ResumableSaver:
 
 
 if __name__ == "__main__":
+
+    def build_sample_id(*parts: str | int, config_hash: str | None = None) -> str:
+        """Build a stable filesystem-safe sample identifier from key parts."""
+        normalized = "|".join(str(part) for part in parts)
+        if config_hash:
+            normalized = f"{normalized}|{config_hash}"
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
     # Two usage patterns are demonstrated below:
     #
     # Example 1 (register_pending + iter_todo): preferred for production batch jobs.
