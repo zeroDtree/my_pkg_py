@@ -91,6 +91,13 @@ class HookManager(Generic[HookStageType]):
     def disable_hook(self, name: Optional[str] = None, stage: Optional[HookStageType] = None) -> None:
         self.enable_hook(name=name, stage=stage, enabled=False)
 
+    def has_enabled_hook(self, stage: HookStageType, name: Optional[str] = None) -> bool:
+        """Return True if an enabled hook exists for ``stage`` (optionally by name)."""
+        for hook in self._hooks.get(stage, []):
+            if hook.enabled and (name is None or hook.name == name):
+                return True
+        return False
+
     def run_hooks(self, stage: HookStageType, tgt_key_name: Optional[str] = None, **kwargs) -> Optional[Any]:
         """Executes all enabled hooks for a given stage, optionally updating or collecting results in kwargs,
         and returns either the final modified kwargs or a specific key's value.

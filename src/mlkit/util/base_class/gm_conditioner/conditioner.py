@@ -1,10 +1,21 @@
 import abc
+import os
+from contextlib import nullcontext
 from typing import Any, Callable, cast
 
 import torch
 from torch import Tensor
 
 from ...decorators import inherit_docstrings
+
+LGD_DETECT_ANOMALY_ENV = "MLKIT_DETECT_ANOMALY"
+
+
+def _lgd_anomaly_context():
+    """Enable autograd anomaly checks only when ``MLKIT_DETECT_ANOMALY=1``."""
+    if os.environ.get(LGD_DETECT_ANOMALY_ENV, "") == "1":
+        return torch.autograd.set_detect_anomaly(True, check_nan=True)
+    return nullcontext()
 
 
 @inherit_docstrings
@@ -111,10 +122,17 @@ class LossGuidanceConditioner(Conditioner):
     ) -> Tensor:
         r"""Get guidance vector g(x_t) = -∇_{x_t} l(posterior_mean_fn(x_t), y)
 
+        When ``p_gt_data`` is provided and already connected to ``x_t``, reuse that
+        tensor (training cache path). ``retain_graph=True`` so the later 
+        backward can still use the shared denoiser graph. Otherwise clone ``x_t``
+        and call ``posterior_mean_fn`` (sampling / fallback).
+
         Args:
             x_t (Tensor): the input tensor
             t (Tensor): the time tensor
             padding_mask (Tensor): the padding mask
+            p_gt_data (Tensor, optional): cached posterior mean from the first
+                forward. Consumed here and not forwarded to ``posterior_mean_fn``.
 
         Returns:
             Tensor: the guidance vector
@@ -122,13 +140,12 @@ class LossGuidanceConditioner(Conditioner):
         if not self._enabled:
             return torch.zeros_like(x_t, device=x_t.device)
         assert self.ready, "Conditioner is not ready, please call set_condition first"
-        with torch.autograd.set_detect_anomaly(True, check_nan=True):
+        cached_p_gt_data = kwargs.pop("p_gt_data", None)
+        with _lgd_anomaly_context():
             with torch.enable_grad():
-                x_t = x_t.detach().clone().requires_grad_(True)
-                self.posterior_mean_fn = cast(Callable, self.posterior_mean_fn)
-                p_gt_data = self.posterior_mean_fn(x_t, t, padding_mask, *args, **kwargs)
-                conditional_loss = self.compute_conditional_loss(p_gt_data, padding_mask)
-                grad = torch.autograd.grad(conditional_loss, x_t)[0]
+                conditional_loss, grad = self._guidance_loss_and_grad(
+                    x_t, t, padding_mask, cached_p_gt_data, *args, **kwargs
+                )
         guidance = -grad * self.guidance_scale
         self.last_step_metrics = {
             "conditional_loss": float(conditional_loss.detach()),
@@ -136,3 +153,32 @@ class LossGuidanceConditioner(Conditioner):
             "guidance_scale": float(self.guidance_scale),
         }
         return guidance
+
+    def _guidance_loss_and_grad(
+        self,
+        x_t: Tensor,
+        t: Tensor,
+        padding_mask: Tensor,
+        cached_p_gt_data: Tensor | None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> tuple[Tensor, Tensor]:
+        """Return conditional loss and ∇_{x_t}, reusing ``cached_p_gt_data`` when possible."""
+        use_cache = (
+            cached_p_gt_data is not None
+            and x_t.requires_grad
+            and cached_p_gt_data.grad_fn is not None
+        )
+        if use_cache:
+            assert cached_p_gt_data is not None
+            conditional_loss = self.compute_conditional_loss(cached_p_gt_data, padding_mask)
+            grad = torch.autograd.grad(conditional_loss, x_t, retain_graph=True, allow_unused=True)[0]
+            if grad is not None:
+                return conditional_loss, grad
+
+        x_t = x_t.detach().clone().requires_grad_(True)
+        self.posterior_mean_fn = cast(Callable, self.posterior_mean_fn)
+        p_gt_data = self.posterior_mean_fn(x_t, t, padding_mask, *args, **kwargs)
+        conditional_loss = self.compute_conditional_loss(p_gt_data, padding_mask)
+        grad = torch.autograd.grad(conditional_loss, x_t, retain_graph=False)[0]
+        return conditional_loss, grad

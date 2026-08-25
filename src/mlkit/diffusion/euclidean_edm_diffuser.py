@@ -289,6 +289,12 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
         x_t, t, sigma, noise = self._resolve_xt_sigma_for_training(
             batch=batch, x_0=x_0, padding_mask=padding_mask, device=device
         )
+        if self.hook_manager.has_enabled_hook(
+            GMHookStageType.POST_COMPUTE_LOSS,
+            name="EDM_condition_post_compute_loss_hook",
+        ):
+            # LGD reuses this graph: x_t must be a requires_grad leaf before the first forward.
+            x_t = x_t.detach().requires_grad_(True)
         model_x_t, gm_kwargs = self._prepare_model_x_t(x_t, sigma)
         batch["t"] = t
         batch["x_t"] = model_x_t
@@ -517,7 +523,9 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
             For EDM, the posterior mean is the denoised prediction D_\theta(x_t, \sigma_t).
             """
-            # TODO: get x0 by score function
+            # TODO: get x0 by score function.
+            # Training LGD reuses first-forward p_x_0 in get_guidance; this
+            # re-forward is the sampling / detached-cache fallback.
             nonlocal score, score_fn
             sigma = self.config.sigma(t, is_continuous_time=True)
             model_x_t, gm_kwargs = self._prepare_model_x_t(x_t, sigma)
@@ -590,7 +598,12 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
                 batch=batch,
             )
             acc_c_score = get_accumulated_conditional_score(
-                conditioner_list, x_t, t, padding_mask, is_continuous_time=True
+                conditioner_list,
+                x_t,
+                t,
+                padding_mask,
+                is_continuous_time=True,
+                p_gt_data=p_x_0,
             )
 
             # Collect per-conditioner metrics for monitoring
