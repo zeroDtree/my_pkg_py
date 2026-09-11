@@ -470,19 +470,20 @@ class ResumableSaver:
         return sm.to_dot()
 
 
+def build_sample_id(*parts: str | int, config_hash: str | None = None) -> str:
+    """Build a stable filesystem-safe sample identifier from key parts."""
+    safe_parts = [
+        str(part).replace("/", "_").replace("\\", "_").replace("::", "__")
+        for part in parts
+    ]
+    normalized = "::".join(safe_parts)
+    if config_hash is not None:
+        safe_hash = str(config_hash).replace("/", "_").replace("\\", "_").replace("::", "__")
+        normalized = f"{normalized}::config_hash={safe_hash}"
+    return normalized
+
 
 if __name__ == "__main__":
-
-    def build_sample_id(*parts: str | int, config_hash: str | None = None) -> str:
-        """Build a stable filesystem-safe sample identifier from key parts."""
-        safe_parts = [
-            str(part).replace("/", "_").replace("\\", "_").replace("::", "__")
-            for part in parts
-        ]
-        normalized = "::".join(safe_parts)
-        if config_hash:
-            normalized = f"{normalized}::{config_hash}"
-        return normalized
     # Two usage patterns are demonstrated below:
     #
     # Example 1 (register_pending + iter_todo): preferred for production batch jobs.
