@@ -6,7 +6,7 @@ from .force_fields import HinsenForceField
 
 def get_nma_displacement_from_node_coordinates(
     node_coordinates: Tensor,
-    cutoff_distance: float = 10.0,
+    cutoff_distance: float = 13.0,
     indexes: list[int] = [6],
     node_mask: Tensor | None = None,
 ) -> Tensor:
