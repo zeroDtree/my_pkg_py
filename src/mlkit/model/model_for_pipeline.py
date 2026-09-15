@@ -1,0 +1,43 @@
+from typing import Any, cast
+
+import torch
+from torch.nn import Module
+
+from ..util.hook.base_hook import Hook, HookHandler
+from ..util.hook.model_hook import (
+    ModelHook,
+    ModelHookManager,
+    ModelHookStageType,
+)
+
+
+class ModelForPipeline(Module):
+    """Wraps a model whose `forward(**batch)` returns a dict (e.g. `{"x": ...}`)."""
+
+    def __init__(self, model: Module):
+        super().__init__()
+        self.model = model
+        self.hook_manager = ModelHookManager()
+
+    def get_model_device(self) -> torch.device:
+        model_device = next(self.model.parameters()).device
+        return model_device
+
+    def forward(
+        self,
+        **batch: Any,
+    ) -> dict[str, Any]:
+        model = self.model
+        self.hook_manager.run_hooks(stage=ModelHookStageType.PRE_COMPUTE_LOSS, model=model, batch=batch)
+        model_output = model(**batch)
+        self.hook_manager.run_hooks(
+            stage=ModelHookStageType.POST_COMPUTE_LOSS,
+            model=model,
+            batch=batch,
+            model_output=model_output,
+        )
+        return model_output
+
+    def register_hooks(self, hooks: list[ModelHook]) -> list[HookHandler[ModelHookStageType]]:
+        typed_hooks = cast(list[Hook[ModelHookStageType]], hooks)
+        return self.hook_manager.register_hooks(typed_hooks)

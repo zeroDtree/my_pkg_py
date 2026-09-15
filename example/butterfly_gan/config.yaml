@@ -1,0 +1,69 @@
+model:
+  name: ButterflyGAN
+
+dataset:
+  id: huggan/smithsonian_butterflies_subset
+  name: butterfly_gan
+  image_size: 128
+
+optimizer:
+  name: AdamW
+  lr: 1.0e-4
+  g:
+    lr: 1.0e-4
+    betas: [0.0, 0.99]
+  d:
+    lr: 4.0e-4
+    betas: [0.0, 0.99]
+
+train:
+  seed: 97
+  train_strategy: epochs
+  n_epochs: 50
+  n_steps: 40388
+  num_workers: 1
+  train_shuffle: true
+  n_warmup_steps: 500
+  lr_scheduler_type: cosine_with_warmup
+  batch_size: 16
+  device: cuda
+  grad_clip_strategy: norm
+  max_grad_norm: 1.0
+  max_grad_value: 1.0
+  gradient_accumulation_steps: 1
+  real_batch_size: 16
+  save_strategy: steps
+  save_dir: checkpoints
+  save_steps: 1000
+  save_epochs: 1
+  save_total_limit: 3
+  eval_strategy: null
+  eval_steps: 500
+  eval_epochs: 1
+  mixed_precision: fp16
+
+log:
+  log_dir: logs
+  log_steps: 1
+  log_epochs: 1
+  log_strategy: steps
+
+wandb:
+  reinit: true
+  mode: offline
+  project: test
+  group: default
+  entity: superposed-tree
+
+gan:
+  latent_dim: 128
+  ndim_micro_shape: 3
+  base_channels: 32
+  n_critic: 1
+  r1_gamma: 10.0
+  ema_decay: 0.999
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null

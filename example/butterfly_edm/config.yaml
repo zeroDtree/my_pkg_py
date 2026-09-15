@@ -1,0 +1,87 @@
+model:
+  name: UNet2DModel
+
+dataset:
+  id: huggan/smithsonian_butterflies_subset
+  name: butterfly_edm
+  image_size: 128
+
+optimizer:
+  name: AdamW
+  lr: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  weight_decay: 0.01
+  amsgrad: false
+  maximize: false
+  foreach: null
+  capturable: false
+  differentiable: false
+  fused: null
+
+train:
+  seed: 97
+  train_strategy: epochs
+  n_epochs: 50
+  n_steps: 40388
+  num_workers: 1
+  train_shuffle: true
+  n_warmup_steps: 500
+  lr_scheduler_type: cosine_with_warmup
+  batch_size: 16
+  device: cuda
+  grad_clip_strategy: norm
+  max_grad_norm: 1.0
+  max_grad_value: 1.0
+  gradient_accumulation_steps: 1
+  real_batch_size: 16
+  save_strategy: steps
+  save_dir: checkpoints
+  save_steps: 1000
+  save_epochs: 1
+  save_total_limit: 3
+  eval_strategy: null
+  eval_steps: 500
+  eval_epochs: 1
+  mixed_precision: fp16
+
+log:
+  log_dir: logs
+  log_steps: 1
+  log_epochs: 1
+  log_strategy: steps
+
+wandb:
+  reinit: true
+  mode: offline
+  project: test
+  group: default
+  entity: superposed-tree
+
+gm:
+  name: EuclideanEDMDiffuser
+  n_discretization_steps: 256
+  ndim_micro_shape: 3
+  P_mean: -1.2
+  P_std: 1.2
+  sigma_data: 0.5
+  sigma_min: 0.002
+  sigma_max: 80.0
+  rho: 7.0
+  gs: 15.0
+  n_repaint_steps: 3
+  use_2nd_order_correction: true
+  use_ode_flow: false
+  use_clip: false
+  clip_sample_range: 1.0
+  use_dyn_thresholding: false
+  dynamic_thresholding_ratio: 0.995
+  sample_max_value: 1.0
+
+sampling: false
+inpainting: true
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
