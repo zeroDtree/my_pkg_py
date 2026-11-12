@@ -618,6 +618,7 @@ class EuclideanEDMDiffuser(EuclideanDiffuser):
 
             # Compute conditioned loss with EDM weighting
             gt_x_0 = (x_0 + sigma**2 * acc_c_score).detach()
+            kwargs["lgd_gt_x_0"] = gt_x_0
             weight = self.config.compute_loss_weight(sigma)
             sqrt_weight = weight.sqrt()
             loss_mask = kwargs.get("loss_mask", padding_mask)
