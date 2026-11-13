@@ -43,9 +43,9 @@ def run_experiment(
     from accelerate import Accelerator
     from omegaconf import OmegaConf
 
-    from mlkit.pipeline.pipeline import LogConfig
+    from mlkit.pipeline.pipeline import LogConfig, latest_checkpoint_dir
     from mlkit.util.log import get_and_create_new_log_dir, get_logger
-    from mlkit.util.report import open_reporter, use_reporter
+    from mlkit.util.report import open_reporter, resume_run_id, use_reporter
     from mlkit.util.seed import seed_everything
     from mlkit.util.show import show_info
     from mlkit.util.utils_for_main import (
@@ -110,13 +110,16 @@ def run_experiment(
 
     if accelerator.is_local_main_process:
         resolved_config = cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True))
+        reporter_kind = str(cfg.reporter).strip().lower()
+        checkpoint_dir = latest_checkpoint_dir(get_new_save_dir(cfg.train.save_dir, cfg, suffix=save_dir_suffix))
         with (
             open_reporter(
-                str(cfg.reporter),
+                reporter_kind,
                 run_name=run_name,
                 config=resolved_config,
                 mlflow=cast(dict[str, Any], OmegaConf.to_container(cfg.mlflow, resolve=True)),
                 wandb=cast(dict[str, Any], OmegaConf.to_container(cfg.wandb, resolve=True)),
+                resume_run_id=resume_run_id(checkpoint_dir, reporter_kind),
             ) as active_reporter,
             use_reporter(active_reporter),
         ):

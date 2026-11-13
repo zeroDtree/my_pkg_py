@@ -33,6 +33,7 @@ class WandbReporter:
         mode: str | None,
         reinit: bool,
         config: Mapping[str, Any],
+        run_id: str | None = None,
     ):
         """Initialize the reporter.
 
@@ -44,7 +45,9 @@ class WandbReporter:
             mode: wandb mode, for example ``"offline"``.
             reinit: passed through to ``wandb.init``.
             config: resolved config attached to the run.
+            run_id: existing run to continue. ``None`` starts a new run.
         """
+        self.backend = "wandb"
         self.project = project
         self.name = name
         self.group = group
@@ -52,20 +55,38 @@ class WandbReporter:
         self.mode = mode
         self.reinit = reinit
         self.config = config
+        self.run_id = run_id
         self._started = False
 
     def __enter__(self) -> "WandbReporter":
         import wandb
 
-        wandb.init(
-            reinit=self.reinit,
-            mode=_wandb_mode(self.mode),
-            project=self.project,
-            name=self.name,
-            group=self.group,
-            entity=self.entity,
-            config=_plain_data(self.config),
-        )
+        if self.run_id is None:
+            run = wandb.init(
+                reinit=self.reinit,
+                mode=_wandb_mode(self.mode),
+                project=self.project,
+                name=self.name,
+                group=self.group,
+                entity=self.entity,
+                config=_plain_data(self.config),
+            )
+        else:
+            run = wandb.init(
+                reinit=self.reinit,
+                mode=_wandb_mode(self.mode),
+                project=self.project,
+                name=self.name,
+                group=self.group,
+                entity=self.entity,
+                config=_plain_data(self.config),
+                id=self.run_id,
+                resume="allow",
+            )
+        run_id = None if run is None else run.id
+        if not isinstance(run_id, str) or run_id == "":
+            raise RuntimeError("wandb did not start a run")
+        self.run_id = run_id
         self._started = True
         return self
 

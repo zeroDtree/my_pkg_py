@@ -24,6 +24,7 @@ class MLflowReporter:
         experiment: str,
         run_name: str,
         config: Mapping[str, Any],
+        run_id: str | None = None,
     ):
         """Initialize the reporter.
 
@@ -34,11 +35,14 @@ class MLflowReporter:
             experiment: experiment name.
             run_name: run name.
             config: resolved config stored as an artifact.
+            run_id: existing run to continue. ``None`` starts a new run.
         """
+        self.backend = "mlflow"
         self.tracking_uri = tracking_uri or None
         self.experiment = experiment
         self.run_name = run_name
         self.config = config
+        self.run_id = run_id
         self._started = False
 
     def __enter__(self) -> "MLflowReporter":
@@ -49,7 +53,11 @@ class MLflowReporter:
         elif not os.environ.get("MLFLOW_TRACKING_URI"):
             mlflow.set_tracking_uri("sqlite:///mlflow.db")
         mlflow.set_experiment(self.experiment)
-        mlflow.start_run(run_name=self.run_name)
+        active = mlflow.start_run(run_id=self.run_id, run_name=self.run_name)
+        run_id = active.info.run_id
+        if not isinstance(run_id, str) or run_id == "":
+            raise RuntimeError("MLflow did not start a run")
+        self.run_id = run_id
         self._started = True
         mlflow.log_dict(_plain_data(self.config), "config.yaml")
         return self

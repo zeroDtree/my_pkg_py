@@ -245,6 +245,7 @@ class DistributedPipeline(BasePipeline):
                     file_path = os.path.join(temp_checkpoint_dir, f"{base_name}.pth")
                     torch.save(getattr(self, base_name), file_path)
 
+                self._persist_report_run(temp_checkpoint_dir)
                 os.rename(temp_checkpoint_dir, final_checkpoint_dir)
                 self._cleanup_old_checkpoints(save_dir=save_dir)
                 if self.accelerator.is_local_main_process and self.logger is not None:

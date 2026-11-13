@@ -4,6 +4,7 @@ from typing import Any
 
 from .core import NullReporter, Reporter, get_reporter, report, use_reporter
 from .mlflow import MLflowReporter
+from .run_file import persist_report_run, resume_run_id, write_report_run
 from .wandb import WandbReporter
 
 __all__ = [
@@ -13,8 +14,11 @@ __all__ = [
     "WandbReporter",
     "get_reporter",
     "open_reporter",
+    "persist_report_run",
     "report",
+    "resume_run_id",
     "use_reporter",
+    "write_report_run",
 ]
 
 
@@ -26,6 +30,7 @@ def open_reporter(
     config: Mapping[str, Any],
     mlflow: Mapping[str, Any] | None = None,
     wandb: Mapping[str, Any] | None = None,
+    resume_run_id: str | None = None,
 ) -> Iterator[Reporter]:
     """Open the reporter selected by ``kind``.
 
@@ -36,6 +41,7 @@ def open_reporter(
         mlflow: MLflow settings with ``tracking_uri`` and ``experiment``.
         wandb: wandb settings with ``project``, ``group``, ``entity``, ``mode``,
             and ``reinit``.
+        resume_run_id: existing run to continue. ``None`` starts a new run.
 
     Yields:
         The active reporter. The run is closed when the context exits.
@@ -54,6 +60,7 @@ def open_reporter(
             experiment=str(settings.get("experiment") or "default"),
             run_name=run_name,
             config=config,
+            run_id=resume_run_id,
         )
         with reporter:
             yield reporter
@@ -68,6 +75,7 @@ def open_reporter(
             mode=settings.get("mode"),
             reinit=bool(settings.get("reinit", True)),
             config=config,
+            run_id=resume_run_id,
         )
         with reporter:
             yield reporter

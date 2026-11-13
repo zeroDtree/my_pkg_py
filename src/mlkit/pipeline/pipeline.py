@@ -11,7 +11,7 @@ from accelerate import skip_first_batches
 from torch import Tensor
 from tqdm.auto import tqdm
 
-from ..util.report import report
+from ..util.report import persist_report_run, report
 from .callback import BaseCallback, CallbackEvent, CallbackManager
 
 
@@ -122,6 +122,29 @@ class TrainingState:
         self.current_epoch = current_epoch
         self.current_step_in_epoch = current_step_in_epoch
         self.current_global_step = current_global_step
+
+
+def latest_checkpoint_dir(save_dir: str | None) -> str | None:
+    """Return the checkpoint directory with the largest ``global`` step.
+
+    Args:
+        save_dir: directory that contains ``checkpoint_*`` folders.
+
+    Returns:
+        The latest checkpoint directory, or ``None`` when none exist.
+    """
+    if save_dir is None or save_dir == "" or not os.path.exists(save_dir) or len(os.listdir(save_dir)) <= 0:
+        return None
+
+    def _checkpoint_sort_key(name: str) -> int:
+        match = re.search(r"global(\d+)", name)
+        return int(match.group(1)) if match is not None else 0
+
+    checkpoints = [name for name in os.listdir(save_dir) if name.startswith("checkpoint_")]
+    checkpoints.sort(key=_checkpoint_sort_key, reverse=True)
+    if len(checkpoints) <= 0:
+        return None
+    return os.path.join(save_dir, checkpoints[0])
 
 
 class BasePipeline(metaclass=ABCMeta):
@@ -428,6 +451,7 @@ class BasePipeline(metaclass=ABCMeta):
             ]:
                 file_path = os.path.join(temp_checkpoint_dir, f"{base_name}.pth")
                 torch.save(getattr(self, base_name), file_path)
+            self._persist_report_run(temp_checkpoint_dir)
             os.rename(temp_checkpoint_dir, final_checkpoint_dir)
             self._cleanup_old_checkpoints(save_dir=save_dir)
             if self.logger is not None:
@@ -474,21 +498,10 @@ class BasePipeline(metaclass=ABCMeta):
         self.trigger_callbacks(event=CallbackEvent.POST_LOAD)
 
     def get_latest_checkpoint_dir(self) -> str | None:
-        save_dir = self.training_config.save_dir
-        if save_dir is None or save_dir == "" or not os.path.exists(save_dir) or len(os.listdir(save_dir)) <= 0:
-            return None
+        return latest_checkpoint_dir(self.training_config.save_dir)
 
-        def _checkpoint_sort_key(name: str) -> int:
-            m = re.search(r"global(\d+)", name)
-            return int(m.group(1)) if m is not None else 0
-
-        checkpoints = [d for d in os.listdir(save_dir) if d.startswith("checkpoint_")]
-        checkpoints.sort(key=_checkpoint_sort_key, reverse=True)
-        if len(checkpoints) <= 0:
-            return None
-        checkpoint_dir = checkpoints.pop(0)
-        checkpoint_dir = os.path.join(save_dir, checkpoint_dir)
-        return checkpoint_dir
+    def _persist_report_run(self, directory: str) -> None:
+        persist_report_run(directory)
 
     def add_callbacks(self, callbacks: List[BaseCallback] | None):
         """Add a list of callbacks

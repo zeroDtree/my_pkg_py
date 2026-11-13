@@ -8,13 +8,17 @@ from typing import Any, cast
 
 import pytest
 
+from mlkit.pipeline.pipeline import latest_checkpoint_dir
 from mlkit.util.report import (
     MLflowReporter,
     NullReporter,
     WandbReporter,
     open_reporter,
+    persist_report_run,
     report,
+    resume_run_id,
     use_reporter,
+    write_report_run,
 )
 
 
@@ -82,7 +86,7 @@ def test_open_reporter_rejects_unknown_kind():
 
 class _FakeMlflow:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, object]] = []
+        self.calls: list[tuple[object, ...]] = []
 
     def set_tracking_uri(self, uri: object) -> None:
         self.calls.append(("uri", uri))
@@ -90,8 +94,11 @@ class _FakeMlflow:
     def set_experiment(self, name: object) -> None:
         self.calls.append(("experiment", name))
 
-    def start_run(self, run_name: object = None) -> None:
-        self.calls.append(("start", run_name))
+    def start_run(self, run_id: object = None, run_name: object = None) -> Any:
+        resolved = run_id if isinstance(run_id, str) and run_id != "" else "new-run"
+        self.calls.append(("start", run_id, run_name))
+        info = type("Info", (), {"run_id": resolved})()
+        return type("ActiveRun", (), {"info": info})()
 
     def log_dict(self, data: object, artifact_file: object) -> None:
         self.calls.append(("dict", artifact_file))
@@ -125,7 +132,7 @@ def test_mlflow_reporter_keeps_tracking_uri_env(monkeypatch):
     with MLflowReporter(tracking_uri=None, experiment="remote", run_name="run", config={}):
         pass
 
-    assert not any(name == "uri" for name, _ in fake.calls)
+    assert not any(call[0] == "uri" for call in fake.calls)
     assert ("experiment", "remote") in fake.calls
 
 
@@ -164,12 +171,23 @@ def test_mlflow_reporter_sqlite_store(tmp_path):
     assert any(artifact.path == "config.yaml" for artifact in artifacts)
 
 
+class _FakeWandbRun:
+    def __init__(self, run_id: str) -> None:
+        self.id = run_id
+
+
 class _FakeWandb:
     def __init__(self) -> None:
         self.events: list[tuple] = []
+        self.run: _FakeWandbRun | None = None
 
-    def init(self, **kwargs: object) -> None:
+    def init(self, **kwargs: object) -> _FakeWandbRun:
         self.events.append(("init", kwargs))
+        run_id = kwargs.get("id")
+        if not isinstance(run_id, str) or run_id == "":
+            run_id = "generated-id"
+        self.run = _FakeWandbRun(run_id)
+        return self.run
 
     def log(self, data: Mapping[str, object], step: object = None) -> None:
         self.events.append(("log", dict(data), step))
@@ -206,5 +224,95 @@ def test_wandb_reporter_calls_init_log_finish(monkeypatch):
     assert events[0][1]["entity"] == "e"
     assert events[0][1]["mode"] == "offline"
     assert events[0][1]["config"] == {"a": 1}
+    assert "id" not in events[0][1]
+    assert "resume" not in events[0][1]
+    assert wandb_reporter.run_id == "generated-id"
     assert events[1] == ("log", {"loss": 0.2}, 4)
     assert events[2] == ("finish",)
+
+
+def test_wandb_reporter_resumes_with_allow(monkeypatch):
+    import sys
+
+    fake_wandb = _FakeWandb()
+    monkeypatch.setitem(sys.modules, "wandb", cast(Any, fake_wandb))
+
+    with WandbReporter(
+        project="p",
+        name="n",
+        group=None,
+        entity=None,
+        mode="offline",
+        reinit=True,
+        config={},
+        run_id="abc123",
+    ) as wandb_reporter:
+        assert wandb_reporter.run_id == "abc123"
+
+    init_kwargs = fake_wandb.events[0][1]
+    assert init_kwargs["id"] == "abc123"
+    assert init_kwargs["resume"] == "allow"
+
+
+def test_mlflow_reporter_resumes_same_run(tmp_path):
+    import mlflow
+    from mlflow.tracking import MlflowClient
+
+    tracking_uri = f"sqlite:///{tmp_path / 'mlflow.db'}"
+    with (
+        MLflowReporter(
+            tracking_uri=tracking_uri,
+            experiment="unit",
+            run_name="run-a",
+            config={"lr": 0.1},
+        ) as first,
+        use_reporter(first),
+    ):
+        report({"loss": 1.0}, step=0)
+        run_id = first.run_id
+
+    assert isinstance(run_id, str)
+    with (
+        MLflowReporter(
+            tracking_uri=tracking_uri,
+            experiment="unit",
+            run_name="run-a",
+            config={"lr": 0.1},
+            run_id=run_id,
+        ) as second,
+        use_reporter(second),
+    ):
+        assert second.run_id == run_id
+        report({"loss": 0.5}, step=1)
+
+    mlflow.set_tracking_uri(tracking_uri)
+    experiment = mlflow.get_experiment_by_name("unit")
+    assert experiment is not None
+    frame = mlflow.search_runs(experiment_ids=[experiment.experiment_id])
+    assert len(frame) == 1
+    assert frame.iloc[0]["run_id"] == run_id
+
+    client = MlflowClient(tracking_uri=tracking_uri)
+    history = client.get_metric_history(run_id, "loss")
+    assert [(metric.step, metric.value) for metric in history] == [(0, 1.0), (1, 0.5)]
+
+
+def test_report_run_file_follows_latest_checkpoint_and_backend(tmp_path):
+    older = tmp_path / "checkpoint_epoch0_step10_global10"
+    newer = tmp_path / "checkpoint_epoch0_step20_global20"
+    older.mkdir()
+    newer.mkdir()
+    write_report_run(str(older), backend="mlflow", run_id="old-run")
+    write_report_run(str(newer), backend="mlflow", run_id="new-run")
+
+    checkpoint_dir = latest_checkpoint_dir(str(tmp_path))
+    assert checkpoint_dir == str(newer)
+    assert resume_run_id(checkpoint_dir, "mlflow") == "new-run"
+    assert resume_run_id(checkpoint_dir, "wandb") is None
+    assert resume_run_id(None, "mlflow") is None
+
+    empty = tmp_path / "checkpoint_epoch0_step30_global30"
+    empty.mkdir()
+    with use_reporter(NullReporter()):
+        persist_report_run(str(empty))
+    assert resume_run_id(str(empty), "mlflow") is None
