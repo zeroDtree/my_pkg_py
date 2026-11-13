@@ -54,6 +54,7 @@ doc = [
 ]
 notebook = ["ipykernel", "ipywidgets", "nbstripout"]
 dev = [
+    "pytest",
     { include-group = "lint" },
     { include-group = "doc" },
     { include-group = "notebook" },

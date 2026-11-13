@@ -370,7 +370,7 @@ class ResumableSaver:
         If ``fn`` raises, the failure is recorded and the exception re-raised.
         """
         if self.is_done(sample_id):
-            return self.load(sample_id)  # type: ignore[return-value]
+            return self.load(sample_id)
         sm, ctx = self._ensure_running(sample_id, meta)
         try:
             payload = fn()
@@ -383,7 +383,7 @@ class ResumableSaver:
             except Exception:
                 output_path.unlink(missing_ok=True)
                 raise
-            return payload  # type: ignore[return-value]
+            return payload
         except Exception as exc:
             if sm.current_state is SaveStatus.RUNNING:
                 ctx.error = str(exc)

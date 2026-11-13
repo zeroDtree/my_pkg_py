@@ -1,7 +1,23 @@
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Literal
 
 from .data import _plain_data
+
+WandbMode = Literal["online", "offline", "disabled", "shared"]
+
+
+def _wandb_mode(mode: object) -> WandbMode | None:
+    if mode is None:
+        return None
+    if mode == "online":
+        return "online"
+    if mode == "offline":
+        return "offline"
+    if mode == "disabled":
+        return "disabled"
+    if mode == "shared":
+        return "shared"
+    raise ValueError(f"Unknown wandb mode: {mode}")
 
 
 class WandbReporter:
@@ -43,7 +59,7 @@ class WandbReporter:
 
         wandb.init(
             reinit=self.reinit,
-            mode=self.mode,
+            mode=_wandb_mode(self.mode),
             project=self.project,
             name=self.name,
             group=self.group,

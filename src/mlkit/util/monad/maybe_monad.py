@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from typing import cast
 
 from .base_monad import Monad
 
@@ -45,7 +46,7 @@ class Maybe[A](Monad[A]):
         """Look up `key` in a mapping. Missing key or `None` is Nothing."""
         if not isinstance(self.value, Mapping):
             return Maybe.nothing()
-        inner = self.value.get(key)
+        inner = cast(Mapping[object, object], self.value).get(key)
         return Maybe.nothing() if inner is None else Maybe.unit(inner)
 
 

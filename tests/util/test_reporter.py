@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -80,47 +80,53 @@ def test_open_reporter_rejects_unknown_kind():
             pass
 
 
+class _FakeMlflow:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, object]] = []
+
+    def set_tracking_uri(self, uri: object) -> None:
+        self.calls.append(("uri", uri))
+
+    def set_experiment(self, name: object) -> None:
+        self.calls.append(("experiment", name))
+
+    def start_run(self, run_name: object = None) -> None:
+        self.calls.append(("start", run_name))
+
+    def log_dict(self, data: object, artifact_file: object) -> None:
+        self.calls.append(("dict", artifact_file))
+
+    def end_run(self, status: object = None) -> None:
+        self.calls.append(("end", status))
+
+
 def test_mlflow_reporter_defaults_to_sqlite_without_env(monkeypatch):
     import sys
-    import types
 
-    calls: list[tuple[str, object]] = []
-    fake = types.ModuleType("mlflow")
-    fake.set_tracking_uri = lambda uri: calls.append(("uri", uri))
-    fake.set_experiment = lambda name: calls.append(("experiment", name))
-    fake.start_run = lambda run_name=None: calls.append(("start", run_name))
-    fake.log_dict = lambda data, artifact_file: calls.append(("dict", artifact_file))
-    fake.end_run = lambda status=None: calls.append(("end", status))
-    monkeypatch.setitem(sys.modules, "mlflow", fake)
+    fake = _FakeMlflow()
+    monkeypatch.setitem(sys.modules, "mlflow", cast(Any, fake))
     monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
 
     with MLflowReporter(tracking_uri=None, experiment="local", run_name="run", config={"a": 1}):
         pass
 
-    assert ("uri", "sqlite:///mlflow.db") in calls
-    assert ("experiment", "local") in calls
-    assert ("end", "FINISHED") in calls
+    assert ("uri", "sqlite:///mlflow.db") in fake.calls
+    assert ("experiment", "local") in fake.calls
+    assert ("end", "FINISHED") in fake.calls
 
 
 def test_mlflow_reporter_keeps_tracking_uri_env(monkeypatch):
     import sys
-    import types
 
-    calls: list[tuple[str, object]] = []
-    fake = types.ModuleType("mlflow")
-    fake.set_tracking_uri = lambda uri: calls.append(("uri", uri))
-    fake.set_experiment = lambda name: calls.append(("experiment", name))
-    fake.start_run = lambda run_name=None: calls.append(("start", run_name))
-    fake.log_dict = lambda data, artifact_file: None
-    fake.end_run = lambda status=None: None
-    monkeypatch.setitem(sys.modules, "mlflow", fake)
+    fake = _FakeMlflow()
+    monkeypatch.setitem(sys.modules, "mlflow", cast(Any, fake))
     monkeypatch.setenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
 
     with MLflowReporter(tracking_uri=None, experiment="remote", run_name="run", config={}):
         pass
 
-    assert not any(name == "uri" for name, _ in calls)
-    assert ("experiment", "remote") in calls
+    assert not any(name == "uri" for name, _ in fake.calls)
+    assert ("experiment", "remote") in fake.calls
 
 
 def test_mlflow_reporter_sqlite_store(tmp_path):
@@ -158,26 +164,25 @@ def test_mlflow_reporter_sqlite_store(tmp_path):
     assert any(artifact.path == "config.yaml" for artifact in artifacts)
 
 
+class _FakeWandb:
+    def __init__(self) -> None:
+        self.events: list[tuple] = []
+
+    def init(self, **kwargs: object) -> None:
+        self.events.append(("init", kwargs))
+
+    def log(self, data: Mapping[str, object], step: object = None) -> None:
+        self.events.append(("log", dict(data), step))
+
+    def finish(self) -> None:
+        self.events.append(("finish",))
+
+
 def test_wandb_reporter_calls_init_log_finish(monkeypatch):
     import sys
-    import types
 
-    events: list[tuple] = []
-
-    def init(**kwargs):
-        events.append(("init", kwargs))
-
-    def log(data, step=None):
-        events.append(("log", dict(data), step))
-
-    def finish():
-        events.append(("finish",))
-
-    fake_wandb = types.ModuleType("wandb")
-    fake_wandb.init = init
-    fake_wandb.log = log
-    fake_wandb.finish = finish
-    monkeypatch.setitem(sys.modules, "wandb", fake_wandb)
+    fake_wandb = _FakeWandb()
+    monkeypatch.setitem(sys.modules, "wandb", cast(Any, fake_wandb))
 
     with (
         WandbReporter(
@@ -193,6 +198,7 @@ def test_wandb_reporter_calls_init_log_finish(monkeypatch):
     ):
         report({"loss": 0.2}, step=4)
 
+    events = fake_wandb.events
     assert events[0][0] == "init"
     assert events[0][1]["project"] == "p"
     assert events[0][1]["name"] == "n"

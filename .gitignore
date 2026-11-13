@@ -183,3 +183,5 @@ multirun/
 .claude/
 .cursor/
 .github/instructions
+
+/pkgs/

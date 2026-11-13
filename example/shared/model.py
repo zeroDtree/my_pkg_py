@@ -239,7 +239,7 @@ def build_classifier_conditioner(
     """
     import torch.nn.functional as F
 
-    class ClassifierConditioner(base_conditioner_class):  # type: ignore[valid-type]  # ty: ignore[unsupported-base]
+    class ClassifierConditioner(base_conditioner_class):  # type: ignore[valid-type]
         def __init__(self) -> None:
             super().__init__(guidance_scale)
             self.classifier_model = classifier_model
