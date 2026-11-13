@@ -75,6 +75,14 @@ uv run nbstripout --install --attributes .gitattributes
 `nbstripout` strips notebook cell outputs on commit. Run `--install` once per clone.
 Verify with `uv run nbstripout --status`.
 
+```bash
+uv run ruff check
+uv run ty check
+uv run pytest
+```
+
+Run launchers from the repository root with `bash shell_script/...`. See [shell_script/README.md](shell_script/README.md).
+
 ## Docs
 
 ```bash

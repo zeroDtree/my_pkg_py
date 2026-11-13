@@ -142,6 +142,7 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+.ruff_cache/
 .dmypy.json
 dmypy.json
 
@@ -161,15 +162,13 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-
-src/pkg_py/optimizer/ggam/
-
 wandb/
 mlflow.db
 mlflow.db-journal
 mlartifacts/
 mlruns/
 logs/
+/artifacts/
 checkpoints/
 checkpoint/
 *.png
@@ -185,3 +184,4 @@ multirun/
 .github/instructions
 
 /pkgs/
+/shell_script/env_email.sh

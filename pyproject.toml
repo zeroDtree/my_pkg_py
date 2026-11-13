@@ -70,6 +70,16 @@ flash-attn = { FLASH_ATTENTION_SKIP_CUDA_BUILD = "TRUE" }
 [project.urls]
 Homepage = "https://github.com/zeroDtree/my_pkg_py"
 
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mlkit"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

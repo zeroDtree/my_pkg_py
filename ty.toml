@@ -1,4 +1,13 @@
 [rules]
+unresolved-import = "ignore"
 
 [src]
-exclude = ["**/*.ipynb"]
+include = [
+    "src/mlkit/**/*.py",
+    "tests/**/*.py",
+]
+exclude = [
+    "artifacts/**",
+    "legacy/**",
+    "pkgs/**",
+]
