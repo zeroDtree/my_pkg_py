@@ -7,11 +7,11 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union, c
 
 import datasets
 import torch
-import wandb
 from accelerate import skip_first_batches
 from torch import Tensor
 from tqdm.auto import tqdm
 
+from ..util.report import report
 from .callback import BaseCallback, CallbackEvent, CallbackManager
 
 
@@ -247,10 +247,7 @@ class BasePipeline(metaclass=ABCMeta):
                 pbar.set_postfix(loss=result["loss"])
 
         if result is not None and self._can_log(flag="epochs") and self.logger is not None:
-            self.logger.info(
-                f"[Train] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {result['loss']}"
-            )
-            wandb.log(result, step=self.training_state.current_epoch)
+            report(result, step=self.training_state.current_epoch, logger=self.logger)
         self.training_state.current_step_in_epoch = 0
         self.trigger_callbacks(event=CallbackEvent.EPOCH_END)
 

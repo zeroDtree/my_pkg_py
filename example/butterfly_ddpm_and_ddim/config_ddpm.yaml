@@ -51,6 +51,13 @@ log:
   log_epochs: 1
   log_strategy: steps
 
+reporter: mlflow
+
+mlflow:
+  # null keeps MLFLOW_TRACKING_URI, otherwise sqlite:///mlflow.db
+  tracking_uri: null
+  experiment: test
+
 wandb:
   reinit: true
   mode: offline

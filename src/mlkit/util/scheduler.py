@@ -163,9 +163,8 @@ class ObjectAttrsScheduler:
 
 
 if __name__ == "__main__":
-    import wandb
+    from mlkit.util.report import MLflowReporter, report, use_reporter
 
-    wandb.init(project="scheduler-test")
     total = 100
     warmup_ratio = 0.1
 
@@ -191,6 +190,15 @@ if __name__ == "__main__":
         setter_methods={"x": "set_x"},
         getter_methods={"x": "get_x"},
     )
-    for i in range(total):
-        scheduler.step()
-        wandb.log(scheduler.get(), step=i)
+    with (
+        MLflowReporter(
+            tracking_uri=None,
+            experiment="scheduler-test",
+            run_name="scheduler-test",
+            config={},
+        ) as mlflow_reporter,
+        use_reporter(mlflow_reporter),
+    ):
+        for i in range(total):
+            scheduler.step()
+            report(scheduler.get(), step=i)

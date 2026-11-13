@@ -40,12 +40,12 @@ def run_experiment(
         get_optimizer_fn: Optional ``(model, cfg) -> Optimizer``. Defaults to
             ``get_optimizer`` from ``mlkit.util.utils_for_main``.
     """
-    import wandb
     from accelerate import Accelerator
     from omegaconf import OmegaConf
 
     from mlkit.pipeline.pipeline import LogConfig
     from mlkit.util.log import get_and_create_new_log_dir, get_logger
+    from mlkit.util.report import open_reporter, use_reporter
     from mlkit.util.seed import seed_everything
     from mlkit.util.show import show_info
     from mlkit.util.utils_for_main import (
@@ -62,6 +62,7 @@ def run_experiment(
     print(f"accelerator.device = {accelerator.device}")
 
     logger = None
+    run_name = ""
     if accelerator.is_local_main_process:
         log_dir = get_and_create_new_log_dir(cfg.log.log_dir)
         logger = get_logger(name="experiment", log_dir=log_dir)
@@ -69,54 +70,59 @@ def run_experiment(
         logger.info(f"seed = {cfg.train.seed}")
         run_name = get_run_name(cfg)
         logger.info("Config:\n" + OmegaConf.to_yaml(cfg))
-        wandb.init(
-            reinit=cfg.wandb.reinit,
-            mode=cfg.wandb.mode,
-            project=cfg.wandb.project,
-            name=run_name,
-            group=cfg.wandb.group,
-            entity=cfg.wandb.entity,
-            config=cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True)),
+
+    def _train():
+        # Build model; normalise to dict so downstream code is uniform.
+        model_result = get_model_fn(cfg)
+        if not isinstance(model_result, dict):
+            model_result = {"model": model_result}
+        model = model_result["model"]
+
+        if disable_train_hooks:
+            for handler in model_result.get("train_hook_handlers", []):
+                handler.disable()
+
+        train_set, val_set, _ = get_dataset_fn(cfg)
+        optimizer = (get_optimizer_fn or get_optimizer)(model, cfg)
+        lr_scheduler = get_learing_rate_scheduler(optimizer, accelerator, train_set, cfg)
+        show_info(model=model, optimizer=optimizer)
+
+        log_config = LogConfig(**cfg.log)
+        PipelineClass, TrainingConfigClass = get_train_class()
+        training_config = TrainingConfigClass(**cfg.train)
+        if accelerator.is_local_main_process:
+            training_config.save_dir = get_new_save_dir(training_config.save_dir, cfg, suffix=save_dir_suffix)
+
+        print(training_config.__dict__)
+
+        pipeline = PipelineClass(
+            model=model,
+            train_dataset=train_set,
+            eval_dataset=val_set,
+            optimizers=(optimizer, lr_scheduler),
+            training_config=training_config,
+            log_config=log_config,
+            collate_fn=get_collate_fn(cfg),
+            logger=logger,
         )
-
-    # Build model; normalise to dict so downstream code is uniform.
-    model_result = get_model_fn(cfg)
-    if not isinstance(model_result, dict):
-        model_result = {"model": model_result}
-    model = model_result["model"]
-
-    if disable_train_hooks:
-        for handler in model_result.get("train_hook_handlers", []):
-            handler.disable()
-
-    train_set, val_set, _ = get_dataset_fn(cfg)
-    optimizer = (get_optimizer_fn or get_optimizer)(model, cfg)
-    lr_scheduler = get_learing_rate_scheduler(optimizer, accelerator, train_set, cfg)
-    show_info(model=model, optimizer=optimizer)
-
-    log_config = LogConfig(**cfg.log)
-    PipelineClass, TrainingConfigClass = get_train_class()
-    training_config = TrainingConfigClass(**cfg.train)
-    if accelerator.is_local_main_process:
-        training_config.save_dir = get_new_save_dir(training_config.save_dir, cfg, suffix=save_dir_suffix)
-
-    print(training_config.__dict__)
-
-    pipeline = PipelineClass(
-        model=model,
-        train_dataset=train_set,
-        eval_dataset=val_set,
-        optimizers=(optimizer, lr_scheduler),
-        training_config=training_config,
-        log_config=log_config,
-        collate_fn=get_collate_fn(cfg),
-        logger=logger,
-    )
-
-    pipeline.train()
+        pipeline.train()
+        return model_result, pipeline, train_set
 
     if accelerator.is_local_main_process:
-        wandb.finish()
+        resolved_config = cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True))
+        with (
+            open_reporter(
+                str(cfg.reporter),
+                run_name=run_name,
+                config=resolved_config,
+                mlflow=cast(dict[str, Any], OmegaConf.to_container(cfg.mlflow, resolve=True)),
+                wandb=cast(dict[str, Any], OmegaConf.to_container(cfg.wandb, resolve=True)),
+            ) as active_reporter,
+            use_reporter(active_reporter),
+        ):
+            model_result, pipeline, train_set = _train()
+    else:
+        model_result, pipeline, train_set = _train()
 
     if accelerator.is_local_main_process and post_train_fn is not None:
         post_train_fn(cfg, model_result, pipeline, accelerator, train_set)

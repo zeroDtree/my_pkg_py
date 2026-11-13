@@ -165,6 +165,10 @@ cython_debug/
 src/pkg_py/optimizer/ggam/
 
 wandb/
+mlflow.db
+mlflow.db-journal
+mlartifacts/
+mlruns/
 logs/
 checkpoints/
 checkpoint/

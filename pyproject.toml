@@ -39,6 +39,7 @@ dependencies = [
     "diffusers",
     "scikit-learn",
     "pillow",
+    "mlflow>=3.18.0",
 ]
 
 [project.optional-dependencies]

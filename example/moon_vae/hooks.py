@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-import wandb
 from torch import Tensor
 
 from mlkit.util.hook.model_hook import ModelHook, ModelHookStageType
+from mlkit.util.report import report
 
 
 def vae_debug_stats(model_output: dict[str, Any], *, kl_weight: float) -> dict[str, float]:
@@ -67,7 +67,7 @@ def build_vae_metrics_hook(*, log_interval: int) -> ModelHook:
             kl_weight = kl_weight.item()
         stats = vae_debug_stats(model_output, kl_weight=float(kl_weight))
         stats["train/loss"] = model_output["loss"].item()
-        wandb.log(stats, step=state["step"])
+        report(stats, step=state["step"])
         print(format_vae_train_line(state["step"], model_output, stats), flush=True)
 
     return ModelHook(name="vae_metrics", stage=ModelHookStageType.POST_COMPUTE_LOSS, fn=fn)

@@ -3,7 +3,6 @@ from typing import Any, Callable, List, Literal, Optional, cast
 
 import datasets
 import torch
-import wandb
 from accelerate import Accelerator, skip_first_batches
 from overrides import override
 from torch.utils.data import DataLoader
@@ -11,6 +10,7 @@ from tqdm.auto import tqdm
 
 from ..util.decorators import inherit_docstrings
 from ..util.iterator import inf_iterator_with_prefix
+from ..util.report import report
 from .callback import BaseCallback, CallbackEvent
 from .distributed_pipeline import (
     DistributedPipeline,
@@ -288,8 +288,7 @@ class MyDistributedPipeline(DistributedPipeline):
                 "std_eval_loss": all_losses.std().item() if all_losses.numel() > 1 else 0.0,
             }
         if self.accelerator.is_local_main_process and self.logger is not None:
-            self.logger.info(f"[Eval] {result}")
-            wandb.log(result, step=self.training_state.current_global_step)
+            report(result, step=self.training_state.current_global_step, logger=self.logger)
 
         self.model.train()
         self.trigger_callbacks(

@@ -7,11 +7,11 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union, c
 import accelerate
 import datasets
 import torch
-import wandb
 from accelerate import Accelerator
 from accelerate.utils import DistributedDataParallelKwargs
 
 from ..util.decorators import inherit_docstrings
+from ..util.report import report
 from .callback import BaseCallback, CallbackEvent
 from .pipeline import BasePipeline, LogConfig, TrainingConfig
 
@@ -206,10 +206,7 @@ class DistributedPipeline(BasePipeline):
 
         # Only log on local main process
         if self._can_log(flag="steps") and self.accelerator.is_local_main_process and logger is not None:
-            logger.info(
-                f"[Train] Epoch {self.training_state.current_epoch}, Step {self.training_state.current_step_in_epoch}, Loss {loss.item()}"
-            )
-            wandb.log(result, step=self.training_state.current_global_step)
+            report(result, step=self.training_state.current_global_step, logger=logger)
 
         self.trigger_callbacks(event=CallbackEvent.STEP_END, batch=batch)
         return result
