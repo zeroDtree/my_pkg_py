@@ -19,7 +19,7 @@ uv add git+https://github.com/zeroDtree/my_pkg_py
 uv add "git+https://github.com/zeroDtree/my_pkg_py[hard]"
 ```
 
-- `hard`: deepspeed, flash-attn, bitsandbytes (CUDA / quantization)
+- `hard`: flash-attn, bitsandbytes (CUDA / quantization)
 
 <details>
 <summary>Other install options</summary>

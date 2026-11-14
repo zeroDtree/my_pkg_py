@@ -43,7 +43,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-hard = ["deepspeed", "flash-attn", "bitsandbytes"]
+hard = ["flash-attn", "bitsandbytes"]
 
 [dependency-groups]
 lint = ["ruff", "ty"]
@@ -61,7 +61,6 @@ dev = [
 ]
 
 [tool.uv.extra-build-dependencies]
-deepspeed = [{ requirement = "torch", match-runtime = true }]
 flash-attn = [{ requirement = "torch", match-runtime = true }]
 
 [tool.uv.extra-build-variables]
