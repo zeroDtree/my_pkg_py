@@ -168,7 +168,7 @@ mlflow.db-journal
 mlartifacts/
 mlruns/
 logs/
-/artifacts/
+artifacts/
 checkpoints/
 checkpoint/
 *.png

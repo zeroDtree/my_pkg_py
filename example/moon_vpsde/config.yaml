@@ -53,8 +53,8 @@ log:
 reporter: mlflow
 
 mlflow:
-  # null keeps MLFLOW_TRACKING_URI, otherwise sqlite:///mlflow.db
-  tracking_uri: null
+  tracking_uri: sqlite:///artifacts/mlflow.db
+  artifact_location: artifacts/mlruns
   experiment: test
 
 wandb:
@@ -73,5 +73,10 @@ diffusion:
 
 hydra:
   run:
-    dir: .
+    dir: artifacts/logs
+  job:
+    chdir: false
+  sweep:
+    dir: artifacts/hydra
+    subdir: ${hydra.job.num}
   output_subdir: null

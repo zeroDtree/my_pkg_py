@@ -38,7 +38,8 @@ def open_reporter(
         kind: ``"mlflow"``, ``"wandb"``, or ``"none"``.
         run_name: run name passed to the selected backend.
         config: resolved config stored with the run.
-        mlflow: MLflow settings with ``tracking_uri`` and ``experiment``.
+        mlflow: MLflow settings with ``tracking_uri``, ``experiment``, and
+            optional ``artifact_location``.
         wandb: wandb settings with ``project``, ``group``, ``entity``, ``mode``,
             and ``reinit``.
         resume_run_id: existing run to continue. ``None`` starts a new run.
@@ -61,6 +62,7 @@ def open_reporter(
             run_name=run_name,
             config=config,
             run_id=resume_run_id,
+            artifact_location=settings.get("artifact_location") or None,
         )
         with reporter:
             yield reporter

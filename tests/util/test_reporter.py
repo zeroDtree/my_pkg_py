@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -252,6 +253,41 @@ def test_wandb_reporter_resumes_with_allow(monkeypatch):
     init_kwargs = fake_wandb.events[0][1]
     assert init_kwargs["id"] == "abc123"
     assert init_kwargs["resume"] == "allow"
+
+
+def test_mlflow_reporter_artifact_location(tmp_path):
+    import mlflow
+
+    tracking_uri = f"sqlite:///{tmp_path / 'mlflow.db'}"
+    artifact_location = tmp_path / "mlruns"
+    with MLflowReporter(
+        tracking_uri=tracking_uri,
+        experiment="placed",
+        run_name="run-a",
+        config={"lr": 0.1},
+        artifact_location=str(artifact_location),
+    ):
+        pass
+
+    mlflow.set_tracking_uri(tracking_uri)
+    experiment = mlflow.get_experiment_by_name("placed")
+    assert experiment is not None
+    assert Path(experiment.artifact_location).resolve() == artifact_location.resolve()
+    assert any(path.name == "config.yaml" for path in artifact_location.rglob("config.yaml"))
+
+    with MLflowReporter(
+        tracking_uri=tracking_uri,
+        experiment="placed",
+        run_name="run-b",
+        config={"lr": 0.2},
+        artifact_location=str(tmp_path / "elsewhere"),
+    ):
+        pass
+
+    experiment = mlflow.get_experiment_by_name("placed")
+    assert experiment is not None
+    assert Path(experiment.artifact_location).resolve() == artifact_location.resolve()
+    assert not (tmp_path / "elsewhere").exists()
 
 
 def test_mlflow_reporter_resumes_same_run(tmp_path):

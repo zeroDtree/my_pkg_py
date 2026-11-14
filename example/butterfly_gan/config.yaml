@@ -33,7 +33,7 @@ train:
   gradient_accumulation_steps: 1
   real_batch_size: 16
   save_strategy: steps
-  save_dir: checkpoints
+  save_dir: artifacts/checkpoints
   save_steps: 1000
   save_epochs: 1
   save_total_limit: 3
@@ -43,7 +43,7 @@ train:
   mixed_precision: fp16
 
 log:
-  log_dir: logs
+  log_dir: artifacts/logs
   log_steps: 1
   log_epochs: 1
   log_strategy: steps
@@ -51,8 +51,8 @@ log:
 reporter: mlflow
 
 mlflow:
-  # null keeps MLFLOW_TRACKING_URI, otherwise sqlite:///mlflow.db
-  tracking_uri: null
+  tracking_uri: sqlite:///artifacts/mlflow.db
+  artifact_location: artifacts/mlruns
   experiment: test
 
 wandb:
@@ -72,5 +72,10 @@ gan:
 
 hydra:
   run:
-    dir: .
+    dir: artifacts/logs
+  job:
+    chdir: false
+  sweep:
+    dir: artifacts/hydra
+    subdir: ${hydra.job.num}
   output_subdir: null
