@@ -10,5 +10,4 @@ import mlkit
 
 ## Navigation
 
-- [Training](training.md) — How a pipeline trains a model
 - [API Reference](api/index.md) — Auto-generated full API documentation

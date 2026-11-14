@@ -2,7 +2,6 @@ site_name: mlkit
 
 nav:
   - Home: index.md
-  - Training: training.md
   - Learning rate: learning-rate.md
   - API Reference:
     - Overview: api/index.md
@@ -24,20 +23,10 @@ markdown_extensions:
   - pymdownx.arithmatex:
       generic: true
   - pymdownx.details
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_div_format
-
-extra_css:
-  - stylesheets/extra.css
 
 extra_javascript:
   - javascripts/mathjax.js
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
-  - path: javascripts/mermaid.mjs
-    type: module
 
 theme:
   name: material
