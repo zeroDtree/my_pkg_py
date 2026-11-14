@@ -33,6 +33,7 @@ def run_experiment(
         get_collate_fn: ``(cfg) -> collate_fn``.
         post_train_fn: Optional ``(cfg, model_result, pipeline, accelerator,
             train_set) -> None`` called on the main process after training.
+            The process group is destroyed before this runs.
         save_dir_suffix: Appended to the checkpoint save-directory name.
         disable_train_hooks: If True (default), disable ``train_hook_handlers``
             before training so the model trains unconditionally.  Set False for
@@ -126,6 +127,10 @@ def run_experiment(
             model_result, pipeline, train_set = _train()
     else:
         model_result, pipeline, train_set = _train()
+
+    # All ranks tear the process group down together, before main-process sampling.
+    accelerator.wait_for_everyone()
+    accelerator.end_training()
 
     if accelerator.is_local_main_process and post_train_fn is not None:
         post_train_fn(cfg, model_result, pipeline, accelerator, train_set)

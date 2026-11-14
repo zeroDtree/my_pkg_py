@@ -142,12 +142,14 @@ def test_mlflow_reporter_sqlite_store(tmp_path):
     from mlflow.tracking import MlflowClient
 
     tracking_uri = f"sqlite:///{tmp_path / 'mlflow.db'}"
+    artifact_location = tmp_path / "mlruns"
     with (
         MLflowReporter(
             tracking_uri=tracking_uri,
             experiment="unit",
             run_name="run-a",
             config={"lr": 0.1, "nested": {"a": 1}},
+            artifact_location=str(artifact_location),
         ) as mlflow_reporter,
         use_reporter(mlflow_reporter),
     ):
@@ -157,6 +159,8 @@ def test_mlflow_reporter_sqlite_store(tmp_path):
     mlflow.set_tracking_uri(tracking_uri)
     experiment = mlflow.get_experiment_by_name("unit")
     assert experiment is not None
+    assert Path(experiment.artifact_location).resolve() == artifact_location.resolve()
+    assert any(path.name == "config.yaml" for path in artifact_location.rglob("config.yaml"))
     frame = mlflow.search_runs(experiment_ids=[experiment.experiment_id])
     assert len(frame) == 1
     assert frame.iloc[0]["metrics.loss"] == 0.5
@@ -295,12 +299,14 @@ def test_mlflow_reporter_resumes_same_run(tmp_path):
     from mlflow.tracking import MlflowClient
 
     tracking_uri = f"sqlite:///{tmp_path / 'mlflow.db'}"
+    artifact_location = tmp_path / "mlruns"
     with (
         MLflowReporter(
             tracking_uri=tracking_uri,
             experiment="unit",
             run_name="run-a",
             config={"lr": 0.1},
+            artifact_location=str(artifact_location),
         ) as first,
         use_reporter(first),
     ):
@@ -315,6 +321,7 @@ def test_mlflow_reporter_resumes_same_run(tmp_path):
             run_name="run-a",
             config={"lr": 0.1},
             run_id=run_id,
+            artifact_location=str(artifact_location),
         ) as second,
         use_reporter(second),
     ):
@@ -324,6 +331,8 @@ def test_mlflow_reporter_resumes_same_run(tmp_path):
     mlflow.set_tracking_uri(tracking_uri)
     experiment = mlflow.get_experiment_by_name("unit")
     assert experiment is not None
+    assert Path(experiment.artifact_location).resolve() == artifact_location.resolve()
+    assert any(path.name == "config.yaml" for path in artifact_location.rglob("config.yaml"))
     frame = mlflow.search_runs(experiment_ids=[experiment.experiment_id])
     assert len(frame) == 1
     assert frame.iloc[0]["run_id"] == run_id

@@ -22,13 +22,6 @@ This syncs dependencies, then runs pytest, ruff, and ty. It installs the nbstrip
 
 ## Run Python
 
-CPU, or any run that should not use Accelerate:
-
-```bash
-bash shell_script/run-python.sh example/butterfly_edm/main.py
-bash shell_script/run-python.sh -m pytest
-```
-
 GPU training or eval. The launcher exits when no GPU is visible. It selects `configs/accelerate/acc_cfg_<N>cards.yaml` for N in 1, 2, 3, 4, or 8, and passes that same N as `--num_processes`. On exit code 0 it sends a completion email. The message includes a replayable command, `cuda <GPU ids> bash shell_script/mc-run-python.sh <script> [args...]`. GPU ids are omitted when `CUDA_VISIBLE_DEVICES` is unset. A missing `env_email.sh` does not change the training exit code.
 
 ```bash
@@ -37,6 +30,13 @@ bash shell_script/mc-run-python.sh example/butterfly_edm/main.py
 ```
 
 Write the proxy port into the port file before enabling the proxy.
+
+CPU, or any run that should not use Accelerate:
+
+```bash
+bash shell_script/run-python.sh example/butterfly_edm/main.py
+bash shell_script/run-python.sh -m pytest
+```
 
 Commands are appended under `artifacts/command_logs/`.
 
