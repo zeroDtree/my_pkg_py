@@ -47,6 +47,8 @@ def run_experiment(
         get_optimizer_fn: Optional ``(model, cfg) -> Optimizer``. Defaults to
             ``get_optimizer`` from ``mlkit.util.utils_for_main``.
     """
+    from contextlib import ExitStack
+
     from accelerate import Accelerator
     from omegaconf import OmegaConf
 
@@ -76,13 +78,6 @@ def run_experiment(
 
     logger = None
     run_name = ""
-    if accelerator.is_local_main_process:
-        log_dir = get_and_create_new_log_dir(cfg.log.log_dir)
-        logger = get_logger(name="experiment", log_dir=log_dir)
-        logger.info(f"accelerator.device = {accelerator.device}")
-        logger.info(f"seed = {cfg.train.seed}")
-        run_name = get_run_name(cfg)
-        logger.info("Config:\n" + OmegaConf.to_yaml(cfg))
 
     def _train():
         # Build model; normalise to dict so downstream code is uniform.
@@ -143,29 +138,53 @@ def run_experiment(
         if accelerator.is_local_main_process and post_train_fn is not None:
             post_train_fn(cfg, model_result, pipeline, accelerator, train_set)
 
+    def _reporter_open_failed(open_error: BaseException | None) -> bool:
+        """Return whether any rank failed before training could start.
+
+        Every rank calls this before ``prepare()``. The main process opens the
+        reporter first, and the other ranks wait in this collective. A failure
+        is shared so every rank can destroy the process group.
+        """
+        if accelerator.num_processes == 1:
+            return open_error is not None
+        if open_error is not None:
+            accelerator.set_trigger()
+        return bool(accelerator.check_trigger())
+
     clear_deferred_error()
-    if accelerator.is_local_main_process:
-        resolved_config = cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True))
-        reporter_kind = str(cfg.reporter).strip().lower()
-        checkpoint_dir = latest_checkpoint_dir(get_new_save_dir(cfg.train.save_dir, cfg, suffix=save_dir_suffix))
-        with (
-            open_reporter(
-                reporter_kind,
-                run_name=run_name,
-                config=resolved_config,
-                mlflow=cast(dict[str, Any], OmegaConf.to_container(cfg.mlflow, resolve=True)),
-                wandb=cast(dict[str, Any], OmegaConf.to_container(cfg.wandb, resolve=True)),
-                resume_run_id=resume_run_id(checkpoint_dir, reporter_kind),
-            ) as active_reporter,
-            use_reporter(active_reporter),
-        ):
+    with ExitStack() as stack:
+        open_error: BaseException | None = None
+        if accelerator.is_local_main_process:
             try:
-                trained = _run_train()
-            except BaseException:
-                _destroy_group()
-                raise
-            _finish(trained)
-    else:
+                log_dir = get_and_create_new_log_dir(cfg.log.log_dir)
+                logger = get_logger(name="experiment", log_dir=log_dir)
+                logger.info(f"accelerator.device = {accelerator.device}")
+                logger.info(f"seed = {cfg.train.seed}")
+                run_name = get_run_name(cfg)
+                logger.info("Config:\n" + OmegaConf.to_yaml(cfg))
+                resolved_config = cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True))
+                reporter_kind = str(cfg.reporter).strip().lower()
+                checkpoint_dir = latest_checkpoint_dir(
+                    get_new_save_dir(cfg.train.save_dir, cfg, suffix=save_dir_suffix)
+                )
+                active_reporter = stack.enter_context(
+                    open_reporter(
+                        reporter_kind,
+                        run_name=run_name,
+                        config=resolved_config,
+                        mlflow=cast(dict[str, Any], OmegaConf.to_container(cfg.mlflow, resolve=True)),
+                        wandb=cast(dict[str, Any], OmegaConf.to_container(cfg.wandb, resolve=True)),
+                        resume_run_id=resume_run_id(checkpoint_dir, reporter_kind),
+                    )
+                )
+                stack.enter_context(use_reporter(active_reporter))
+            except BaseException as exc:
+                open_error = exc
+        if _reporter_open_failed(open_error):
+            _destroy_group()
+            if open_error is not None:
+                raise open_error
+            raise RuntimeError("Reporter failed to open on another rank")
         try:
             trained = _run_train()
         except BaseException:

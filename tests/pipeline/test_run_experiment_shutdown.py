@@ -69,6 +69,7 @@ def _install(
     events: list[str],
     *,
     is_main: bool,
+    num_processes: int = 1,
     train_error: BaseException | None = None,
     on_train: Callable[[], None] | None = None,
     configs: list[Any] | None = None,
@@ -76,7 +77,8 @@ def _install(
     accelerator = MagicMock()
     accelerator.is_local_main_process = is_main
     accelerator.device = torch.device("cpu")
-    accelerator.num_processes = 1
+    accelerator.num_processes = num_processes
+    accelerator.check_trigger.return_value = False
     accelerator.wait_for_everyone.side_effect = lambda: events.append("wait")
     accelerator.end_training.side_effect = lambda: events.append("end")
     monkeypatch.setattr("accelerate.Accelerator", lambda *args, **kwargs: accelerator)
@@ -304,4 +306,149 @@ def test_after_train_error_destroys_group_without_barrier(monkeypatch: pytest.Mo
         _run(events, post_train_fn=post_train, after_train_fn=after_train)
 
     assert events == ["train", "after", "end"]
+    accelerator.wait_for_everyone.assert_not_called()
+
+
+def test_log_dir_error_destroys_group_without_training(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    accelerator = _install(monkeypatch, events, is_main=True)
+
+    def create_log_dir(*args, **kwargs):
+        del args, kwargs
+        raise OSError("disk full")
+
+    monkeypatch.setattr("mlkit.util.log.get_and_create_new_log_dir", create_log_dir)
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    with pytest.raises(OSError, match="disk full"):
+        _run(events, post_train_fn=post_train)
+
+    assert events == ["end"]
+    accelerator.wait_for_everyone.assert_not_called()
+
+
+def test_reporter_open_error_destroys_group_without_training(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    accelerator = _install(monkeypatch, events, is_main=True)
+
+    def open_reporter(*args, **kwargs):
+        del args, kwargs
+        raise RuntimeError("mlflow down")
+
+    monkeypatch.setattr("mlkit.util.report.open_reporter", open_reporter)
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    with pytest.raises(RuntimeError, match="mlflow down"):
+        _run(events, post_train_fn=post_train)
+
+    assert events == ["end"]
+    accelerator.wait_for_everyone.assert_not_called()
+    accelerator.set_trigger.assert_not_called()
+
+
+def test_end_training_error_keeps_the_reporter_open_error(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    accelerator = _install(monkeypatch, events, is_main=True)
+
+    def end_training() -> None:
+        events.append("end")
+        raise RuntimeError("end failed")
+
+    accelerator.end_training.side_effect = end_training
+
+    def open_reporter(*args, **kwargs):
+        del args, kwargs
+        raise RuntimeError("mlflow down")
+
+    monkeypatch.setattr("mlkit.util.report.open_reporter", open_reporter)
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    with pytest.raises(RuntimeError, match="mlflow down"):
+        _run(events, post_train_fn=post_train)
+
+    assert events == ["end"]
+    accelerator.wait_for_everyone.assert_not_called()
+
+
+def test_reporter_open_is_shared_before_training(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    accelerator = _install(monkeypatch, events, is_main=True, num_processes=2)
+    accelerator.check_trigger.side_effect = lambda: events.append("sync") or False
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    _run(events, post_train_fn=post_train)
+    assert events == ["sync", "train", "wait", "end", "post"]
+    accelerator.set_trigger.assert_not_called()
+
+
+def test_non_main_waits_for_reporter_open_before_training(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    accelerator = _install(monkeypatch, events, is_main=False, num_processes=2)
+    accelerator.check_trigger.side_effect = lambda: events.append("sync") or False
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    _run(events, post_train_fn=post_train)
+    assert events == ["sync", "train", "wait", "end"]
+    accelerator.set_trigger.assert_not_called()
+
+
+def test_reporter_open_error_sets_the_trigger(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    accelerator = _install(monkeypatch, events, is_main=True, num_processes=2)
+    accelerator.set_trigger.side_effect = lambda: events.append("trigger")
+    accelerator.check_trigger.side_effect = lambda: events.append("sync") or True
+
+    def open_reporter(*args, **kwargs):
+        del args, kwargs
+        raise RuntimeError("mlflow down")
+
+    monkeypatch.setattr("mlkit.util.report.open_reporter", open_reporter)
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    with pytest.raises(RuntimeError, match="mlflow down"):
+        _run(events, post_train_fn=post_train)
+
+    assert events == ["trigger", "sync", "end"]
+    accelerator.wait_for_everyone.assert_not_called()
+
+
+def test_other_rank_stops_when_reporter_open_fails(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    accelerator = _install(monkeypatch, events, is_main=False, num_processes=2)
+    accelerator.check_trigger.side_effect = lambda: events.append("sync") or True
+
+    def open_reporter(*args, **kwargs):
+        del args, kwargs
+        events.append("open")
+        raise AssertionError("non-main rank opened the reporter")
+
+    monkeypatch.setattr("mlkit.util.report.open_reporter", open_reporter)
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    with pytest.raises(RuntimeError, match="Reporter failed to open on another rank"):
+        _run(events, post_train_fn=post_train)
+
+    assert events == ["sync", "end"]
+    accelerator.set_trigger.assert_not_called()
     accelerator.wait_for_everyone.assert_not_called()
