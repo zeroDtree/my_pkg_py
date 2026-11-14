@@ -17,7 +17,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 
 from example.shared.runner import run_experiment
-from mlkit.util.report import NullReporter, defer_error
+from mlkit.util.report import NullReporter, defer_error, has_deferred_error
 
 
 def _cfg() -> DictConfig:
@@ -73,9 +73,11 @@ def _install(
     train_error: BaseException | None = None,
     on_train: Callable[[], None] | None = None,
     configs: list[Any] | None = None,
+    halt: bool = False,
 ) -> MagicMock:
     accelerator = MagicMock()
     accelerator.is_local_main_process = is_main
+    accelerator.is_main_process = is_main
     accelerator.device = torch.device("cpu")
     accelerator.num_processes = num_processes
     accelerator.check_trigger.return_value = False
@@ -86,6 +88,7 @@ def _install(
     class Pipeline:
         def __init__(self, **kwargs: Any) -> None:
             del kwargs
+            self._halt = False
 
         def train(self) -> None:
             events.append("train")
@@ -93,6 +96,9 @@ def _install(
                 on_train()
             if train_error is not None:
                 raise train_error
+            # The real pipeline sets this after sharing a deferred failure.
+            if halt or has_deferred_error():
+                self._halt = True
 
     class TrainingConfig:
         def __init__(self, **kwargs: Any) -> None:
@@ -255,6 +261,47 @@ def test_deferred_error_is_raised_after_teardown(monkeypatch: pytest.MonkeyPatch
         _run(events, post_train_fn=post_train)
 
     assert events == ["train", "wait", "end"]
+
+
+def test_deferred_error_skips_after_train_on_main(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    _install(
+        monkeypatch,
+        events,
+        is_main=True,
+        on_train=lambda: defer_error(RuntimeError("log failed")),
+    )
+
+    def after_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("after")
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    with pytest.raises(RuntimeError, match="log failed"):
+        _run(events, post_train_fn=post_train, after_train_fn=after_train)
+
+    assert events == ["train", "wait", "end"]
+
+
+def test_shared_halt_skips_after_train_on_non_main(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    accelerator = _install(monkeypatch, events, is_main=False, halt=True)
+
+    def after_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("after")
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    _run(events, post_train_fn=post_train, after_train_fn=after_train)
+
+    assert events == ["train", "wait", "end"]
+    accelerator.set_trigger.assert_not_called()
 
 
 def test_after_train_runs_on_main_before_teardown(monkeypatch: pytest.MonkeyPatch):
@@ -452,3 +499,26 @@ def test_other_rank_stops_when_reporter_open_fails(monkeypatch: pytest.MonkeyPat
     assert events == ["sync", "end"]
     accelerator.set_trigger.assert_not_called()
     accelerator.wait_for_everyone.assert_not_called()
+
+
+def test_local_main_that_is_not_global_main_skips_the_reporter(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    accelerator = _install(monkeypatch, events, is_main=False, num_processes=2)
+    accelerator.is_local_main_process = True
+    accelerator.is_main_process = False
+    accelerator.check_trigger.side_effect = lambda: events.append("sync") or False
+
+    def open_reporter(*args, **kwargs):
+        del args, kwargs
+        events.append("open")
+        raise AssertionError("local main opened the reporter")
+
+    monkeypatch.setattr("mlkit.util.report.open_reporter", open_reporter)
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    _run(events, post_train_fn=post_train)
+    assert events == ["sync", "train", "wait", "end"]
+    accelerator.set_trigger.assert_not_called()

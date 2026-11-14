@@ -255,6 +255,7 @@ class MyDistributedPipeline(DistributedPipeline):
                     break
                 pbar.set_postfix(loss=result["loss"], lr=result["lr"])
         self.save()
+        self._sync_halt()
         self.trigger_callbacks(event=CallbackEvent.TRAINING_END)
         return result
 
@@ -293,15 +294,14 @@ class MyDistributedPipeline(DistributedPipeline):
                 "min_eval_loss": all_losses.min().item(),
                 "std_eval_loss": all_losses.std().item() if all_losses.numel() > 1 else 0.0,
             }
-        if self.accelerator.is_local_main_process and self.logger is not None:
+        if self.accelerator.is_main_process and self.logger is not None:
             report(
                 result,
                 step=self.training_state.current_global_step,
                 logger=self.logger,
                 on_error="defer",
             )
-        if self._halt_if_any_rank_failed():
-            self._halt = True
+        self._sync_halt()
 
         self.model.train()
         self.trigger_callbacks(

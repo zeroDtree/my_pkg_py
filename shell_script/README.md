@@ -2,6 +2,8 @@
 
 Invoke as `bash shell_script/...` from the project root. Scripts then `cd` to the repo via `BASH_SOURCE`.
 
+Training artifacts are relative to that directory, so these launchers write `<repo>/artifacts/`. Starting the same example from inside `example/<name>/` writes `example/<name>/artifacts/` instead. Resume a run from the directory where it was started.
+
 ## Post-clone check
 
 ```bash

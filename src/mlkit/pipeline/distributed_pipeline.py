@@ -147,7 +147,7 @@ class DistributedPipeline(BasePipeline):
             self.load()
             self.training_config = training_config
 
-        if self.accelerator.is_local_main_process:
+        if self.accelerator.is_main_process:
             assert self.logger is not None, f"Error from {self.__class__.__name__}: logger is required"
             self.logger.info("Using distributed training with accelerate")
             self.logger.info(f"Number of processes: {self.accelerator.num_processes}")
@@ -204,28 +204,67 @@ class DistributedPipeline(BasePipeline):
         result["lr"] = scheduler.get_last_lr()[0]
         result["global_step"] = self.training_state.current_global_step
 
-        # Only log on local main process. A backend failure is remembered so the
-        # other ranks can leave this step together.
-        if self._can_log(flag="steps") and self.accelerator.is_local_main_process and logger is not None:
+        # Only the global main process has a reporter. A backend failure is
+        # remembered, and every rank hears about it on a logging step.
+        if self._log_interval_due("steps") and self.accelerator.is_main_process and logger is not None:
             report(result, step=self.training_state.current_global_step, logger=logger, on_error="defer")
-
-        if self._halt_if_any_rank_failed():
-            self._halt = True
+        if self._log_interval_due("steps"):
+            self._sync_halt()
 
         self.trigger_callbacks(event=CallbackEvent.STEP_END, batch=batch)
         return result
 
-    def _halt_if_any_rank_failed(self) -> bool:
-        """Share a rank-local failure so every rank stops on the same step.
+    def _share_flag(self, local: bool) -> bool:
+        """Share one rank-local boolean with every rank.
 
-        ``num_processes == 1`` reads the local error. Otherwise the main process
-        sets Accelerate's trigger and every rank checks it.
+        ``num_processes == 1`` returns ``local``. Otherwise the rank where
+        ``local`` is true sets Accelerate's trigger, and every rank checks it.
+        The check consumes the trigger. Every rank must enter this call
+        together, and the flag must be consumed before the next phase sets it.
+
+        Args:
+            local: this rank's value.
+
+        Returns:
+            True when any rank passed true.
+        """
+        if self.accelerator.num_processes == 1:
+            return local
+        if local:
+            self.accelerator.set_trigger()
+        return bool(self.accelerator.check_trigger())
+
+    def _halt_if_any_rank_failed(self) -> bool:
+        """Share a deferred error stored on the main process.
+
+        ``num_processes == 1`` reads the local error. Otherwise only the main
+        process sets the trigger, and every rank checks it.
         """
         if self.accelerator.num_processes == 1:
             return has_deferred_error()
-        if self.accelerator.is_main_process and has_deferred_error():
-            self.accelerator.set_trigger()
-        return bool(self.accelerator.check_trigger())
+        return self._share_flag(self.accelerator.is_main_process and has_deferred_error())
+
+    def _abort_uncommitted_save(self, temp_dir: str, error: Exception | None) -> None:
+        """Drop an uncommitted checkpoint and stop every rank.
+
+        Only the rank that caught ``error`` remembers it. The published
+        checkpoint directory is left untouched.
+
+        Args:
+            temp_dir: temporary directory for this attempt.
+            error: exception caught on this rank, or ``None`` when another rank
+                failed.
+        """
+        if self.accelerator.is_main_process:
+            if self.logger is not None:
+                if error is not None:
+                    self.logger.error(f"Failed to save checkpoint: {error}")
+                else:
+                    self.logger.error("Failed to save checkpoint on another rank")
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        if error is not None:
+            defer_error(error)
+        self._halt = True
 
     def save(self) -> None:
         self.trigger_callbacks(event=CallbackEvent.PRE_SAVE)
@@ -239,25 +278,36 @@ class DistributedPipeline(BasePipeline):
         checkpoint_name = self._get_checkpoint_name(epoch, step, global_step)
         temp_checkpoint_dir = os.path.join(save_dir, f"tmp_{checkpoint_name}")
         final_checkpoint_dir = os.path.join(save_dir, checkpoint_name)
-        if os.path.exists(final_checkpoint_dir):
+
+        # The global main decides whether this checkpoint is already published.
+        already_saved = self.accelerator.is_main_process and os.path.exists(final_checkpoint_dir)
+        if self._share_flag(already_saved):
             return
 
-        # Directory creation is main-process only, but save_state must run on all ranks
-        # (FSDP/DeepSpeed use collectives inside accelerator.save_state).
+        prepare_error: Exception | None = None
         if self.accelerator.is_main_process:
-            os.makedirs(save_dir, exist_ok=True)
-            os.makedirs(temp_checkpoint_dir, exist_ok=True)
-        self.accelerator.wait_for_everyone()
+            try:
+                os.makedirs(save_dir, exist_ok=True)
+                os.makedirs(temp_checkpoint_dir, exist_ok=True)
+            except Exception as exc:
+                prepare_error = exc
+        if self._share_flag(prepare_error is not None):
+            self._abort_uncommitted_save(temp_checkpoint_dir, prepare_error)
+            return
 
+        # save_state uses collectives. A failure inside that collective can
+        # still leave the other ranks there; this joins ranks that have returned.
+        state_error: Exception | None = None
         try:
             self.accelerator.save_state(temp_checkpoint_dir)
         except Exception as exc:
-            if self.accelerator.is_main_process:
-                if self.accelerator.is_local_main_process and self.logger is not None:
-                    self.logger.error(f"Failed to save checkpoint: {exc}")
-                shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
-            raise
+            state_error = exc
+        if self._share_flag(state_error is not None):
+            self._abort_uncommitted_save(temp_checkpoint_dir, state_error)
+            return
 
+        # Other ranks are done writing. Metadata and rename are one publish.
+        publish_error: Exception | None = None
         if self.accelerator.is_main_process:
             try:
                 for base_name in [
@@ -267,24 +317,25 @@ class DistributedPipeline(BasePipeline):
                 ]:
                     file_path = os.path.join(temp_checkpoint_dir, f"{base_name}.pth")
                     torch.save(getattr(self, base_name), file_path)
-
                 self._persist_report_run(temp_checkpoint_dir)
                 os.rename(temp_checkpoint_dir, final_checkpoint_dir)
-                self._cleanup_old_checkpoints(save_dir=save_dir)
-                if self.accelerator.is_local_main_process and self.logger is not None:
+                if self.logger is not None:
                     self.logger.info(f"Model saved to {final_checkpoint_dir}")
             except Exception as exc:
-                if self.accelerator.is_local_main_process and self.logger is not None:
-                    self.logger.error(f"Failed to save checkpoint: {exc}")
-                shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
-                defer_error(exc)
+                publish_error = exc
+        if self._share_flag(publish_error is not None):
+            self._abort_uncommitted_save(temp_checkpoint_dir, publish_error)
+            return
 
-        was_halted = self._halt
-        self.accelerator.wait_for_everyone()
+        if self.accelerator.is_main_process:
+            try:
+                self._cleanup_old_checkpoints(save_dir=save_dir)
+            except Exception as exc:
+                if self.logger is not None:
+                    self.logger.error(f"Failed to delete old checkpoints: {exc}")
         if self._halt_if_any_rank_failed():
             self._halt = True
-        if was_halted or not self._halt:
-            self.trigger_callbacks(event=CallbackEvent.POST_SAVE)
+        self.trigger_callbacks(event=CallbackEvent.POST_SAVE)
 
     def load(self) -> None:
         self.trigger_callbacks(event=CallbackEvent.PRE_LOAD)

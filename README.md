@@ -50,13 +50,22 @@ cd my_pkg_py
 
 See the [`example/`](example/) directory for usage by task.
 
-Each example is driven by Hydra. Run from within the example directory:
+Each example is driven by Hydra. Checkpoints, logs, the MLflow database, and Hydra output are relative paths under `artifacts/` in the directory you start from. A run started in the example directory does not resume a run started at the repo root.
+
+From the example directory:
 
 ```bash
 cd example/butterfly_edm
 uv run python main.py                       # default config
 uv run python main.py train.lr=1e-3         # override a single value
 uv run python main.py --multirun gm.n_discretization_steps=100,200  # sweep
+```
+
+From the repo root, the same script writes to `<repo>/artifacts/` instead:
+
+```bash
+uv run python example/butterfly_edm/main.py
+bash shell_script/mc-run-python.sh example/butterfly_edm/main.py
 ```
 
 Config defaults live in the `config.yaml` (or `config_<variant>.yaml`) next to each script.

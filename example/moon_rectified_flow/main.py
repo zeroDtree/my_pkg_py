@@ -46,7 +46,7 @@ def after_train(cfg, model_result, pipeline, accelerator, train_set):
     log_config = LogConfig(**log_kwargs)
 
     logger = None
-    if accelerator.is_local_main_process:
+    if accelerator.is_main_process:
         logger = get_logger(name="cond_experiment", log_dir=get_and_create_new_log_dir(cfg.log.log_dir))
 
     cond_pipeline = PipelineClass(

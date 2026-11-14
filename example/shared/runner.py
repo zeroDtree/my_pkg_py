@@ -33,13 +33,16 @@ def run_experiment(
         get_dataset_fn: ``(cfg) -> (train, val, test)``.
         get_collate_fn: ``(cfg) -> collate_fn``.
         post_train_fn: Optional ``(cfg, model_result, pipeline, accelerator,
-            train_set) -> None`` called on the main process after training.
+            train_set) -> None`` called on the global main process after training.
             The process group is destroyed before this runs. The reporter stays
             open until this returns, so a failure here marks the run failed.
         after_train_fn: Optional ``(cfg, model_result, pipeline, accelerator,
             train_set) -> None`` called on every rank after training and before
             the process group is destroyed. A failure here destroys the group
-            and skips ``post_train_fn``.
+            and skips ``post_train_fn``. When the pipeline has already halted
+            because a rank-local failure was shared, every rank skips this
+            callback. ``_finish`` then destroys the group and raises that
+            failure on the rank that stored it.
         save_dir_suffix: Appended to the checkpoint save-directory name.
         disable_train_hooks: If True (default), disable ``train_hook_handlers``
             before training so the model trains unconditionally.  Set False for
@@ -117,8 +120,9 @@ def run_experiment(
 
     def _run_train() -> tuple[Any, Any, Any]:
         trained = _train()
-        if after_train_fn is not None:
-            model_result, pipeline, train_set = trained
+        model_result, pipeline, train_set = trained
+        # ``_halt`` is already the same on every rank: the training loop shared it.
+        if after_train_fn is not None and not pipeline._halt:
             after_train_fn(cfg, model_result, pipeline, accelerator, train_set)
         return trained
 
@@ -135,7 +139,7 @@ def run_experiment(
         accelerator.wait_for_everyone()
         accelerator.end_training()
         raise_deferred_error()
-        if accelerator.is_local_main_process and post_train_fn is not None:
+        if accelerator.is_main_process and post_train_fn is not None:
             post_train_fn(cfg, model_result, pipeline, accelerator, train_set)
 
     def _reporter_open_failed(open_error: BaseException | None) -> bool:
@@ -154,7 +158,7 @@ def run_experiment(
     clear_deferred_error()
     with ExitStack() as stack:
         open_error: BaseException | None = None
-        if accelerator.is_local_main_process:
+        if accelerator.is_main_process:
             try:
                 log_dir = get_and_create_new_log_dir(cfg.log.log_dir)
                 logger = get_logger(name="experiment", log_dir=log_dir)

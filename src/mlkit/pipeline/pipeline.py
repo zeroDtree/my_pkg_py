@@ -229,8 +229,9 @@ class BasePipeline(metaclass=ABCMeta):
         ):
             if epoch < self.training_state.current_epoch:
                 continue
-            self.train_an_epoch()
-            self.training_state.current_epoch += 1
+            completed = self.train_an_epoch()
+            if completed:
+                self.training_state.current_epoch += 1
 
             if self._halt:
                 break
@@ -243,18 +244,21 @@ class BasePipeline(metaclass=ABCMeta):
             if self._halt:
                 break
         self.save()
+        self._sync_halt()
         self.trigger_callbacks(event=CallbackEvent.TRAINING_END)
 
-    def train_an_epoch(self):
-        """Train the model for one epoch
+    def train_an_epoch(self) -> bool:
+        """Train one epoch.
 
         Returns:
-            None
+            True when every step in the epoch ran. A halt after that still
+            counts as complete. A halt inside the step loop does not.
         """
         self.trigger_callbacks(event=CallbackEvent.EPOCH_START)
         resume_step = self.training_state.current_step_in_epoch
         active_dataloader = skip_first_batches(self.dataloader, resume_step) if resume_step > 0 else self.dataloader
         result = None
+        completed = True
         with tqdm(
             active_dataloader,
             desc=f"epoch {self.training_state.current_epoch}",
@@ -271,28 +275,33 @@ class BasePipeline(metaclass=ABCMeta):
                 self.training_state.current_global_step += 1
 
                 if self._halt:
+                    completed = False
                     break
                 if self._can_eval(flag="steps"):
                     self.eval()
                 if self._halt:
+                    completed = False
                     break
                 if self._can_save(flag="steps"):
                     self.save()
                 if self._halt:
+                    completed = False
                     break
                 pbar.set_postfix(loss=result["loss"])
 
-        if not self._halt and result is not None and self._can_log(flag="epochs") and self.logger is not None:
+        if completed and result is not None and self._can_log(flag="epochs"):
             report(
                 result,
                 step=self.training_state.current_epoch,
                 logger=self.logger,
                 on_error="defer",
             )
-        if self._halt_if_any_rank_failed():
-            self._halt = True
-        self.training_state.current_step_in_epoch = 0
+        if self._log_interval_due("epochs"):
+            self._sync_halt()
+        if completed:
+            self.training_state.current_step_in_epoch = 0
         self.trigger_callbacks(event=CallbackEvent.EPOCH_END)
+        return completed
 
     def train_a_step(self, batch: Dict[str, Any]) -> dict:
         """Train the model for one step
@@ -375,6 +384,11 @@ class BasePipeline(metaclass=ABCMeta):
         """
         return has_deferred_error()
 
+    def _sync_halt(self) -> None:
+        """Stop this rank when a shared or local failure is waiting."""
+        if self._halt_if_any_rank_failed():
+            self._halt = True
+
     def _is_local_main_process(self) -> bool:
         """Return True if this process should emit UI output (e.g. progress bars).
 
@@ -421,9 +435,18 @@ class BasePipeline(metaclass=ABCMeta):
             return step > 0 and step % self.training_config.save_steps == 0
         return False
 
-    def _can_log(self, flag: Literal["epochs", "steps"]):
-        if self.logger is None:
-            return False
+    def _log_interval_due(self, flag: Literal["epochs", "steps"]) -> bool:
+        """Return whether this step or epoch is a logging point on every rank.
+
+        The logger is not consulted. Ranks agree because they share the log
+        strategy and the training counters.
+
+        Args:
+            flag: ``"epochs"`` or ``"steps"``.
+
+        Returns:
+            True when the current counter matches the logging interval.
+        """
         if self.log_config.log_strategy != flag or self.log_config.log_dir is None or self.log_config.log_dir == "":
             return False
         if flag == "epochs":
@@ -431,6 +454,11 @@ class BasePipeline(metaclass=ABCMeta):
         if flag == "steps":
             return (self.training_state.current_global_step + 1) % self.log_config.log_steps == 0
         return False
+
+    def _can_log(self, flag: Literal["epochs", "steps"]):
+        if self.logger is None:
+            return False
+        return self._log_interval_due(flag)
 
     def _can_eval(self, flag: Literal["epochs", "steps"]):
         if self.training_config.eval_strategy != flag:
@@ -481,15 +509,18 @@ class BasePipeline(metaclass=ABCMeta):
                 torch.save(getattr(self, base_name), file_path)
             self._persist_report_run(temp_checkpoint_dir)
             os.rename(temp_checkpoint_dir, final_checkpoint_dir)
-            self._cleanup_old_checkpoints(save_dir=save_dir)
             if self.logger is not None:
                 self.logger.info(f"Model saved to {final_checkpoint_dir}")
-
         except Exception as e:
             if self.logger is not None:
                 self.logger.error(f"Failed to save checkpoint: {e}")
             shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
             raise
+        try:
+            self._cleanup_old_checkpoints(save_dir=save_dir)
+        except Exception as exc:
+            if self.logger is not None:
+                self.logger.error(f"Failed to delete old checkpoints: {exc}")
         self.trigger_callbacks(event=CallbackEvent.POST_SAVE)
 
     def load(self) -> None:
