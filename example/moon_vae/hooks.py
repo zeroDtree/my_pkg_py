@@ -67,7 +67,7 @@ def build_vae_metrics_hook(*, log_interval: int) -> ModelHook:
             kl_weight = kl_weight.item()
         stats = vae_debug_stats(model_output, kl_weight=float(kl_weight))
         stats["train/loss"] = model_output["loss"].item()
-        report(stats, step=state["step"])
+        report(stats, step=state["step"], on_error="defer")
         print(format_vae_train_line(state["step"], model_output, stats), flush=True)
 
     return ModelHook(name="vae_metrics", stage=ModelHookStageType.POST_COMPUTE_LOSS, fn=fn)

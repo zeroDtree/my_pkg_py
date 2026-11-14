@@ -17,6 +17,7 @@ def run_experiment(
     get_dataset_fn: Callable,
     get_collate_fn: Callable,
     post_train_fn: Callable | None = None,
+    after_train_fn: Callable | None = None,
     save_dir_suffix: str = "",
     disable_train_hooks: bool = True,
     get_optimizer_fn: Callable | None = None,
@@ -35,6 +36,10 @@ def run_experiment(
             train_set) -> None`` called on the main process after training.
             The process group is destroyed before this runs. The reporter stays
             open until this returns, so a failure here marks the run failed.
+        after_train_fn: Optional ``(cfg, model_result, pipeline, accelerator,
+            train_set) -> None`` called on every rank after training and before
+            the process group is destroyed. A failure here destroys the group
+            and skips ``post_train_fn``.
         save_dir_suffix: Appended to the checkpoint save-directory name.
         disable_train_hooks: If True (default), disable ``train_hook_handlers``
             before training so the model trains unconditionally.  Set False for
@@ -115,6 +120,13 @@ def run_experiment(
         pipeline.train()
         return model_result, pipeline, train_set
 
+    def _run_train() -> tuple[Any, Any, Any]:
+        trained = _train()
+        if after_train_fn is not None:
+            model_result, pipeline, train_set = trained
+            after_train_fn(cfg, model_result, pipeline, accelerator, train_set)
+        return trained
+
     def _destroy_group() -> None:
         try:
             accelerator.end_training()
@@ -148,14 +160,14 @@ def run_experiment(
             use_reporter(active_reporter),
         ):
             try:
-                trained = _train()
+                trained = _run_train()
             except BaseException:
                 _destroy_group()
                 raise
             _finish(trained)
     else:
         try:
-            trained = _train()
+            trained = _run_train()
         except BaseException:
             _destroy_group()
             raise

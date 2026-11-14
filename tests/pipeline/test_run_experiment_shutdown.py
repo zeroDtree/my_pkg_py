@@ -108,7 +108,7 @@ def _install(
     return accelerator
 
 
-def _run(events: list[str], *, post_train_fn):
+def _run(events: list[str], *, post_train_fn, after_train_fn=None):
     model = torch.nn.Linear(1, 1)
 
     def get_model(cfg: DictConfig):
@@ -123,7 +123,14 @@ def _run(events: list[str], *, post_train_fn):
         del cfg
         return None
 
-    run_experiment(_cfg(), get_model, get_dataset, get_collate, post_train_fn=post_train_fn)
+    run_experiment(
+        _cfg(),
+        get_model,
+        get_dataset,
+        get_collate,
+        post_train_fn=post_train_fn,
+        after_train_fn=after_train_fn,
+    )
 
 
 def test_every_rank_uses_the_same_checkpoint_dir(monkeypatch: pytest.MonkeyPatch):
@@ -246,3 +253,55 @@ def test_deferred_error_is_raised_after_teardown(monkeypatch: pytest.MonkeyPatch
         _run(events, post_train_fn=post_train)
 
     assert events == ["train", "wait", "end"]
+
+
+def test_after_train_runs_on_main_before_teardown(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    _install(monkeypatch, events, is_main=True)
+
+    def after_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("after")
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    _run(events, post_train_fn=post_train, after_train_fn=after_train)
+    assert events == ["train", "after", "wait", "end", "post"]
+
+
+def test_after_train_runs_on_non_main_without_post_train(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    _install(monkeypatch, events, is_main=False)
+
+    def after_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("after")
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    _run(events, post_train_fn=post_train, after_train_fn=after_train)
+    assert events == ["train", "after", "wait", "end"]
+
+
+def test_after_train_error_destroys_group_without_barrier(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    accelerator = _install(monkeypatch, events, is_main=True)
+
+    def after_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("after")
+        raise RuntimeError("after failed")
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+        events.append("post")
+
+    with pytest.raises(RuntimeError, match="after failed"):
+        _run(events, post_train_fn=post_train, after_train_fn=after_train)
+
+    assert events == ["train", "after", "end"]
+    accelerator.wait_for_everyone.assert_not_called()
