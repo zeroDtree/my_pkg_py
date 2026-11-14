@@ -247,8 +247,11 @@ class DistributedPipeline(BasePipeline):
     def _abort_uncommitted_save(self, temp_dir: str, error: Exception | None) -> None:
         """Drop an uncommitted checkpoint and stop every rank.
 
-        Only the rank that caught ``error`` remembers it. The published
-        checkpoint directory is left untouched.
+        The rank that caught ``error`` remembers that exception. A failure on
+        another rank leaves this process with ``error is None``. The main
+        process still remembers a peer failure, because the reporter and
+        ``post_train`` only see the main process. The published checkpoint
+        directory is left untouched.
 
         Args:
             temp_dir: temporary directory for this attempt.
@@ -264,6 +267,8 @@ class DistributedPipeline(BasePipeline):
             shutil.rmtree(temp_dir, ignore_errors=True)
         if error is not None:
             defer_error(error)
+        elif self.accelerator.is_main_process:
+            defer_error(RuntimeError("Checkpoint save failed on another rank"))
         self._halt = True
 
     def save(self) -> None:

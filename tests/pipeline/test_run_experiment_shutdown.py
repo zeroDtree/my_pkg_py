@@ -304,6 +304,43 @@ def test_shared_halt_skips_after_train_on_non_main(monkeypatch: pytest.MonkeyPat
     accelerator.set_trigger.assert_not_called()
 
 
+def test_scheduler_rewrite_replaces_the_stored_config(monkeypatch: pytest.MonkeyPatch):
+    events: list[str] = []
+    opened: list[dict[str, Any]] = []
+    stored: list[dict[str, Any]] = []
+    _install(monkeypatch, events, is_main=True)
+
+    def rewrite_scheduler(optimizer, accelerator, train_set, cfg):
+        del optimizer, accelerator, train_set
+        cfg.train.n_steps = 99
+        return MagicMock()
+
+    monkeypatch.setattr("mlkit.util.utils_for_main.get_learing_rate_scheduler", rewrite_scheduler)
+
+    class _RecordingReporter:
+        def report(self, data, *, step=None) -> None:
+            del data, step
+
+        def store_config(self, config) -> None:
+            stored.append(config)
+
+    @contextmanager
+    def fake_open(*args, **kwargs):
+        del args
+        opened.append(kwargs["config"])
+        yield _RecordingReporter()
+
+    monkeypatch.setattr("mlkit.util.report.open_reporter", fake_open)
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+
+    _run(events, post_train_fn=post_train)
+
+    assert opened[0]["train"]["n_steps"] == 1
+    assert stored[-1]["train"]["n_steps"] == 99
+
+
 def test_after_train_runs_on_main_before_teardown(monkeypatch: pytest.MonkeyPatch):
     events: list[str] = []
     _install(monkeypatch, events, is_main=True)

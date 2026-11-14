@@ -32,6 +32,13 @@ class NullReporter:
             step: optional step index for this payload.
         """
 
+    def store_config(self, config: Mapping[str, Any]) -> None:
+        """Discard a replacement config.
+
+        Args:
+            config: resolved config after the scheduler has rewritten it.
+        """
+
 
 def _format_report(data: Mapping[str, Any], step: int | None) -> str:
     body = " ".join(f"{key}={value}" for key, value in data.items())
@@ -47,6 +54,20 @@ _deferred: ContextVar[BaseException | None] = ContextVar("deferred_report_error"
 def get_reporter() -> Reporter:
     """Return the reporter installed for the current context."""
     return _current.get()
+
+
+def store_run_config(config: Mapping[str, Any]) -> None:
+    """Replace the config stored by the current reporter.
+
+    Reporters that do not implement ``store_config`` are left unchanged.
+
+    Args:
+        config: resolved config after the scheduler has rewritten it.
+    """
+    store = getattr(get_reporter(), "store_config", None)
+    if store is None:
+        return
+    store(config)
 
 
 def defer_error(exc: BaseException) -> None:

@@ -444,6 +444,9 @@ def test_peer_save_state_failure_does_not_publish(monkeypatch: pytest.MonkeyPatc
             assert renamed == []
             assert CallbackEvent.POST_SAVE not in events.events
             assert pipeline._halt is True
+            assert has_deferred_error()
+            with pytest.raises(RuntimeError, match="another rank"):
+                raise_deferred_error()
             assert list(Path(tmp).glob("checkpoint_*")) == []
             assert list(Path(tmp).glob("tmp_*")) == []
         finally:

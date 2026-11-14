@@ -11,6 +11,7 @@ from .core import (
     has_deferred_error,
     raise_deferred_error,
     report,
+    store_run_config,
     use_reporter,
 )
 from .mlflow import MLflowReporter
@@ -31,6 +32,7 @@ __all__ = [
     "raise_deferred_error",
     "report",
     "resume_run_id",
+    "store_run_config",
     "use_reporter",
     "write_report_run",
 ]

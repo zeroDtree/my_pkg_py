@@ -83,10 +83,14 @@ class WandbReporter:
                 id=self.run_id,
                 resume="allow",
             )
-        run_id = None if run is None else run.id
-        if not isinstance(run_id, str) or run_id == "":
-            raise RuntimeError("wandb did not start a run")
-        self.run_id = run_id
+        try:
+            run_id = None if run is None else run.id
+            if not isinstance(run_id, str) or run_id == "":
+                raise RuntimeError("wandb did not start a run")
+            self.run_id = run_id
+        except Exception:
+            wandb.finish(exit_code=1)
+            raise
         self._started = True
         return self
 
@@ -98,6 +102,19 @@ class WandbReporter:
         wandb.finish(exit_code=1 if exc_type is not None else 0)
         self._started = False
         return None
+
+    def store_config(self, config: Mapping[str, Any]) -> None:
+        """Replace the run config with the one training actually used.
+
+        Args:
+            config: resolved config after the scheduler has rewritten it.
+        """
+        self.config = config
+        if not self._started:
+            return
+        import wandb
+
+        wandb.config.update(_plain_data(self.config), allow_val_change=True)
 
     def report(self, data: Mapping[str, Any], *, step: int | None = None) -> None:
         """Forward the payload to ``wandb.log``.

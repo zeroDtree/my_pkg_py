@@ -113,12 +113,16 @@ class MLflowReporter:
                     raise
         mlflow.set_experiment(self.experiment)
         active = mlflow.start_run(run_id=self.run_id, run_name=self.run_name)
-        run_id = active.info.run_id
-        if not isinstance(run_id, str) or run_id == "":
-            raise RuntimeError("MLflow did not start a run")
-        self.run_id = run_id
+        try:
+            run_id = active.info.run_id
+            if not isinstance(run_id, str) or run_id == "":
+                raise RuntimeError("MLflow did not start a run")
+            self.run_id = run_id
+            mlflow.log_dict(_plain_data(self.config), "config.yaml")
+        except Exception:
+            mlflow.end_run(status="FAILED")
+            raise
         self._started = True
-        mlflow.log_dict(_plain_data(self.config), "config.yaml")
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -129,6 +133,19 @@ class MLflowReporter:
         mlflow.end_run(status="FAILED" if exc_type is not None else "FINISHED")
         self._started = False
         return None
+
+    def store_config(self, config: Mapping[str, Any]) -> None:
+        """Replace the stored config with the one training actually used.
+
+        Args:
+            config: resolved config after the scheduler has rewritten it.
+        """
+        self.config = config
+        if not self._started:
+            return
+        import mlflow
+
+        mlflow.log_dict(_plain_data(self.config), "config.yaml")
 
     def report(self, data: Mapping[str, Any], *, step: int | None = None) -> None:
         """Write finite numeric values as MLflow metrics.

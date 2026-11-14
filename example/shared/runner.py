@@ -62,6 +62,7 @@ def run_experiment(
         open_reporter,
         raise_deferred_error,
         resume_run_id,
+        store_run_config,
         use_reporter,
     )
     from mlkit.util.seed import seed_everything
@@ -96,6 +97,11 @@ def run_experiment(
         train_set, val_set, _ = get_dataset_fn(cfg)
         optimizer = (get_optimizer_fn or get_optimizer)(model, cfg)
         lr_scheduler = get_learing_rate_scheduler(optimizer, accelerator, train_set, cfg)
+        if accelerator.is_main_process:
+            effective_config = cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True))
+            store_run_config(effective_config)
+            if logger is not None:
+                logger.info("Config after scheduler rewrite:\n" + OmegaConf.to_yaml(cfg))
         show_info(model=model, optimizer=optimizer)
 
         log_config = LogConfig(**cfg.log)

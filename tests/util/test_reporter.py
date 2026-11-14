@@ -128,6 +128,9 @@ def test_open_reporter_rejects_unknown_kind():
 class _FakeMlflow:
     def __init__(self) -> None:
         self.calls: list[tuple[object, ...]] = []
+        self.start_error: BaseException | None = None
+        self.log_dict_error: BaseException | None = None
+        self.forced_run_id: str | None = None
 
     def set_tracking_uri(self, uri: object) -> None:
         self.calls.append(("uri", uri))
@@ -136,13 +139,22 @@ class _FakeMlflow:
         self.calls.append(("experiment", name))
 
     def start_run(self, run_id: object = None, run_name: object = None) -> Any:
-        resolved = run_id if isinstance(run_id, str) and run_id != "" else "new-run"
         self.calls.append(("start", run_id, run_name))
+        if self.start_error is not None:
+            raise self.start_error
+        if self.forced_run_id is not None:
+            resolved = self.forced_run_id
+        elif isinstance(run_id, str) and run_id != "":
+            resolved = run_id
+        else:
+            resolved = "new-run"
         info = type("Info", (), {"run_id": resolved})()
         return type("ActiveRun", (), {"info": info})()
 
     def log_dict(self, data: object, artifact_file: object) -> None:
-        self.calls.append(("dict", artifact_file))
+        self.calls.append(("dict", artifact_file, data))
+        if self.log_dict_error is not None:
+            raise self.log_dict_error
 
     def end_run(self, status: object = None) -> None:
         self.calls.append(("end", status))
@@ -175,6 +187,76 @@ def test_mlflow_reporter_keeps_tracking_uri_env(monkeypatch):
 
     assert not any(call[0] == "uri" for call in fake.calls)
     assert ("experiment", "remote") in fake.calls
+
+
+def _ended_failed(calls: list[tuple[object, ...]]) -> bool:
+    return ("end", "FAILED") in calls and ("end", "FINISHED") not in calls
+
+
+def test_mlflow_log_dict_failure_ends_the_run(monkeypatch):
+    import sys
+
+    fake = _FakeMlflow()
+    fake.log_dict_error = RuntimeError("artifact down")
+    monkeypatch.setitem(sys.modules, "mlflow", cast(Any, fake))
+    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+
+    with pytest.raises(RuntimeError, match="artifact down"):
+        with MLflowReporter(tracking_uri=None, experiment="local", run_name="run", config={"a": 1}):
+            pass
+
+    assert _ended_failed(fake.calls)
+
+
+def test_mlflow_empty_run_id_ends_the_run(monkeypatch):
+    import sys
+
+    fake = _FakeMlflow()
+    fake.forced_run_id = ""
+    monkeypatch.setitem(sys.modules, "mlflow", cast(Any, fake))
+    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+
+    with pytest.raises(RuntimeError, match="did not start a run"):
+        with MLflowReporter(tracking_uri=None, experiment="local", run_name="run", config={}):
+            pass
+
+    assert _ended_failed(fake.calls)
+
+
+def test_mlflow_start_run_failure_does_not_end_the_run(monkeypatch):
+    import sys
+
+    fake = _FakeMlflow()
+    fake.start_error = RuntimeError("tracking down")
+    monkeypatch.setitem(sys.modules, "mlflow", cast(Any, fake))
+    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+
+    with pytest.raises(RuntimeError, match="tracking down"):
+        with MLflowReporter(tracking_uri=None, experiment="local", run_name="run", config={}):
+            pass
+
+    assert not any(call[0] == "end" for call in fake.calls)
+
+
+def test_mlflow_store_config_replaces_the_artifact(monkeypatch):
+    import sys
+
+    fake = _FakeMlflow()
+    monkeypatch.setitem(sys.modules, "mlflow", cast(Any, fake))
+    monkeypatch.delenv("MLFLOW_TRACKING_URI", raising=False)
+
+    with MLflowReporter(
+        tracking_uri=None,
+        experiment="local",
+        run_name="run",
+        config={"train": {"n_steps": 1}},
+    ) as reporter:
+        reporter.store_config({"train": {"n_steps": 99}})
+
+    dict_calls = [call for call in fake.calls if call[0] == "dict"]
+    assert dict_calls[0][2] == {"train": {"n_steps": 1}}
+    assert dict_calls[1][2] == {"train": {"n_steps": 99}}
+    assert ("end", "FINISHED") in fake.calls
 
 
 def test_mlflow_reporter_sqlite_store(tmp_path):
@@ -221,10 +303,19 @@ class _FakeWandbRun:
         self.id = run_id
 
 
+class _FakeWandbConfig:
+    def __init__(self) -> None:
+        self.updates: list[tuple[object, bool]] = []
+
+    def update(self, data: object, allow_val_change: bool = False) -> None:
+        self.updates.append((data, allow_val_change))
+
+
 class _FakeWandb:
     def __init__(self) -> None:
         self.events: list[tuple] = []
         self.run: _FakeWandbRun | None = None
+        self.config = _FakeWandbConfig()
 
     def init(self, **kwargs: object) -> _FakeWandbRun:
         self.events.append(("init", kwargs))
@@ -295,6 +386,80 @@ def test_wandb_reporter_finish_marks_failure(monkeypatch):
             raise RuntimeError("boom")
 
     assert fake_wandb.events[-1] == ("finish", 1)
+
+
+def test_wandb_empty_run_id_finishes(monkeypatch):
+    import sys
+
+    class _EmptyIdWandb(_FakeWandb):
+        def init(self, **kwargs: object) -> _FakeWandbRun:
+            self.events.append(("init", kwargs))
+            self.run = _FakeWandbRun("")
+            return self.run
+
+    fake_wandb = _EmptyIdWandb()
+    monkeypatch.setitem(sys.modules, "wandb", cast(Any, fake_wandb))
+
+    with pytest.raises(RuntimeError, match="did not start a run"):
+        with WandbReporter(
+            project="p",
+            name="n",
+            group=None,
+            entity=None,
+            mode="offline",
+            reinit=True,
+            config={},
+        ):
+            pass
+
+    assert ("finish", 1) in fake_wandb.events
+    assert ("finish", 0) not in fake_wandb.events
+
+
+def test_wandb_init_failure_does_not_finish(monkeypatch):
+    import sys
+
+    class _BoomWandb(_FakeWandb):
+        def init(self, **kwargs: object) -> _FakeWandbRun:
+            self.events.append(("init", kwargs))
+            raise RuntimeError("wandb down")
+
+    fake_wandb = _BoomWandb()
+    monkeypatch.setitem(sys.modules, "wandb", cast(Any, fake_wandb))
+
+    with pytest.raises(RuntimeError, match="wandb down"):
+        with WandbReporter(
+            project="p",
+            name="n",
+            group=None,
+            entity=None,
+            mode="offline",
+            reinit=True,
+            config={},
+        ):
+            pass
+
+    assert not any(event[0] == "finish" for event in fake_wandb.events)
+
+
+def test_wandb_store_config_replaces_the_run_config(monkeypatch):
+    import sys
+
+    fake_wandb = _FakeWandb()
+    monkeypatch.setitem(sys.modules, "wandb", cast(Any, fake_wandb))
+
+    with WandbReporter(
+        project="p",
+        name="n",
+        group=None,
+        entity=None,
+        mode="offline",
+        reinit=True,
+        config={"train": {"n_steps": 1}},
+    ) as reporter:
+        reporter.store_config({"train": {"n_steps": 99}})
+
+    assert fake_wandb.config.updates == [({"train": {"n_steps": 99}}, True)]
 
 
 def test_wandb_reporter_resumes_with_allow(monkeypatch):
