@@ -71,6 +71,7 @@ def _install(
     is_main: bool,
     train_error: BaseException | None = None,
     on_train: Callable[[], None] | None = None,
+    configs: list[Any] | None = None,
 ) -> MagicMock:
     accelerator = MagicMock()
     accelerator.is_local_main_process = is_main
@@ -94,6 +95,8 @@ def _install(
     class TrainingConfig:
         def __init__(self, **kwargs: Any) -> None:
             self.__dict__.update(kwargs)
+            if configs is not None:
+                configs.append(self)
 
     monkeypatch.setattr("mlkit.util.utils_for_main.get_train_class", lambda: (Pipeline, TrainingConfig))
     monkeypatch.setattr("mlkit.util.utils_for_main.get_learing_rate_scheduler", lambda *args, **kwargs: MagicMock())
@@ -121,6 +124,20 @@ def _run(events: list[str], *, post_train_fn):
         return None
 
     run_experiment(_cfg(), get_model, get_dataset, get_collate, post_train_fn=post_train_fn)
+
+
+def test_every_rank_uses_the_same_checkpoint_dir(monkeypatch: pytest.MonkeyPatch):
+    expected = "checkpoints/toy/toy/-lr:0.01-bs:2"
+
+    def post_train(*args, **kwargs) -> None:
+        del args, kwargs
+
+    for is_main in (True, False):
+        events: list[str] = []
+        configs: list[Any] = []
+        _install(monkeypatch, events, is_main=is_main, configs=configs)
+        _run(events, post_train_fn=post_train)
+        assert [config.save_dir for config in configs] == [expected]
 
 
 def test_main_process_destroys_group_before_post_train(monkeypatch: pytest.MonkeyPatch):

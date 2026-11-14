@@ -98,8 +98,7 @@ def run_experiment(
         log_config = LogConfig(**cfg.log)
         PipelineClass, TrainingConfigClass = get_train_class()
         training_config = TrainingConfigClass(**cfg.train)
-        if accelerator.is_local_main_process:
-            training_config.save_dir = get_new_save_dir(training_config.save_dir, cfg, suffix=save_dir_suffix)
+        training_config.save_dir = get_new_save_dir(training_config.save_dir, cfg, suffix=save_dir_suffix)
 
         print(training_config.__dict__)
 
