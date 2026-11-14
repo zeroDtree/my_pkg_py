@@ -2,7 +2,17 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
 
-from .core import NullReporter, Reporter, get_reporter, report, use_reporter
+from .core import (
+    NullReporter,
+    Reporter,
+    clear_deferred_error,
+    defer_error,
+    get_reporter,
+    has_deferred_error,
+    raise_deferred_error,
+    report,
+    use_reporter,
+)
 from .mlflow import MLflowReporter
 from .run_file import persist_report_run, resume_run_id, write_report_run
 from .wandb import WandbReporter
@@ -12,9 +22,13 @@ __all__ = [
     "NullReporter",
     "Reporter",
     "WandbReporter",
+    "clear_deferred_error",
+    "defer_error",
     "get_reporter",
+    "has_deferred_error",
     "open_reporter",
     "persist_report_run",
+    "raise_deferred_error",
     "report",
     "resume_run_id",
     "use_reporter",

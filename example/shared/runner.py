@@ -33,7 +33,8 @@ def run_experiment(
         get_collate_fn: ``(cfg) -> collate_fn``.
         post_train_fn: Optional ``(cfg, model_result, pipeline, accelerator,
             train_set) -> None`` called on the main process after training.
-            The process group is destroyed before this runs.
+            The process group is destroyed before this runs. The reporter stays
+            open until this returns, so a failure here marks the run failed.
         save_dir_suffix: Appended to the checkpoint save-directory name.
         disable_train_hooks: If True (default), disable ``train_hook_handlers``
             before training so the model trains unconditionally.  Set False for
@@ -46,7 +47,13 @@ def run_experiment(
 
     from mlkit.pipeline.pipeline import LogConfig, latest_checkpoint_dir
     from mlkit.util.log import get_and_create_new_log_dir, get_logger
-    from mlkit.util.report import open_reporter, resume_run_id, use_reporter
+    from mlkit.util.report import (
+        clear_deferred_error,
+        open_reporter,
+        raise_deferred_error,
+        resume_run_id,
+        use_reporter,
+    )
     from mlkit.util.seed import seed_everything
     from mlkit.util.show import show_info
     from mlkit.util.utils_for_main import (
@@ -109,6 +116,23 @@ def run_experiment(
         pipeline.train()
         return model_result, pipeline, train_set
 
+    def _destroy_group() -> None:
+        try:
+            accelerator.end_training()
+        except Exception:
+            if logger is not None:
+                logger.exception("Failed to destroy the process group")
+
+    def _finish(trained: tuple[Any, Any, Any]) -> None:
+        model_result, pipeline, train_set = trained
+        # All ranks tear the process group down together, before main-process sampling.
+        accelerator.wait_for_everyone()
+        accelerator.end_training()
+        raise_deferred_error()
+        if accelerator.is_local_main_process and post_train_fn is not None:
+            post_train_fn(cfg, model_result, pipeline, accelerator, train_set)
+
+    clear_deferred_error()
     if accelerator.is_local_main_process:
         resolved_config = cast(dict[str, Any], OmegaConf.to_container(cfg, resolve=True))
         reporter_kind = str(cfg.reporter).strip().lower()
@@ -124,13 +148,16 @@ def run_experiment(
             ) as active_reporter,
             use_reporter(active_reporter),
         ):
-            model_result, pipeline, train_set = _train()
+            try:
+                trained = _train()
+            except BaseException:
+                _destroy_group()
+                raise
+            _finish(trained)
     else:
-        model_result, pipeline, train_set = _train()
-
-    # All ranks tear the process group down together, before main-process sampling.
-    accelerator.wait_for_everyone()
-    accelerator.end_training()
-
-    if accelerator.is_local_main_process and post_train_fn is not None:
-        post_train_fn(cfg, model_result, pipeline, accelerator, train_set)
+        try:
+            trained = _train()
+        except BaseException:
+            _destroy_group()
+            raise
+        _finish(trained)

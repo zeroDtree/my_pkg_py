@@ -14,8 +14,11 @@ from mlkit.util.report import (
     MLflowReporter,
     NullReporter,
     WandbReporter,
+    clear_deferred_error,
+    has_deferred_error,
     open_reporter,
     persist_report_run,
+    raise_deferred_error,
     report,
     resume_run_id,
     use_reporter,
@@ -77,6 +80,43 @@ def test_null_reporter_still_writes_text(caplog):
 
     messages = [record.message for record in caplog.records if record.name == logger.name]
     assert messages == ["step=2 loss=0.25"]
+
+
+class _BoomReporter:
+    def __init__(self, message: str) -> None:
+        self.message = message
+
+    def report(self, data: Mapping[str, Any], *, step: int | None = None) -> None:
+        del data, step
+        raise RuntimeError(self.message)
+
+
+def test_report_defer_keeps_the_first_error_and_writes_text(caplog):
+    logger = logging.getLogger("mlkit.test.reporter.defer")
+    logger.setLevel(logging.INFO)
+    try:
+        with use_reporter(_BoomReporter("backend 1.0")):
+            with caplog.at_level(logging.INFO, logger=logger.name):
+                report({"loss": 1.0}, step=3, logger=logger, on_error="defer")
+        with use_reporter(_BoomReporter("backend 2.0")):
+            report({"loss": 2.0}, step=4, logger=logger, on_error="defer")
+
+        assert has_deferred_error()
+        messages = [record.message for record in caplog.records if record.name == logger.name]
+        assert "step=3 loss=1.0" in messages
+        assert any(message == "report failed: backend 1.0" for message in messages)
+        with pytest.raises(RuntimeError, match="backend 1.0"):
+            raise_deferred_error()
+        assert not has_deferred_error()
+    finally:
+        clear_deferred_error()
+
+
+def test_report_raise_is_the_default():
+    with use_reporter(_BoomReporter("backend")):
+        with pytest.raises(RuntimeError, match="backend"):
+            report({"loss": 1.0}, step=1)
+    assert not has_deferred_error()
 
 
 def test_open_reporter_rejects_unknown_kind():
@@ -197,8 +237,8 @@ class _FakeWandb:
     def log(self, data: Mapping[str, object], step: object = None) -> None:
         self.events.append(("log", dict(data), step))
 
-    def finish(self) -> None:
-        self.events.append(("finish",))
+    def finish(self, exit_code: int | None = None) -> None:
+        self.events.append(("finish", exit_code))
 
 
 def test_wandb_reporter_calls_init_log_finish(monkeypatch):
@@ -233,7 +273,28 @@ def test_wandb_reporter_calls_init_log_finish(monkeypatch):
     assert "resume" not in events[0][1]
     assert wandb_reporter.run_id == "generated-id"
     assert events[1] == ("log", {"loss": 0.2}, 4)
-    assert events[2] == ("finish",)
+    assert events[2] == ("finish", 0)
+
+
+def test_wandb_reporter_finish_marks_failure(monkeypatch):
+    import sys
+
+    fake_wandb = _FakeWandb()
+    monkeypatch.setitem(sys.modules, "wandb", cast(Any, fake_wandb))
+
+    with pytest.raises(RuntimeError, match="boom"):
+        with WandbReporter(
+            project="p",
+            name="n",
+            group=None,
+            entity=None,
+            mode="offline",
+            reinit=True,
+            config={},
+        ):
+            raise RuntimeError("boom")
+
+    assert fake_wandb.events[-1] == ("finish", 1)
 
 
 def test_wandb_reporter_resumes_with_allow(monkeypatch):

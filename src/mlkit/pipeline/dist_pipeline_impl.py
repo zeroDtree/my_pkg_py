@@ -117,9 +117,9 @@ class MyTrainingConfig(DistributedTrainingConfig):
         n_processes = Accelerator().num_processes
         assert real_batch_size % n_processes == 0, "real_batch_size must be divisible by n_processes"
         per_device_real_batch_size = real_batch_size // n_processes
-        assert (
-            per_device_real_batch_size % per_device_batch_size == 0
-        ), "per_device_real_batch_size must be divisible by per_device_batch_size"
+        assert per_device_real_batch_size % per_device_batch_size == 0, (
+            "per_device_real_batch_size must be divisible by per_device_batch_size"
+        )
         gradient_accumulation_steps = per_device_real_batch_size // per_device_batch_size
         return gradient_accumulation_steps
 
@@ -243,10 +243,16 @@ class MyDistributedPipeline(DistributedPipeline):
                 self.training_state.current_step_in_epoch += 1
                 self.training_state.current_global_step += 1
 
+                if self._halt:
+                    break
                 if self._can_eval(flag="steps"):
                     self.eval()
+                if self._halt:
+                    break
                 if self._can_save(flag="steps"):
                     self.save()
+                if self._halt:
+                    break
                 pbar.set_postfix(loss=result["loss"], lr=result["lr"])
         self.save()
         self.trigger_callbacks(event=CallbackEvent.TRAINING_END)
@@ -288,7 +294,14 @@ class MyDistributedPipeline(DistributedPipeline):
                 "std_eval_loss": all_losses.std().item() if all_losses.numel() > 1 else 0.0,
             }
         if self.accelerator.is_local_main_process and self.logger is not None:
-            report(result, step=self.training_state.current_global_step, logger=self.logger)
+            report(
+                result,
+                step=self.training_state.current_global_step,
+                logger=self.logger,
+                on_error="defer",
+            )
+        if self._halt_if_any_rank_failed():
+            self._halt = True
 
         self.model.train()
         self.trigger_callbacks(

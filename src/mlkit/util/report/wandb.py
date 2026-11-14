@@ -95,7 +95,7 @@ class WandbReporter:
             return None
         import wandb
 
-        wandb.finish()
+        wandb.finish(exit_code=1 if exc_type is not None else 0)
         self._started = False
         return None
 

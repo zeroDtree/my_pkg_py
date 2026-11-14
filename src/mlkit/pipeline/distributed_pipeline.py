@@ -11,7 +11,7 @@ from accelerate import Accelerator
 from accelerate.utils import DistributedDataParallelKwargs
 
 from ..util.decorators import inherit_docstrings
-from ..util.report import report
+from ..util.report import defer_error, has_deferred_error, report
 from .callback import BaseCallback, CallbackEvent
 from .pipeline import BasePipeline, LogConfig, TrainingConfig
 
@@ -204,12 +204,28 @@ class DistributedPipeline(BasePipeline):
         result["lr"] = scheduler.get_last_lr()[0]
         result["global_step"] = self.training_state.current_global_step
 
-        # Only log on local main process
+        # Only log on local main process. A backend failure is remembered so the
+        # other ranks can leave this step together.
         if self._can_log(flag="steps") and self.accelerator.is_local_main_process and logger is not None:
-            report(result, step=self.training_state.current_global_step, logger=logger)
+            report(result, step=self.training_state.current_global_step, logger=logger, on_error="defer")
+
+        if self._halt_if_any_rank_failed():
+            self._halt = True
 
         self.trigger_callbacks(event=CallbackEvent.STEP_END, batch=batch)
         return result
+
+    def _halt_if_any_rank_failed(self) -> bool:
+        """Share a rank-local failure so every rank stops on the same step.
+
+        ``num_processes == 1`` reads the local error. Otherwise the main process
+        sets Accelerate's trigger and every rank checks it.
+        """
+        if self.accelerator.num_processes == 1:
+            return has_deferred_error()
+        if self.accelerator.is_main_process and has_deferred_error():
+            self.accelerator.set_trigger()
+        return bool(self.accelerator.check_trigger())
 
     def save(self) -> None:
         self.trigger_callbacks(event=CallbackEvent.PRE_SAVE)
@@ -235,8 +251,15 @@ class DistributedPipeline(BasePipeline):
 
         try:
             self.accelerator.save_state(temp_checkpoint_dir)
-
+        except Exception as exc:
             if self.accelerator.is_main_process:
+                if self.accelerator.is_local_main_process and self.logger is not None:
+                    self.logger.error(f"Failed to save checkpoint: {exc}")
+                shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
+            raise
+
+        if self.accelerator.is_main_process:
+            try:
                 for base_name in [
                     "training_state",
                     "training_config",
@@ -250,15 +273,18 @@ class DistributedPipeline(BasePipeline):
                 self._cleanup_old_checkpoints(save_dir=save_dir)
                 if self.accelerator.is_local_main_process and self.logger is not None:
                     self.logger.info(f"Model saved to {final_checkpoint_dir}")
-
-        except Exception as e:
-            if self.accelerator.is_main_process:
+            except Exception as exc:
                 if self.accelerator.is_local_main_process and self.logger is not None:
-                    self.logger.error(f"Failed to save checkpoint: {e}")
+                    self.logger.error(f"Failed to save checkpoint: {exc}")
                 shutil.rmtree(temp_checkpoint_dir, ignore_errors=True)
-            raise
+                defer_error(exc)
+
+        was_halted = self._halt
         self.accelerator.wait_for_everyone()
-        self.trigger_callbacks(event=CallbackEvent.POST_SAVE)
+        if self._halt_if_any_rank_failed():
+            self._halt = True
+        if was_halted or not self._halt:
+            self.trigger_callbacks(event=CallbackEvent.POST_SAVE)
 
     def load(self) -> None:
         self.trigger_callbacks(event=CallbackEvent.PRE_LOAD)

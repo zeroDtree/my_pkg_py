@@ -48,7 +48,7 @@ def build_gan_metrics_hook(*, log_interval: int):
             stats["train/g_loss"] = float(model_output["g_loss"].item())
         if "r1" in model_output:
             stats["train/r1"] = float(model_output["r1"].item())
-        report(stats, step=state["step"])
+        report(stats, step=state["step"], on_error="defer")
 
     return ModelHook(name="gan_metrics", stage=ModelHookStageType.POST_COMPUTE_LOSS, fn=fn)
 

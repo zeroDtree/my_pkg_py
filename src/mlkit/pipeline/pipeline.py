@@ -11,7 +11,7 @@ from accelerate import skip_first_batches
 from torch import Tensor
 from tqdm.auto import tqdm
 
-from ..util.report import persist_report_run, report
+from ..util.report import has_deferred_error, persist_report_run, report
 from .callback import BaseCallback, CallbackEvent, CallbackManager
 
 
@@ -185,6 +185,7 @@ class BasePipeline(metaclass=ABCMeta):
         self.training_config = training_config
         self.log_config = log_config
         self.training_state = TrainingState()
+        self._halt = False
         self.logger = logger.getChild(type(self).__name__) if logger is not None else None
 
         self.dataloader = torch.utils.data.DataLoader(
@@ -231,10 +232,16 @@ class BasePipeline(metaclass=ABCMeta):
             self.train_an_epoch()
             self.training_state.current_epoch += 1
 
+            if self._halt:
+                break
             if self._can_eval(flag="epochs"):
                 self.eval()
+            if self._halt:
+                break
             if self._can_save(flag="epochs"):
                 self.save()
+            if self._halt:
+                break
         self.save()
         self.trigger_callbacks(event=CallbackEvent.TRAINING_END)
 
@@ -263,14 +270,27 @@ class BasePipeline(metaclass=ABCMeta):
                 self.training_state.current_step_in_epoch += 1
                 self.training_state.current_global_step += 1
 
+                if self._halt:
+                    break
                 if self._can_eval(flag="steps"):
                     self.eval()
+                if self._halt:
+                    break
                 if self._can_save(flag="steps"):
                     self.save()
+                if self._halt:
+                    break
                 pbar.set_postfix(loss=result["loss"])
 
-        if result is not None and self._can_log(flag="epochs") and self.logger is not None:
-            report(result, step=self.training_state.current_epoch, logger=self.logger)
+        if not self._halt and result is not None and self._can_log(flag="epochs") and self.logger is not None:
+            report(
+                result,
+                step=self.training_state.current_epoch,
+                logger=self.logger,
+                on_error="defer",
+            )
+        if self._halt_if_any_rank_failed():
+            self._halt = True
         self.training_state.current_step_in_epoch = 0
         self.trigger_callbacks(event=CallbackEvent.EPOCH_END)
 
@@ -346,6 +366,14 @@ class BasePipeline(metaclass=ABCMeta):
 
     def eval(self):
         """Evaluate the model"""
+
+    def _halt_if_any_rank_failed(self) -> bool:
+        """Return whether a rank-local failure should stop this training loop.
+
+        A single-process pipeline stops when this process remembered a failure.
+        DistributedPipeline shares that fact across ranks before returning.
+        """
+        return has_deferred_error()
 
     def _is_local_main_process(self) -> bool:
         """Return True if this process should emit UI output (e.g. progress bars).
