@@ -111,23 +111,9 @@ if [[ "${MC_SKIP_UV_SYNC:-}" != "1" ]]; then
 	uv sync
 fi
 
-set +e
 uv run python -m accelerate.commands.launch \
 	--main_process_port "$(shuf -i 10000-60000 -n 1)" \
 	--config_file "$config_file" \
 	--num_processes "$n_cards" \
 	"$entry_script" \
 	"$@"
-exit_code=$?
-set -e
-
-# Notify only on successful completion; skip email for manual interrupts (debug).
-if [[ "$exit_code" -eq 0 ]]; then
-	command_args=(cuda)
-	if [[ -n "${CUDA_VISIBLE_DEVICES:-}" ]]; then
-		command_args+=("$CUDA_VISIBLE_DEVICES")
-	fi
-	command_args+=(bash "$0" "$entry_script" "$@")
-	bash "$SCRIPT_DIR/email.sh" "$exit_code" -- "${command_args[@]}" || true
-fi
-exit "$exit_code"
