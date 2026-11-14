@@ -40,7 +40,7 @@ def after_train(cfg, model_result, pipeline, accelerator, train_set):
 
     PipelineClass, TrainingConfigClass = get_train_class()
     train_kwargs: dict[str, Any] = cast(dict[str, Any], OmegaConf.to_container(cfg.train, resolve=True))
-    train_kwargs["save_dir"] = get_new_save_dir("checkpoints", cfg, suffix="_cfm")
+    train_kwargs["save_dir"] = get_new_save_dir(cfg.train.save_dir, cfg, suffix="_cfm")
     cond_training_config = TrainingConfigClass(**train_kwargs)
     log_kwargs: dict[str, Any] = cast(dict[str, Any], OmegaConf.to_container(cfg.log, resolve=True))
     log_config = LogConfig(**log_kwargs)
